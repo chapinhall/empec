@@ -52,8 +52,7 @@ ACS 1-Year microdata are subset to households not living in group quarters, to `
 # Sample restricted to housing unit only
 acs1 <- 
   acs1[TYPE %in% c(1) &
-         ST == my_state_fip &
-         YEAR == max(YEAR)]
+         ST == my_state_fip]
 
 # If county has been specified, load geographic data to perform subsetting to
 # relevant PUMAs
@@ -180,6 +179,7 @@ acs1_child <-
                        TRUE ~ "other_multiple"),
            child_hispanic = 1*(HISP != 1),
            fam_incpov_ratio_cat_mix   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.5, 1.0, 2.0, 3.0)),
+           fam_incpov_ratio_cat_mix2  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 1.0, 1.5, 2.25)),
            fam_incpov_ratio_cat_by50  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 3, by = 0.5)),
            fam_incpov_ratio_cat_by75  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 3, by = 0.75)),
            fam_incpov_ratio_cat_by100 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 3, by = 1.0)),

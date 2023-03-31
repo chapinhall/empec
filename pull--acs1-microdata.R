@@ -17,7 +17,6 @@
 
 #--------------------------------------------------------------------#
 
-
 # Note: this code is automatically run from the `run--01b--prep-acs1-data.Rmd`
 # script if ACS1 data has not yet been pulled for the current run specification.
 # If desiring to run this manually, run the following scripts to load relevant
@@ -27,8 +26,6 @@
 # - method--general-helper-functions.R
 
 #list necessary variables
-# Note: "TYPE" is missing
-
 pull_vars <- 
   c("SERIALNO", "ST", "PUMA", "FS", "SPORDER", "RELSHIPP", "SEX", "AGEP", 
     "RAC2P", "HISP", "SCH", "SCHL", "ESR", "COW", "OCCP", "INDP", "FINCP", 
@@ -38,7 +35,7 @@ pull_vars <-
 if (FALSE) {
   my_pums <- 
     pums_variables %>% 
-    filter(year == 2019, # {base_year},
+    filter(year == base_year,
            survey == "acs1"
     )
   View(my_pums)
@@ -51,13 +48,25 @@ if (FALSE) {
 }
 
 # Pull ACS data
-acs1 <- 
-  get_pums(variables = pull_vars,
-           state     = my_state_abbr, #'all' for all states
-           year      = base_year,
-           survey    = "acs1",
-           recode    = TRUE,
-           key       = census_key)
+acs1 <- NULL
+for (y in c(base_year-2, base_year)) {
+  acs1_y <-
+    get_pums(variables = pull_vars,
+             state     = my_state_abbr, #'all' for all states
+             year      = y,
+             survey    = "acs1",
+             recode    = TRUE,
+             key       = census_key) %>%
+    mutate(
+      YEAR   = y,
+      SAMPLE = glue("{y}01"),
+      STRATA = str_c(PUMA, ST),
+      INDP_label  = as.character(INDP_label), # convert this to character to avoid conflicts across years
+      OCCP_label  = as.character(OCCP_label), 
+      RAC2P_label = as.character(RAC2P_label)
+    )
+  acs1 <- bind_rows(acs1, acs1_y)
+}
 
 # Quick examination of fields
 if (FALSE) {
@@ -68,10 +77,6 @@ if (FALSE) {
 }
 
 #creating variables
-acs1$YEAR <- base_year
-acs1$SAMPLE <- glue("{base_year}01")
-acs1$STRATA <- str_c(acs1$PUMA, acs1$ST)
-
 acs1 <- 
   acs1 %>% 
   mutate(

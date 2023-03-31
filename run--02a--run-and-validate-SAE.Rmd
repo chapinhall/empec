@@ -144,10 +144,10 @@ sae_controls_added_2534 <-
 
 ```{r subset data for the SAE}
 acs1_child05_sae <- 
-  acs1_child[between(AGEP, 0, 5)]
+  acs1_child[between(AGEP, 0, 5) & YEAR == base_year]
 
 acs1_child612_sae <- 
-  acs1_child[between(AGEP, 6, 12)]
+  acs1_child[between(AGEP, 6, 12) & YEAR == base_year]
 
 acs5tract_sae <- acs5tract
 

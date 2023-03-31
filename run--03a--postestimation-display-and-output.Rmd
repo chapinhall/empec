@@ -24,27 +24,26 @@ load(file = glue("{output_path}pop_data_{my_output_tag}.Rda"))
 # Below, there are several `if` clauses that already implement--and describe--
 # logic for selecting a sensitivity specific for each of several run specifications
 
+nowcast_prepped <- 
+  nowcast_out %>%
+  mutate(age = str_extract(sae_spec, "\\d+$"),
+         age = case_when(age == "05"  ~ "age_0to5",
+                         age == "612" ~ "age_6to12"),
+         sae_spec = str_replace(sae_spec, "_\\d+$", "")) 
+
 if (str_detect(my_output_tag, "IL2022")) {
   # Rationale is we're not just focused on metro areas, and we want the most
   # up-to-date estimates as possible
   nowcast_selected_sens <-
-    nowcast_out[cps_geo_subsample == "none" & 
-                cps_base_recency == "most_recent"] %>% 
-    mutate(age = str_extract(sae_spec, "\\d+$"),
-           age = case_when(age == "05"  ~ "age_0to5",
-                           age == "612" ~ "age_6to12"),
-           sae_spec = str_replace(sae_spec, "_\\d+$", ""))  
+    nowcast_prepped[cps_geo_subsample == "none" & 
+                    cps_base_recency  == "most_recent"] 
 } else if (str_detect(my_output_tag, "Cook|Chi")) {
   # Rationale is we are focused on a metro areas, and we want estimates for 2022
   # that are parallel to 2021, given that this method is part of a sequence of
   # a sequence of annual reports
   nowcast_selected_sens <-
-    nowcast_out[cps_geo_subsample == "metros" & 
-                cps_base_recency == "allbase"] %>% 
-    mutate(age = str_extract(sae_spec, "\\d+$"),
-           age = case_when(age == "05"  ~ "age_0to5",
-                           age == "612" ~ "age_6to12"),
-           sae_spec = str_replace(sae_spec, "_\\d+$", ""))
+    nowcast_prepped[cps_geo_subsample == "metros" & 
+                    cps_base_recency  == "allbase"] 
 }
 ```
 
@@ -73,6 +72,12 @@ nowcast_parallel_hs_elig <-
   filter(outcome_var == "hs_elig_post_adj",
          str_detect(sae_spec, "incpov_ctrls2534")) %>% 
   mutate(base_share = share_0_50 + share_50_100)
+
+nowcast_parallel_le150_elig <- 
+  nowcast_parallel_setup %>% 
+  filter(outcome_var == "le150_elig_post_adj",
+         str_detect(sae_spec, "incpov_ctrls2534")) %>% 
+  mutate(base_share = share_0_50 + share_50_100 + share_100_200)
 
 nowcast_parallel_pfa_elig <- 
   nowcast_parallel_setup %>% 
@@ -109,6 +114,7 @@ if (local_ccdf_thresh == 200) {
 nowcast_parallel_preshape <- 
   bind_rows(nowcast_parallel_deep_pov,
             nowcast_parallel_hs_elig,
+            nowcast_parallel_le150_elig,
             nowcast_parallel_pfa_elig,
             nowcast_parallel_upk_elig,
             nowcast_parallel_ccdf_elig) %>% 

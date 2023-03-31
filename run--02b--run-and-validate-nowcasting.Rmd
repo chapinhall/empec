@@ -641,6 +641,7 @@ for (cps_recency in c("most_recent", "allbase")) {
         # believe that more parsimonious specifications may do better.
         outcome_vars <- c("deep_pov_post_adj", 
                           "hs_elig_post_adj", 
+                          "le150_elig_post_adj",
                           "pfa_elig_post_adj", 
                           "upk_elig_post_adj", 
                           "ccdf_elig_tight_inc_adj")

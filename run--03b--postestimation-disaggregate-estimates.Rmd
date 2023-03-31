@@ -28,7 +28,7 @@ Our strategy to disaggregate estimates by age group--primarily to break our esti
 calc_breakdown <- function(acs1_outcome_sub, outcome_var) {
   acs1_age_breakdown <-
     acs1_outcome_sub %>% 
-    filter(child_agegroup %in% c("0to2", "3to5")) %>% 
+    filter(child_agegroup %in% c("0to2", "3to5") & YEAR == base_year) %>% 
     mutate(child_agegroup = paste0("age_", child_agegroup)) %>% 
     group_by(child_agegroup) %>% 
     summarize(n = sum(PWGTP)) %>% 
@@ -50,12 +50,14 @@ age_breakdown_byoutcome <-
                           "deep_pov_post_adj"),
            calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 == "0%-100%"), 
                           "hs_elig_post_adj"),
+           calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_mix2  %in% c("0%-100%", "100%-150%")), 
+                          "le150_elig_post_adj"),
            calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 %in% c("0%-100%", "100%-200%")), 
                           "pfa_elig_post_adj"),
            calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 %in% c("0%-100%", "100%-200%")), 
                           "upk_elig_post_adj"),
-           calc_breakdown(acs1_child %>% filter(work_incpov_status75 %in% ccdf_elig_cats),
-                             "ccdf_elig_tight_inc_adj"))
+           calc_breakdown(acs1_child %>% filter(work_incpov_status75       %in% ccdf_elig_cats),
+                          "ccdf_elig_tight_inc_adj"))
 
 ```
 
@@ -98,6 +100,57 @@ nowcast_elig_counts_final <-
 
 ## Aggregate Estimates to Larger Geographies
 
+```{r function to develop top-level aggregation from microdata}
+acs_fpl_agecounts <- 
+  acs1_child %>%
+  .[child_agegroup %in% c("0to2", "3to5") & !is.na(fam_incpov_ratio_cat_mix2) ] %>%
+  .[j = .(n_aiy = sum(PWGTP)), #age, income, year
+    by = .(year = YEAR, age = child_agegroup, incpov = fam_incpov_ratio_cat_mix2)] %>%
+  .[j = source := "acs1"]
+
+cps_fpl_agecounts <- 
+  cps_child_base %>%
+  .[child_agegroup %in% c("0to2", "3to5") & !is.na(fam_incpov_ratio_cat_byMix2) & STATEFIP == my_state_fip] %>%
+  .[j = .(n_aiy = sum(WTFINL)), #age, income, year
+    by = .(year = YEAR, age = child_agegroup, incpov = fam_incpov_ratio_cat_byMix2)] %>%
+  .[j = source := "cps"]
+
+fpl_agecounts <- 
+  bind_rows(acs_fpl_agecounts, cps_fpl_agecounts) %>%
+  .[j = n_ay := sum(n_aiy), #age, year
+    by = .(year, age, source)]
+
+fpl_agecounts <- 
+  bind_rows(fpl_agecounts,
+            fpl_agecounts[j = .(n_aiy = sum(n_aiy),
+                                n_ay  = sum(unique(n_ay))),
+                          by = .(year, incpov, source)] %>% 
+              .[j = age := "0to5"])  %>%
+  .[j = `:=`(pct = n_aiy / n_ay,
+             age = factor(age,
+                          levels = c("0to2", "3to5", "0to5")))] %>% 
+  arrange(year, age, incpov, source)
+
+ggplot(fpl_agecounts[!str_detect(incpov, "225%\\+")], 
+       aes(x = year,
+           y = pct,
+           color = source)) +
+  scale_y_continuous(label = percent) +
+  facet_grid(age~incpov) +
+  geom_line() +
+  geom_point() +
+  theme_bw()
+
+merge(fpl_agecounts[source == "acs1"] %>% dplyr::select(-source),
+      fpl_agecounts[source == "cps"]  %>% dplyr::select(-source),
+      by = c("year", "age", "incpov"),
+      suffixes = c("_acs1", "_cps"),
+      all = TRUE) %>%
+  write.csv(file = glue("{output_path}ACS and CPS counts and percents -- 2019-2022, 0-100pct, 100-150pct, 150-225pct.csv"),
+            row.names = FALSE)
+
+```
+
 ```{r function to add level of aggregation if not already available}
 add_agg_level <- function(ests, agg_level) {
   
@@ -114,6 +167,13 @@ add_agg_level <- function(ests, agg_level) {
         transmute(GEOID = GEOID, 
                   aux_geo_label = aux_geo_label, 
                   geo_part = pct_area)
+    } else if (agg_level == "top") {
+      geo_merge_data <- 
+        geo_crosswalk %>%
+        transmute(GEOID = GEOID,
+                  top = "top", 
+                  geo_part = 1) %>%
+        unique()
     } else {
       geo_merge_data <- 
         geo_crosswalk[j = c("GEOID", agg_level), with = FALSE] %>% 
@@ -162,10 +222,48 @@ agg_tracts_up <- function(ests, agg_level) {
 nowcast_agg_tract <- agg_tracts_up(nowcast_elig_counts_final, "GEOID")
 nowcast_agg_zip   <- agg_tracts_up(nowcast_elig_counts_final, "ZCTA")
 nowcast_agg_cty   <- agg_tracts_up(nowcast_elig_counts_final, "County")
+nowcast_agg_top   <- agg_tracts_up(nowcast_elig_counts_final, "top")
 
 if (exists("my_aux_geo")) {
   nowcast_agg_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  
 }
+```
+
+```{r compare top-level estimates from microdata and elpep}
+top_comp <- 
+  nowcast_agg_top %>%
+  mutate(year = base_year + ifelse(pd == "base", 0, 1)) %>%
+  filter(age != "age_6to12") %>%
+  pivot_wider(id_cols = c("year", "age"), 
+              names_from = "outcome_var",
+              values_from = "share") %>%
+  mutate(`0%-100%`   = hs_elig_post_adj,
+         `100%-150%` = le150_elig_post_adj - hs_elig_post_adj,
+         `150%-225%` = upk_elig_post_adj - le150_elig_post_adj,
+         `225%+`     = 1 - upk_elig_post_adj,
+         age         = str_replace(age, "age_", "")) %>%
+  dplyr::select(-ends_with("_adj")) %>%
+  pivot_longer(cols      = -one_of(c("year", "age")),
+               names_to  = "incpov",
+               values_to = "pct") %>%
+  # Base year calculations with the 150% cutpoint are invalid (since we don't get
+  # that calculation in the SAE method
+  # Remove any related calculations for the base year 
+  filter(!(year == base_year & str_detect(incpov, "150%"))) %>% 
+  mutate(source = "elpep") %>%
+  bind_rows(fpl_agecounts)
+
+ggplot(top_comp %>%
+         filter(!str_detect(incpov, "225%\\+")), 
+       aes(x = year,
+           y = pct,
+           color = source)) +
+  scale_y_continuous(label = percent) +
+  facet_grid(age~incpov) +
+  geom_line() +
+  geom_point(size = 2) +
+  theme_bw()
+
 ```
 
 ### Generate Excel Tables with Estimates at Each Geographic Aggregation for CCDF
@@ -220,7 +318,7 @@ write_agg_output <- function(x, agg_level, sheet_name, add, out_label) {
            # (Re)calculate share to be consistent with the rounded counts.
            # This is most significant for small geographies, where counts may
            # be small--and thus likely a familiar percentage, or even 0
-           share = (count / pop_count) %>% replace_na(0),
+           share    = (count / pop_count) %>% replace_na(0),
            share_se = se_proportion(count, pop_count, count_se, pop_count_se),
            share_lb = pmax(share + qnorm(.1)*share_se, 0) %>% replace_na(0),
            share_ub = pmin(share + qnorm(.9)*share_se, 1) %>% replace_na(0)) %>% 
@@ -275,6 +373,12 @@ write_agg_output(x = nowcast_agg_zip %>% filter(outcome_var %like% "ccdf"),
 write_agg_output(x = nowcast_agg_cty %>% filter(outcome_var %like% "ccdf"), 
                  agg_level = "County", 
                  sheet_name = "County",
+                 add = TRUE,
+                 out_label = local_ccdf_name_short)
+
+write_agg_output(x = nowcast_agg_cty %>% filter(outcome_var %like% "ccdf"), 
+                 agg_level = "top", 
+                 sheet_name = "Top",
                  add = TRUE,
                  out_label = local_ccdf_name_short)
 

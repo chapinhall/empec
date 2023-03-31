@@ -1,12 +1,13 @@
 
 ### Install packages -----------------------------------------------------------
-packages.list <- c("knitr", "ggplot2", "Rcpp", "Hmisc", "dplyr", "data.table", "tidyr", 
+packages.list <- c("knitr", "ggplot2", "Rcpp", "Hmisc", "sae", "data.table", "tidyr", 
                    "VGAM", "stringr", "glmnet", "censusapi", "plotly", "crosstalk", 
                    "DT", "kableExtra", "emdi", "glue", "forcats", "scales", "zoo",
                    "moments", "rgdal", "leaflet", "RColorBrewer", "ggalluvial",
                    "tigris", "extrafont", "remotes", "broom", "sf", "lwgeom",
                    "foreach", "doParallel", "R.utils", "tidycensus", "fredr",
-                   "ipumsr", "tsibble", "forecast", "fable", "tidyverse", "sae")
+                   "ipumsr", "tsibble", "forecast", "fable", "tidyverse", "dplyr",
+                   "ggthemes")
 for (p in packages.list) {
   if (!p %in% installed.packages()[, "Package"]) install.packages(p)
   # Load the package quietly
@@ -14,6 +15,8 @@ for (p in packages.list) {
                                          character.only = TRUE,
                                          verbose = FALSE))
 }
+
+options(dplyr.summarise.inform = FALSE)
 
 meanNA <- function(...) mean(..., na.rm = TRUE)
  sumNA <- function(...)  sum(..., na.rm = TRUE)
