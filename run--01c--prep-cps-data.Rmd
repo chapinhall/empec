@@ -74,7 +74,7 @@ cps_timing <-
 cps_timing[j = table(months_since_base)] # Values should be 0-3, 12-15 (CPS samples are interviewed for 4 consecutive months, not interviewed for the next 8 months, and then interviewed again for the next 4 months). There are some cases of 9-11 for months_since_base, but small enough to ignore. 
 
 cps_timing[j = `:=`(is_baseline = months_since_base == 0,
-                    # /!\ This selects a single post-period survey. Notably, it's the first time in which
+                    # /!\ This selects a single post-period survey. Notably, it's the most recent in which
                     # the household has been seen. That will standardize samples with respect to calendar
                     # time, but not with respect to time since initial survey. Return to consider whether
                     # this is okay, if we want to standardized by e.g. months_since_base == 12 or 15, or
