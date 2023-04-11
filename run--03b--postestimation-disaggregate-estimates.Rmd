@@ -1,7 +1,7 @@
 
 ```{r run scripts for necessary packages and objects as necessary}
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
@@ -100,35 +100,48 @@ nowcast_elig_counts_final <-
 
 ## Aggregate Estimates to Larger Geographies
 
-```{r function to develop top-level aggregation from microdata}
-acs_fpl_agecounts <- 
+```{r develop and combine microdata from both acs1 and cps}
+acs1_fpl_agecounts <- 
   acs1_child %>%
-  .[child_agegroup %in% c("0to2", "3to5") & !is.na(fam_incpov_ratio_cat_mix2) ] %>%
+  .[child_agegroup %in% c("0to2", "3to5", "6to8", "9to12") & !is.na(fam_incpov_ratio_cat_mix2) ] %>%
   .[j = .(n_aiy = sum(PWGTP)), #age, income, year
     by = .(year = YEAR, age = child_agegroup, incpov = fam_incpov_ratio_cat_mix2)] %>%
   .[j = source := "acs1"]
 
 cps_fpl_agecounts <- 
   cps_child_base %>%
-  .[child_agegroup %in% c("0to2", "3to5") & !is.na(fam_incpov_ratio_cat_byMix2) & STATEFIP == my_state_fip] %>%
+  .[child_agegroup %in% c("0to2", "3to5", "6to8", "9to12") & !is.na(fam_incpov_ratio_cat_byMix2) & STATEFIP == my_state_fip] %>%
   .[j = .(n_aiy = sum(WTFINL)), #age, income, year
     by = .(year = YEAR, age = child_agegroup, incpov = fam_incpov_ratio_cat_byMix2)] %>%
   .[j = source := "cps"]
 
 fpl_agecounts <- 
-  bind_rows(acs_fpl_agecounts, cps_fpl_agecounts) %>%
+  bind_rows(acs1_fpl_agecounts, cps_fpl_agecounts) %>%
   .[j = n_ay := sum(n_aiy), #age, year
     by = .(year, age, source)]
+```
 
+
+```{r develop microdata from both acs1 and cps}
+# /!\ Given the small size of the CPS when subset to the state level, especially
+# with further disaggregation, consider using bootstrap facilities to examine
+# the reliability of even these state-wide statistics
+# See e.g.: https://www.statology.org/bootstrapping-in-r/
 fpl_agecounts <- 
   bind_rows(fpl_agecounts,
-            fpl_agecounts[j = .(n_aiy = sum(n_aiy),
+            fpl_agecounts[age %in% c("0to2", "3to5"),
+                          j = .(n_aiy = sum(n_aiy),
                                 n_ay  = sum(unique(n_ay))),
                           by = .(year, incpov, source)] %>% 
-              .[j = age := "0to5"])  %>%
+              .[j = age := "0to5"],
+            fpl_agecounts[age %in% c("0to2", "3to5", "6to8", "9to12"),
+                          j = .(n_aiy = sum(n_aiy),
+                                n_ay  = sum(unique(n_ay))),
+                          by = .(year, incpov, source)] %>% 
+              .[j = age := "0to12"])  %>%
   .[j = `:=`(pct = n_aiy / n_ay,
              age = factor(age,
-                          levels = c("0to2", "3to5", "0to5")))] %>% 
+                          levels = c("0to2", "3to5", "0to5", "6to8", "9to12", "0to12")))] %>% 
   arrange(year, age, incpov, source)
 
 ggplot(fpl_agecounts[!str_detect(incpov, "225%\\+")], 
