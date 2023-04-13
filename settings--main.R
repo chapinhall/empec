@@ -4,7 +4,7 @@ packages.list <- c("knitr", "ggplot2", "Rcpp", "Hmisc", "dplyr", "data.table", "
                    "VGAM", "stringr", "glmnet", "censusapi", "plotly", "crosstalk", 
                    "DT", "kableExtra", "emdi", "glue", "forcats", "scales", "zoo",
                    "moments", "rgdal", "leaflet", "RColorBrewer", "ggalluvial",
-                   "tigris", "extrafont", "remotes", "broom", "sf", "lwgeom",
+                   "tigris", "extrafont", "remotes", "broom", "sf", "lwgeom", "acs",
                    "foreach", "doParallel", "R.utils", "tidycensus", "fredr",
                    "ipumsr", "tsibble", "forecast", "fable", "tidyverse", "sae")
 for (p in packages.list) {

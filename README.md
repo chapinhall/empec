@@ -151,7 +151,7 @@ Current Population Survey (CPS) microdata are used to examine the economic dynam
 
 The CPS data were downloaded interactively from the [IPUMS CPS](https://cps.ipums.org/cps/) (originally "Integrated Public Use Microdata Series") website. Annual Supplementary Economic Characteristics (ASEC) data and Basic Monthly Data were pulled for 2019 and all months forward for the current exercise, and for both 2007-2009 for the sake of validating our method using data from throughout the Great Recession.
 
-Before making selections of variables, it is necessary within Sample Selections to select the "Cross Sectional" option. This makes it possible to download the Basic Monthly Files which have a more complex longitudinal structure than the Annual Social and Economic Supplement (ASEC) sample. See [this article](https://www.census.gov/topics/population/foreign-born/guidance/cps-guidance/cps-vs-asec.html) for a comparison of the genearl CPS versus ASEC samples. This selection must be made before selecting variables. Otherwise the existing selections will be lost.
+Before making selections of variables, it is necessary within Sample Selections to select the "Cross Sectional" option. This makes it possible to download the Basic Monthly Files which have a more complex longitudinal structure than the Annual Social and Economic Supplement (ASEC) sample. See [this article](https://www.census.gov/topics/population/foreign-born/guidance/cps-guidance/cps-vs-asec.html) for a comparison of the general CPS versus ASEC samples. This selection must be made before selecting variables. Otherwise the existing selections will be lost.
 
 The following fields were pulled:
 
@@ -221,7 +221,7 @@ The diagnostic scripts generally represent one-time examinations that were run t
 * `diagnostic--basictabs_cps.Rmd` -- this investigates the size of the CPS, and in effect establishes the fact that given a focus on children under age 5, it is necessary to pool households across the US to maximize sample size to characterize recent trends in household economic dynamics
 * `diagnostic--analyze_familyincome_cps.Rmd` -- this investigates the ability for the CPS to provide income characterizations useful for determining CCAP program eligibility
 * `diagnostic--validate_estimates.R` -- build comparison between new statistical estimates and ACS microdata estimates
-* `diagnostic--validate_estimates.Rmd` -- displays comparisons built in `validate_estimates.R`
+* `diagnostic--validate_estimates.Rmd` -- displays comparisons built in `diagnostic--validate_estimates.R`
 
 ## Sandbox Scripts
 

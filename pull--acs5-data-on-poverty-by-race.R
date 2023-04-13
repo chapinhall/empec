@@ -7,7 +7,6 @@
 # This code is from prior work for DFSS
 
 ### Set up workspace -----------------------------------------------------------
-library(acs)
 grepv <- function(pattern, x) grep(pattern = pattern, x = x, value = TRUE)
 cn <- function(x) colnames(x)
 
@@ -34,7 +33,7 @@ acs.lookup(endyear = 2019, span = 5, table.number="B17020") # Curiously, this ta
 
 # Note that the elements in these tables can be examined on Social Explorer here:
 # https://www.socialexplorer.com/data/ACS2014/metadata/?ds=American+Community+Survey+2014&table=B17001A
-pullSt <- "IL"
+pullSt <- my_state_abbr
 pullCounties <- "Cook County"
 pullPlace <- "Chicago"
 pullYears <- 2019

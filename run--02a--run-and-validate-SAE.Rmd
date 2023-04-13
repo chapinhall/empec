@@ -55,10 +55,6 @@ show_acs_n_bys <- function(by_vars) {
 
 <!-- /!\ Consider building this into a graphical view. -->
 
-```{r, eval = developer_mode}
-show_acs_n_bys(c("fam_incpov_ratio_cat_by100", "child_race"))
-```
-
 ```{r age and income by 100s, eval = developer_mode}
 show_acs_n_bys("fam_incpov_ratio_cat_by100")
 ```
@@ -86,7 +82,7 @@ show_acs_n_bys(c("fam_incpov_ratio_cat_by100", "hoh_industry_vulnerable"))
 ```
 
 ```{r investigate work elibility for ccdf by income thresholds}
-show_acs_n_bys(c("work_incpov_status185"))
+show_acs_n_bys(c("work_incpov_status75"))
 ```
 
 ## Results of SAE Estimation
@@ -117,7 +113,7 @@ incpov_ranges_for_estimation <- c("0to50", "50to100", "100to199", "200to299")
 # added to make a direct comparison.
 
 work_incpov_spec_field <- 
-  case_when(local_ccdf_thresh == 185 ~ "work_incpov_status185",
+  case_when(local_ccdf_thresh == 185 ~ "work_incpov_status185", #/!!\ this doesn't exist?
             local_ccdf_thresh == 200 ~ "work_incpov_status100",
             local_ccdf_thresh == 225 ~ "work_incpov_status75",
             TRUE ~ "work_incpov_status100")
@@ -255,7 +251,7 @@ if (rerun_sae) {
            sae_results_incpov_simple_612    = list(incpov_spec_field,      acs1_child612_sae, sae_controls_simple),
            sae_results_incpov_ctrls2534_05  = list(incpov_spec_field,      acs1_child05_sae,  sae_controls_added_2534),
            sae_results_incpov_ctrls2534_612 = list(incpov_spec_field,      acs1_child612_sae, sae_controls_added_2534),
-           sae_results_ccdf_wk_sp_05        = list("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534),
+           sae_results_ccdf_wk_sp_05        = list("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534), #/!!\ why do we not include sae_results_ccdf_wk_sp_612?
            sae_results_ccdf_wk_pov_05       = list(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534),
            sae_results_ccdf_wk_pov_612      = list(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534))
     
@@ -287,7 +283,7 @@ if (rerun_sae) {
     sae_results_incpov_simple_612    <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child612_sae, sae_controls_simple)
     sae_results_incpov_ctrls2534_05  <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child05_sae,  sae_controls_added_2534)
     sae_results_incpov_ctrls2534_612 <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child612_sae, sae_controls_added_2534)
-    sae_results_ccdf_wk_sp_05        <- run_sae_combos_bycontrols("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534)
+    sae_results_ccdf_wk_sp_05        <- run_sae_combos_bycontrols("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534) #/!!\ why do we not include sae_results_ccdf_wk_sp_612?
     sae_results_ccdf_wk_pov_05       <- run_sae_combos_bycontrols(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534)
     sae_results_ccdf_wk_pov_612      <- run_sae_combos_bycontrols(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534)
   }
