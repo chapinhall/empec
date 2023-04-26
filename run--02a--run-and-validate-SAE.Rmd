@@ -155,7 +155,7 @@ sae_controls_added_2534_612 <-
 
 ```{r subset data for the SAE}
 acs1_child[j = PUMA := str_pad(PUMA, width = 5, side = "left", pad = "0")]
-stopifnot(all(geo_crosswalk$PUMA %in% acs1_child$PUMA))
+#stopifnot(all(geo_crosswalk$PUMA %in% acs1_child$PUMA))
 
 acs1_child05_sae <- 
   acs1_child[between(AGEP, 0, 5)]
@@ -872,7 +872,7 @@ map_sae_components <- function(dt, fill_field, field_label, val_limits, save_lab
   
   pumaShp_sub <-
     pumaShp %>% 
-    filter(PUMA %in% pumas_to_keep)
+    filter(PUMACE10 %in% pumas_to_keep)
   
   my_plot <- 
     ggplot() +

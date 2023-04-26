@@ -1,8 +1,11 @@
 ---
 title: "Estimate Current, Local Counts of Children Eligible for Child Care Supports"
-author: "Nick Mader (nmader@chapinhall.org)"
+author: "Nick Mader (nmader@chapinhall.org) and Hyein Kang (hkang@chapinhall.org)"
 date: "`r format(Sys.Date(), '%m-%d-%Y')`"
 output: 
+  # word_document:
+  #   toc: true
+  #   toc_depth: 2
   html_document:
     toc: true
     toc_depth: 2

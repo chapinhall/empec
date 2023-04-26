@@ -86,10 +86,10 @@ if (exists("my_county_fip")) county_val <- my_county_fip else county_val <- NULL
 
 # Note that cb = TRUE requests a lower-res file, which is fine for mapping we want to do
 
-tractShp  <-   tracts(state = my_state_fip, cb = TRUE, year = tiger_year, county = county_val)
-pumaShp   <-    pumas(state = my_state_fip, cb = TRUE, year = tiger_year) 
-countyShp <- counties(state = my_state_fip, cb = TRUE, year = tiger_year)
-zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_starts)
+tractShp  <-   tracts(state = my_state_fip, cb = TRUE, year = tiger_year, progress_bar = FALSE, county = county_val)
+pumaShp   <-    pumas(state = my_state_fip, cb = TRUE, year = tiger_year, progress_bar = FALSE) 
+countyShp <- counties(state = my_state_fip, cb = TRUE, year = tiger_year, progress_bar = FALSE)
+zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_starts, progress_bar = FALSE)
   # Note: we pull zctas differently--with "starts_with" rather than state because
   # the zctas() function can only return by state for years 2000 and 2010 
 ```

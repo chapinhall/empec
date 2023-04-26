@@ -1,5 +1,5 @@
 
-```{r run scripts for necessary packages and objects as necessary}
+```{r}
 if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
@@ -345,222 +345,222 @@ write_agg_output(x = nowcast_agg_pay %>% filter(outcome_var %like% "ccdf"),
                  out_label = local_ccdf_name_short)
 ```
 
-# Examine Final Estimates
+<!-- # Examine Final Estimates -->
 
-## Compare Nowcast Estimates vs Baseline
+<!-- ## Compare Nowcast Estimates vs Baseline -->
 
-```{r function to compare pre-post changes in aggregates, eval = "my_aux_geo" %in% objects(), results = "asis"}
+<!-- ```{r function to compare pre-post changes in aggregates, eval = "my_aux_geo" %in% objects(), results = "asis"} -->
 
-cat("#### For Auxiliary Geography -- Examine Pre-Post CCDF Changes Directly")
+<!-- cat("#### For Auxiliary Geography -- Examine Pre-Post CCDF Changes Directly") -->
 
-# Generate paired bar at aux level
-aux_lvl_ests_long <- 
-  ccdf_ests_aux %>% 
-  dplyr::select(my_aux_geo_field, ccdf_share_pre, ccdf_share_post) %>% 
-  pivot_longer(cols = -my_aux_geo_field) %>% 
-  filter(!is.na(my_aux_geo_field))
+<!-- # Generate paired bar at aux level -->
+<!-- aux_lvl_ests_long <-  -->
+<!--   ccdf_ests_aux %>%  -->
+<!--   dplyr::select(my_aux_geo_field, ccdf_share_pre, ccdf_share_post) %>%  -->
+<!--   pivot_longer(cols = -my_aux_geo_field) %>%  -->
+<!--   filter(!is.na(my_aux_geo_field)) -->
 
-ggplot(aux_lvl_ests_long,
-       aes(x = my_aux_geo_field,
-           y = value,
-           fill = factor(name, levels = c("ccdf_share_pre", "ccdf_share_post")))) +
-  geom_bar(stat = "identity",
-           width = 0.5,
-           position = position_dodge(width = 0.5)) +
-  scale_fill_manual(name = "",
-                    breaks = c("ccdf_share_pre", "ccdf_share_post"),
-                    labels = c("2021", "Sept-Nov 2022"),
-                    values = chHexs[c(2, 4)]) +
-  scale_y_continuous(labels = percent) +
-  labs(title = case_when(my_output_tag == "IL" ~ "CCAP Eligibility Generally Declines, but Unevenly Across SDAs",
-                         TRUE ~ ""),
-       x = "",
-       y = "") +
-  #theme_minimal() +
-  myTheme +
-  theme(axis.text.x = element_text(angle = 90,
-                                   vjust = 0.5,
-                                   hjust = 1.0))
-```
+<!-- ggplot(aux_lvl_ests_long, -->
+<!--        aes(x = my_aux_geo_field, -->
+<!--            y = value, -->
+<!--            fill = factor(name, levels = c("ccdf_share_pre", "ccdf_share_post")))) + -->
+<!--   geom_bar(stat = "identity", -->
+<!--            width = 0.5, -->
+<!--            position = position_dodge(width = 0.5)) + -->
+<!--   scale_fill_manual(name = "", -->
+<!--                     breaks = c("ccdf_share_pre", "ccdf_share_post"), -->
+<!--                     labels = c("2021", "Sept-Nov 2022"), -->
+<!--                     values = chHexs[c(2, 4)]) + -->
+<!--   scale_y_continuous(labels = percent) + -->
+<!--   labs(title = case_when(my_output_tag == "IL" ~ "CCAP Eligibility Generally Declines, but Unevenly Across SDAs", -->
+<!--                          TRUE ~ ""), -->
+<!--        x = "", -->
+<!--        y = "") + -->
+<!--   #theme_minimal() + -->
+<!--   myTheme + -->
+<!--   theme(axis.text.x = element_text(angle = 90, -->
+<!--                                    vjust = 0.5, -->
+<!--                                    hjust = 1.0)) -->
+<!-- ``` -->
 
-## Compare Estimates At Different Levels of Aggregation
+<!-- ## Compare Estimates At Different Levels of Aggregation -->
 
-```{r}
+<!-- ```{r} -->
 
-```
-
-
-## Map Levels and Differences
-
-```{r generate static plots}
-static_map_val <- function(estimates,
-                           geo_level,
-                           geo_level_merge_field = geo_level,
-                           outcome,
-                           field_desc,
-                           plot_stat, # can take values "nowcast" or "diff"
-                           save_map = TRUE, 
-                           val_limits = NULL,
-                           show_legend = TRUE,
-                           fill_trans  = "identity") { # an alternative is "sqrt"
-  
-  ### Prepare estimates -------------------------------------------------------#
-  est_plot <- 
-    estimates %>% 
-    filter(outcome_var %like% outcome) %>% 
-    dplyr::select(-count, -count_se, -pop_count, -pop_count_se, -share_se)
-  
-  est_wide <- 
-    est_plot %>% 
-    pivot_wider(names_from = pd,
-                values_from = share) %>% 
-    mutate(diff = nowcast - base,
-           Age = str_replace_all(age, ".+(\\d+)to(\\d+)", "Age \\1-\\2"))
-  
-  ### Join Geographic Data ----------------------------------------------------#
-  myShp <- get(glue("{str_to_lower(geo_level)}Shp"))
-  est_geo <- 
-    est_wide %>% 
-    merge(myShp,
-          by = geo_level_merge_field) %>% 
-    st_as_sf()
-  
-  ### Set plot options --------------------------------------------------------#
-  # See this reference for setting `option` for scale_fill_viridis_c():
-  #   https://ggplot2.tidyverse.org/reference/scale_viridis.html
-  # See this as a visual reference for viridis color maps:
-  #   https://cran.r-project.org/web/packages/viridis/vignettes/intro-to-viridis.html
-  color_opt <- ifelse(plot_stat == "nowcast", 
-                      "plasma",  # this is roughly yellow-red-purple
-                      "viridis") # this is roughly yellow-green-purple
-  
-  if (plot_stat == "nowcast") {
-    measure_label <- glue("Levels of {field_desc}")  
-  } else {
-    field_desc <- str_replace(field_desc, "\\(", glue("\\({base_year} - "))
-    measure_label <- glue("Pct Pt Diff in {field_desc}")  
-  }
-  
-  # Prep outcome description to work with filenaming
-  measure_label_out <- 
-    measure_label %>% 
-    str_replace("<", "Below") %>% 
-    str_replace("%", "pct")
-  
-  ### Generate Map Plot -------------------------------------------------------#
-  my_plot <- 
-    ggplot() +
-    geom_sf(data = est_geo,
-            aes_string(fill = plot_stat),
-            linewidth = 0.025,
-            color = "black")
-  
-  # # Add PUMA layer if requested
-  # if (show_puma){
-  #   my_plot <-
-  #     my_plot +
-  #     geom_sf(data = st_as_sf(pumaShp),
-  #           color = "red",
-  #           size = 1,
-  #           fill = NA)
-  # }
-  # 
-  # # Add aux geo if defined
-  # if (show_aux) {
-  #   my_plot <- 
-  #     my_plot +
-  #     geom_sf(data = st_as_sf(auxShp),
-  #           color = "black",
-  #           size = 0.1,
-  #           fill = NA)
-  # }
-  
-  # Finish map
-  my_plot <-
-    my_plot + 
-    scale_fill_viridis_c(name = measure_label,
-                         limits = val_limits, 
-                         option = color_opt,
-                         trans = fill_trans,
-                         labels = percent,
-                         alpha = .4) +
-    facet_wrap(~Age) +
-    theme_void() 
-  
-  # Remove legend if not desired
-  if (!show_legend) {
-    my_plot <- 
-      my_plot +
-      theme(legend.position = "none")
-  }
-      
-  if (save_map) {
-    ggsave(plot = my_plot,
-           filename = glue("{output_path}Map of {measure_label_out} for {geo_level}_{my_output_tag}.png"),
-           #width = 7,
-           height = 7,
-           units = "in")  
-  }
-  
-  return(my_plot)
-}
-```
+<!-- ``` -->
 
 
-```{r map to generate maps for both levels and differences}
-static_map_level_diff <- function(plot_stats = c("nowcast", "diff"),
-                                  ...) {
-  
-  for (ps in plot_stats) {
-    static_map_val(plot_stat = ps,
-                   ...)
-  }
-}
-```
+<!-- ## Map Levels and Differences -->
+
+<!-- ```{r generate static plots} -->
+<!-- static_map_val <- function(estimates, -->
+<!--                            geo_level, -->
+<!--                            geo_level_merge_field = geo_level, -->
+<!--                            outcome, -->
+<!--                            field_desc, -->
+<!--                            plot_stat, # can take values "nowcast" or "diff" -->
+<!--                            save_map = TRUE,  -->
+<!--                            val_limits = NULL, -->
+<!--                            show_legend = TRUE, -->
+<!--                            fill_trans  = "identity") { # an alternative is "sqrt" -->
+
+<!--   ### Prepare estimates -------------------------------------------------------# -->
+<!--   est_plot <-  -->
+<!--     estimates %>%  -->
+<!--     filter(outcome_var %like% outcome) %>%  -->
+<!--     dplyr::select(-count, -count_se, -pop_count, -pop_count_se, -share_se) -->
+
+<!--   est_wide <-  -->
+<!--     est_plot %>%  -->
+<!--     pivot_wider(names_from = pd, -->
+<!--                 values_from = share) %>%  -->
+<!--     mutate(diff = nowcast - base, -->
+<!--            Age = str_replace_all(age, ".+(\\d+)to(\\d+)", "Age \\1-\\2")) -->
+
+<!--   ### Join Geographic Data ----------------------------------------------------# -->
+<!--   myShp <- get(glue("{str_to_lower(geo_level)}Shp")) -->
+<!--   est_geo <-  -->
+<!--     est_wide %>%  -->
+<!--     merge(myShp, -->
+<!--           by = geo_level_merge_field) %>%  -->
+<!--     st_as_sf() -->
+
+<!--   ### Set plot options --------------------------------------------------------# -->
+<!--   # See this reference for setting `option` for scale_fill_viridis_c(): -->
+<!--   #   https://ggplot2.tidyverse.org/reference/scale_viridis.html -->
+<!--   # See this as a visual reference for viridis color maps: -->
+<!--   #   https://cran.r-project.org/web/packages/viridis/vignettes/intro-to-viridis.html -->
+<!--   color_opt <- ifelse(plot_stat == "nowcast",  -->
+<!--                       "plasma",  # this is roughly yellow-red-purple -->
+<!--                       "viridis") # this is roughly yellow-green-purple -->
+
+<!--   if (plot_stat == "nowcast") { -->
+<!--     measure_label <- glue("Levels of {field_desc}")   -->
+<!--   } else { -->
+<!--     field_desc <- str_replace(field_desc, "\\(", glue("\\({base_year} - ")) -->
+<!--     measure_label <- glue("Pct Pt Diff in {field_desc}")   -->
+<!--   } -->
+
+<!--   # Prep outcome description to work with filenaming -->
+<!--   measure_label_out <-  -->
+<!--     measure_label %>%  -->
+<!--     str_replace("<", "Below") %>%  -->
+<!--     str_replace("%", "pct") -->
+
+<!--   ### Generate Map Plot -------------------------------------------------------# -->
+<!--   my_plot <-  -->
+<!--     ggplot() + -->
+<!--     geom_sf(data = est_geo, -->
+<!--             aes_string(fill = plot_stat), -->
+<!--             linewidth = 0.025, -->
+<!--             color = "black") -->
+
+<!--   # # Add PUMA layer if requested -->
+<!--   # if (show_puma){ -->
+<!--   #   my_plot <- -->
+<!--   #     my_plot + -->
+<!--   #     geom_sf(data = st_as_sf(pumaShp), -->
+<!--   #           color = "red", -->
+<!--   #           size = 1, -->
+<!--   #           fill = NA) -->
+<!--   # } -->
+<!--   #  -->
+<!--   # # Add aux geo if defined -->
+<!--   # if (show_aux) { -->
+<!--   #   my_plot <-  -->
+<!--   #     my_plot + -->
+<!--   #     geom_sf(data = st_as_sf(auxShp), -->
+<!--   #           color = "black", -->
+<!--   #           size = 0.1, -->
+<!--   #           fill = NA) -->
+<!--   # } -->
+
+<!--   # Finish map -->
+<!--   my_plot <- -->
+<!--     my_plot +  -->
+<!--     scale_fill_viridis_c(name = measure_label, -->
+<!--                          limits = val_limits,  -->
+<!--                          option = color_opt, -->
+<!--                          trans = fill_trans, -->
+<!--                          labels = percent, -->
+<!--                          alpha = .4) + -->
+<!--     facet_wrap(~Age) + -->
+<!--     theme_void()  -->
+
+<!--   # Remove legend if not desired -->
+<!--   if (!show_legend) { -->
+<!--     my_plot <-  -->
+<!--       my_plot + -->
+<!--       theme(legend.position = "none") -->
+<!--   } -->
+
+<!--   if (save_map) { -->
+<!--     ggsave(plot = my_plot, -->
+<!--            filename = glue("{output_path}Map of {measure_label_out} for {geo_level}_{my_output_tag}.png"), -->
+<!--            #width = 7, -->
+<!--            height = 7, -->
+<!--            units = "in")   -->
+<!--   } -->
+
+<!--   return(my_plot) -->
+<!-- } -->
+<!-- ``` -->
 
 
-```{r generate static plots of ccdf eligibility in levels and differences}
+<!-- ```{r map to generate maps for both levels and differences} -->
+<!-- static_map_level_diff <- function(plot_stats = c("nowcast", "diff"), -->
+<!--                                   ...) { -->
 
-for (out_var in c("ccdf", "hs", "upk")) {
-  out_var_desc <- 
-    switch(out_var,
-           "ccdf" = glue("CCAP Eligibility ({date_range})"),
-           "hs"   = glue("Head Start Eligibility ({date_range})"),
-           "upk"  = glue("Income <225% ({date_range})"))
-  
-  static_map_level_diff(estimates = nowcast_agg_zip %>% filter(age == "age_0to5"),
-                        geo_level = "ZCTA",
-                        outcome = out_var,
-                        field_desc = out_var_desc,
-                        save_map = TRUE, 
-                        #val_limits = c(0, 0.6),
-                        show_legend = TRUE)
-  
-  static_map_level_diff(estimates = nowcast_agg_cty %>% filter(age == "age_0to5"),
-                        geo_level = "County",
-                        outcome = out_var,
-                        field_desc = out_var_desc,
-                        save_map = TRUE, 
-                        #val_limits = c(0, 0.6),
-                        show_legend = TRUE)
-  
-  static_map_level_diff(estimates = nowcast_agg_aux %>% filter(age == "age_0to5"),
-                        geo_level = "aux",
-                        geo_level_merge_field = "aux_geo_label",
-                        outcome = out_var,
-                        field_desc = out_var_desc,
-                        save_map = TRUE, 
-                        #val_limits = c(0, 0.6),
-                        show_legend = TRUE) 
-}
-```
+<!--   for (ps in plot_stats) { -->
+<!--     static_map_val(plot_stat = ps, -->
+<!--                    ...) -->
+<!--   } -->
+<!-- } -->
+<!-- ``` -->
 
-<!-- /!\ Could also consider generating a series of maps to show the logical progression of 
-  ## ACS1 (PUMA)                    ... shows basic, baseline data
-  -> ACS5 (tract w/PUMA overlay)    ... shows heterogeneity, as a predictor for SAE 
-  -> SAE (tract with PUMA overlay)  ... shows SAE result
-  -> Now-cast (tract)               ... shows changes
-  -> geo aggregation                ... shows conversion to useful basis
 
--->
+<!-- ```{r generate static plots of ccdf eligibility in levels and differences} -->
+
+<!-- for (out_var in c("ccdf", "hs", "upk")) { -->
+<!--   out_var_desc <-  -->
+<!--     switch(out_var, -->
+<!--            "ccdf" = glue("CCAP Eligibility ({date_range})"), -->
+<!--            "hs"   = glue("Head Start Eligibility ({date_range})"), -->
+<!--            "upk"  = glue("Income <225% ({date_range})")) -->
+
+<!--   static_map_level_diff(estimates = nowcast_agg_zip %>% filter(age == "age_0to5"), -->
+<!--                         geo_level = "ZCTA", -->
+<!--                         outcome = out_var, -->
+<!--                         field_desc = out_var_desc, -->
+<!--                         save_map = TRUE,  -->
+<!--                         #val_limits = c(0, 0.6), -->
+<!--                         show_legend = TRUE) -->
+
+<!--   static_map_level_diff(estimates = nowcast_agg_cty %>% filter(age == "age_0to5"), -->
+<!--                         geo_level = "County", -->
+<!--                         outcome = out_var, -->
+<!--                         field_desc = out_var_desc, -->
+<!--                         save_map = TRUE,  -->
+<!--                         #val_limits = c(0, 0.6), -->
+<!--                         show_legend = TRUE) -->
+
+<!--   static_map_level_diff(estimates = nowcast_agg_aux %>% filter(age == "age_0to5"), -->
+<!--                         geo_level = "aux", -->
+<!--                         geo_level_merge_field = "aux_geo_label", -->
+<!--                         outcome = out_var, -->
+<!--                         field_desc = out_var_desc, -->
+<!--                         save_map = TRUE,  -->
+<!--                         #val_limits = c(0, 0.6), -->
+<!--                         show_legend = TRUE)  -->
+<!-- } -->
+<!-- ``` -->
+
+<!-- <!-- /!\ Could also consider generating a series of maps to show the logical progression of  -->
+<!--   ## ACS1 (PUMA)                    ... shows basic, baseline data -->
+<!--   -> ACS5 (tract w/PUMA overlay)    ... shows heterogeneity, as a predictor for SAE  -->
+<!--   -> SAE (tract with PUMA overlay)  ... shows SAE result -->
+<!--   -> Now-cast (tract)               ... shows changes -->
+<!--   -> geo aggregation                ... shows conversion to useful basis -->
+
+<!-- --> -->
 
