@@ -38,7 +38,8 @@ if ("my_county" %in% objects()) {
 
 ```{r prepare ACS 5-year crosswalk data}
 geo_crosswalk_puma <-
-  fread("https://www2.census.gov/geo/docs/maps-data/data/rel/2010_Census_Tract_to_2010_PUMA.txt") %>% 
+  fread("https://www2.census.gov/geo/docs/maps-data/data/rel/2010_Census_Tract_to_2010_PUMA.txt",
+        showProgress = FALSE) %>% 
     # for reference, this is the 2020 tract-to-PUMA crosswalk. While ACS5 data
     # from 2020 is available and uses this, the ACS1 data pull from 2021 uses
     # 2010 PUMA definitions. Temporarily, we are planning to continue to work on
@@ -56,7 +57,8 @@ geo_crosswalk_puma <-
          GEOID = paste0(STATEFIP, COUNTYFIP, TRACTFIP))
 
 geo_crosswalk_zcta <-
-  fread("https://www2.census.gov/geo/docs/maps-data/data/rel/zcta_tract_rel_10.txt") %>%
+  fread("https://www2.census.gov/geo/docs/maps-data/data/rel/zcta_tract_rel_10.txt",
+        showProgress = FALSE) %>%
   .[STATE == my_state_fip] %>% 
   .[j = GEOID := as.character(GEOID)]
   # Will be able to update this for 2020 at: https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/
