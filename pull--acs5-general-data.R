@@ -14,10 +14,9 @@
 
 # Import functions
 
-library(glue)
-source(glue("{code_path}settings--main.R"))
-source(glue("{code_path}settings--profile.R"))
-source(glue("{code_path}method--general-helper-functions.R"))
+if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
+if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 
 # Set local variable values
 
@@ -1635,5 +1634,5 @@ acs_final5 <-
   filter(source == "acs5")
 
 save(acs_final5, 
-     file = glue("{output_path}acs5_variables.Rda"))
-write.csv(acs_final5, glue("{output_path}acs5_variables.csv"))
+     file = glue("{output_path}acs5_variables_{my_output_tag}.Rda"))
+write.csv(acs_final5, glue("{output_path}acs5_variables_{my_output_tag}.csv"))
