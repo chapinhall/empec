@@ -169,7 +169,12 @@ acs5tract_sae <- acs5tract
 if (exists("my_county_fip")) {
   acs1_child05_sae <- 
     acs1_child05_sae %>% 
-    .[j = in_my_geo := 1*(PUMA %in% geo_crosswalk[COUNTYFIP == my_county_fip]$PUMA)] %>% 
+    .[j = in_my_geo := 1*(as.integer(PUMA) %in% geo_crosswalk[COUNTYFIP == my_county_fip]$PUMA)] %>% 
+    .[in_my_geo == 1]
+  
+  acs1_child612_sae <- 
+    acs1_child612_sae %>% 
+    .[j = in_my_geo := 1*(as.integer(PUMA) %in% geo_crosswalk[COUNTYFIP == my_county_fip]$PUMA)] %>% 
     .[in_my_geo == 1]
   
   acs5tract_sae <- 
