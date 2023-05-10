@@ -1,11 +1,11 @@
-
+```{=html}
 <!-- This .Rmd file is set up to run either independently by checking for 
 the presence of necessary objects in the global environment and running 
 related scripts if not, or also as a child to the "main-doc". For that latter
 reason, comments and headings that are not relevant to a final report to
 pubic audiences are suppressed or moved to code chunks that can optionally be 
 `echo`ed as desired. -->
-
+```
 ```{r}
 # set flags for running this cps script
 print_documentation <- FALSE
@@ -218,38 +218,37 @@ gc(cps_family_test)
 
 ### Adjustment for Economic Impact Payments
 
-A key measure for development is family income, which at follow-up is used to determine eligibility for programming. The family income measure represented in the basic monthly file, FAMINC, is documented as *"...the total combined income during the past 12 months for all members of the householder's family. The questionnaire says that 'This includes money from jobs, net income from business, farm or rent, pensions, dividends, interest, social security payments and any other money income received' by members of the householder's family who are 15 years of age or older.* From investigation of patterns of income stability and employment status, it seems clear that federal Economic Impact Payments were included in this amount. However, eligibility for child care supports do not include these amounts. **\]Direct citation is necessary.\]**
+A key measure for development is family income, which at follow-up is used to determine eligibility for programming. The family income measure represented in the basic monthly file, FAMINC, is documented as *"...the total combined income during the past 12 months for all members of the householder's family. The questionnaire says that 'This includes money from jobs, net income from business, farm or rent, pensions, dividends, interest, social security payments and any other money income received' by members of the householder's family who are 15 years of age or older.* From investigation of patterns of income stability and employment status, it seems clear that federal Economic Impact Payments were included in this amount. However, eligibility for child care supports do not include these amounts. **]Direct citation is necessary.]**
 
 The first round of federal stimulus was signed on March 27, 2020 and [provided for](https://www.aarp.org/politics-society/advocacy/info-2020/coronavirus-stimulus-checks.html):
 
-* \$1,200 for single adults, and \$2,400 for married
-* \$500 for each child under 17
-* A 5% reduction in these benefits for every dollar earned over \$75,000 for individual, \$112,500 for heads of household, and \$150,000 for married joint filers /!\\ Note that the source only directly describes the benefit for individuals as reducing according to this schedule
+-   \$1,200 for single adults, and \$2,400 for married
+-   \$500 for each child under 17
+-   A 5% reduction in these benefits for every dollar earned over \$75,000 for individual, \$112,500 for heads of household, and \$150,000 for married joint filers /!\\ Note that the source only directly describes the benefit for individuals as reducing according to this schedule
 
 The timing of these payments was not precise. Given a mid-May deadline to submit banking information--after which individuals would receive a paper check rather than direct deposit, the timing of receipt is roughly assumed to be May 2020 although this likely varies meaningfully.
 
 The second round of federal stimulus was signed on March 27, 2020 and [provided for](https://www.aarp.org/money/taxes/info-2020/second-stimulus-checks.html):
 
-* \$600 for single adults, and \$1,200 for married 
-* \$600 for each child 16 or younger (/!\\ note that, per the current source, it is ambiguous whether this is the same or different than the previous threshold)
-* A 5% reduction in these benefits for every dollar earned over \$75,000 for individual, \$112,500 for heads of household, and $150,000 for married joint filers /!\\ Note that the source only directly describes the benefit for individuals as reducing according to this schedule
+-   \$600 for single adults, and \$1,200 for married
+-   \$600 for each child 16 or younger (/!\\ note that, per the current source, it is ambiguous whether this is the same or different than the previous threshold)
+-   A 5% reduction in these benefits for every dollar earned over \$75,000 for individual, \$112,500 for heads of household, and \$150,000 for married joint filers /!\\ Note that the source only directly describes the benefit for individuals as reducing according to this schedule
 
 Timing of payment for the second Economic Impact Payment was more tightly controlled than in the first round, and was set for payment on December 30th, 2020. We assume that this income was received as of January 2021.
 
 The third round of federal stimulus was issued starting in March 2021 and [provided for](https://www.aarp.org/money/taxes/info-2021/third-stimulus-checks.html):
 
-* \$1,400 for single adults, and \$2,800 for married
-* \$1,400 for each eligible dependent, including adult dependents
-* Full amount of the payment for \$75,000 for single filers, \$112,500 for head of household, and \$150,000 for married joint filers. (https://www.irs.gov/coronavirus/third-economic-impact-payment)
-* Reduction of amounts with full phase-out at \$80,000 for single filers, \$120,000 for head of household, and \$160,000 for married joint filers. This implied a significantly higher rate of phase-out, and one that is variable (https://www.irs.gov/newsroom/more-details-about-the-third-round-of-economic-impact-payments)
-* Removal of age cap -- all qualifying kids (not just under 17) were eligible for the third stimulus check
+-   \$1,400 for single adults, and \$2,800 for married
+-   \$1,400 for each eligible dependent, including adult dependents
+-   Full amount of the payment for \$75,000 for single filers, \$112,500 for head of household, and \$150,000 for married joint filers. (<https://www.irs.gov/coronavirus/third-economic-impact-payment>)
+-   Reduction of amounts with full phase-out at \$80,000 for single filers, \$120,000 for head of household, and \$160,000 for married joint filers. This implied a significantly higher rate of phase-out, and one that is variable (<https://www.irs.gov/newsroom/more-details-about-the-third-round-of-economic-impact-payments>)
+-   Removal of age cap -- all qualifying kids (not just under 17) were eligible for the third stimulus check
 
 With some exceptions, the majority of this Economic Impact Payment was sent as of March 30, 2021. We assume that this income was received as of April 2021.
 
 These payments were based on adjusted gross income (AGI) from 2019, or AGI from 2020 for the third payment if households had filed in time for consideration (as presumably it would benefit many households to do so). For simplicity, we assume that income at the baseline month is representative of this basis for determining eligibility.
 
 <!-- /!\ Revisit this -- this can likely be improved, especially considering the third economic payment -->
-
 
 ```{r determine would-be economic impact payments}
 cps_family[j = faminc_draw := draw_inc(FAMINC)]
@@ -333,7 +332,6 @@ cps_faminc_vals <- sort(unique(cps_pov$FAMINC))
 
 ```
 
-
 ```{r develop income to poverty ratio and ccdf/ccap eligibility for cps considering economic impact payments}
 cps_pov <-
   cps_pov %>% 
@@ -415,7 +413,7 @@ cps_pov[YEAR == 2020,
 
 A remaining support available to households during the pandemic is Unemployment Insurance intended to buoy household income during the economic crash. While eligibility for child care programs excludes consideration of the EIPs, it does consider UI benefits as income. Below, we compare our adjusted income measure to that of income plus UI benefits from the CPS's Annual Social and Economic Supplement (ASEC).
 
- <!-- /!\ Note: look for confirmation/documentation of UI income related to eligibility -->
+<!-- /!\ Note: look for confirmation/documentation of UI income related to eligibility -->
 
 ```{r check on the correspondence of adjust basic-monthly income with ASEC wage plus UI, eval = developer_mode}
 comp_sub <- 
@@ -530,15 +528,14 @@ cps_pov_monthly <-
   dplyr::select(-matches("INCTOT|INCWAGE|INCUNEMP|POVERTY|ASECFLAG"))
 ```
 
-
 ### Build CCDF Eligibility Flags
 
 Develop flags for eligibility of child care subsidies through the federal Child Care and Development Fund (CCDF). Locally, the Illinois [Child Care Assistance Program (CCAP)](https://www.dhs.state.il.us/page.aspx?item=30355) is available to families based on criteria that include the following:
 
-* live in the state, 
-* are employed and/or attending an eligible educational activity
-* haver children younger than 13 that need care during the adult work or school hours, or children with documented special needs up to age 19
-* have family income below [allowable limits](https://www.dhs.state.il.us/page.aspx?item=118832), representing income below 200% of the federal poverty line for initial eligibility, and below 250% of FPL for 12-month redetermination
+-   live in the state,
+-   are employed and/or attending an eligible educational activity
+-   haver children younger than 13 that need care during the adult work or school hours, or children with documented special needs up to age 19
+-   have family income below [allowable limits](https://www.dhs.state.il.us/page.aspx?item=118832), representing income below 200% of the federal poverty line for initial eligibility, and below 250% of FPL for 12-month redetermination
 
 The [Child Care Assitance Program Policy Manual](https://www.dhs.state.il.us/page.aspx?item=9877) has detail around eligibility, including exempt and non-exempt income.
 
@@ -581,7 +578,6 @@ rm(cps_pov, cps_timing)
 gc()
 ```
 
-
 ```{r merge ccdf family measures into income}
 # Calculate CCDF/CCAP eligibility
 cps_elig <- 
@@ -609,11 +605,11 @@ cps_elig[j = .(n = comma(.N)),
 
 Relevant measures at baseline, when households first enter the CPS:
 
-* Presence population of interest, specifically being aged 0-5, and residence in metro area
-* Age group, within ages 0-5
-* Detailed category of income-to-poverty ratio
-* Vulnerability of head-of-household's industry, if working
-* Other categories--e.g. race, education--of often-relevant context
+-   Presence population of interest, specifically being aged 0-5, and residence in metro area
+-   Age group, within ages 0-5
+-   Detailed category of income-to-poverty ratio
+-   Vulnerability of head-of-household's industry, if working
+-   Other categories--e.g. race, education--of often-relevant context
 
 ```{r develop baseline vulnerability characteristics -- cps head of household}
 cps_hoh <- 
@@ -646,7 +642,6 @@ cps_base_hoh <- cps_hoh[months_since_base ==  0] %>% dplyr::select(-months_since
 cps_post_hoh <- cps_hoh[months_since_base == 15] %>% dplyr::select(-months_since_base)
 ```
 
-
 ```{r check on the correspondence of baseline and post measures, eval = developer_mode}
 dim(cps_base_hoh); dim(cps_post_hoh)
 cps_base_hoh <- unique(cps_base_hoh)
@@ -654,7 +649,6 @@ cps_post_hoh <- unique(cps_post_hoh)
 # /!\ Not sure why these `unique()` operations matter, but they do. Perhaps some upstream merge.
 dim(cps_base_hoh); dim(cps_post_hoh)
 ```
-
 
 ```{r develop child-level measures}
 # Note that this is at the child-level with relevant family information merged
@@ -691,14 +685,13 @@ cps_child_base[j = .(n = .N), by = CPSID] %>%
     .[, table(n)]
 ```
 
-
 ### CPS Post Measures
 
 Relevant measures:
 
-* Head Start eligibility -- income-to-poverty ratio < 1.0
-* PFA eligibility -- income-to-poverty ratio < 2.0
-* CCAP eligibility -- income-to-poverty and parent work/school eligibility
+-   Head Start eligibility -- income-to-poverty ratio \< 1.0
+-   PFA eligibility -- income-to-poverty ratio \< 2.0
+-   CCAP eligibility -- income-to-poverty and parent work/school eligibility
 
 ```{r develop follow-up program eligibility -- cps}
 
@@ -746,7 +739,6 @@ cps_child_base[YEAR == 2019 & MONTH == 1,
                by = .(YEAR, MONTH)]
 ```
 
-
 <!-- ### Evaluate CPS Patterns of Income Transition -->
 
 <!-- Some of this may be appropriate to examine as part of the implementation of the now-casting, rather than at the stage of data development -->
@@ -776,7 +768,6 @@ cps_hoh_pre_post[j = hoh_educ_b := factor(hoh_educ_b, levels = c("less_hs", "hs"
 save(cps_hoh_pre_post,
      file = glue("{output_path}CPS pre-post data for heads of household.Rda"))
 ```
-
 
 ```{r compare head of household incomes at pre and post, eval = developer_mode}
 ggplot(cps_hoh_pre_post[YEAR_b == 2019],
@@ -856,7 +847,9 @@ ggplot(cps_trans,
 <!-- Focusing on base year 2019, some notes: -->
 
 <!-- 1. smoothed fit lies very close to the 45 -->
+
 <!-- 2. the decrease in incomes at the high end of base seems mechanically related to the ceiling, where income can only go down -->
+
 <!-- 3. there's a surprising amount of scatter. How much of this is real, and how much might be a mismatch? -->
 
 <!-- Takeaway -- seems like there's something upstream that is an issue. -->
@@ -1031,6 +1024,7 @@ examine_empl_post("spouse_present_b", "Presence of Spouse at Base")
 <!-- Takeaways --  -->
 
 <!-- * Lowest-income heads-of-household are most likely to leave work in just about each industry -->
+
 <!-- * The greatest differentials are in finance, construction, manufacturing, other services -->
 
 ```{r which industries did people leave, eval = developer_mode}
@@ -1056,6 +1050,7 @@ cps_hoh_pre_post[YEAR_b == 2019 & hoh_empl_b == TRUE,
 <!-- Takeaways: -->
 
 <!-- * Heads of household who were lower-income at baseline are clearly over-represented in both arts/food services, both in industries they'd been in, as well as those for new employees -->
+
 <!-- * These same HOHs are under-represented in public administration and wholesale trade -->
 
 <!-- There's a curious pattern here where, above, lower-income HOHs have the highest rate of unemployment coming from, say, food services, and also have the most over-representation here among those who stayed employed. This could be explained by HOHs switching into these industries. -->
