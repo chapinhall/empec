@@ -8,49 +8,83 @@ direct_est_tract <- function(data,          # Individual-level sample data used 
                              aux_data,      # Auxiliary data, used to apply shares to the tract level
                              measure,       # The binary indicator used to calculate share values
                              vul_cat_value, # Character label for the shares measure
-                             n_pt_variable  # Character name for the tract-level count variable in the aux data
+                             n_pt_variable, # Character name for the tract-level count variable in the aux data
+                             reps = 100        # This is the number of bootstrap replications for our own direct method
                              ) {
   
-  # Use the `emdi::direct()` function to calculate PUMA-level stats and standard
-  # errors from the sample data
-  direct_est_puma <- 
-    direct(y = measure, 
-           smp_data = data %>% select(one_of(measure, "PUMA", "PWGTP")), 
-             # We subset the data here because the na.rm = TRUE argument in this
-             # function call removes records with *any* missing values, 
-             # regardless of whether they are the ones used directly in the run.
-           smp_domains = "PUMA", 
-           weights = "PWGTP", 
-           var = TRUE, 
-           threshold = NULL,
-           boot_type = "naive", 
-           B = 50, 
-           seed = 123, 
-           na.rm = TRUE)
+  # Use own method 
+  get_direct <- function(my_data, indices) {
+    my_data[indices,
+            j = .(my_direct = 
+                    weighted.mean(x = get(measure), 
+                                  w = PWGTP, 
+                                  na.rm = TRUE)), 
+            by = PUMA] %>% 
+      .[order(PUMA)] %>% 
+      pull(my_direct)
+  }
   
-  ### Compare with hand-rolled calculation
-  # /!\ Note: am planning to bootstrap standard errors given that our calculations
-  # are using the weighted.mean 
-  own_calc <-
-    data[j = weighted.mean(x = get(measure), 
-                           w = PWGTP, 
-                           na.rm = TRUE), 
-         by = PUMA] %>% 
-    .[order(PUMA)]
-  comp <- 
-    merge(own_calc %>% mutate(PUMA = as.character(PUMA)), 
-          direct_est_puma$ind %>% mutate(Domain = as.character(Domain)), 
-          by.x = "PUMA", 
-          by.y = "Domain")
+  # We bootstrap to calculate the mean squared error because we use the weighted
+  # mean above
+  own_calc <- boot(data = data, get_direct, R = reps)
   
-  direct_out <- 
-    merge(direct_est_puma$ind %>% select(PUMA = Domain, share     = Mean),
-          direct_est_puma$MSE %>% select(PUMA = Domain, share_mse = Mean), 
-          by = "PUMA") %>% 
-    mutate(vc_value = vul_cat_value) %>% 
+  # Gather estimates
+  my_direct <- 
+    data.frame(PUMA = data$PUMA %>% unique() %>% sort() %>% as.integer(),
+               share = own_calc$t0,
+               share_mse = apply(own_calc$t, 2, var),
+               vc_value = vul_cat_value) %>% 
     data.table()
   
-  return(direct_out)
+  
+  # If desired, the code below can compare our estimate with the (slower) 
+  # direct() function from the `emdi` package. Our estimates are highly consistent
+  # and run much more quickly.
+  if (FALSE) {
+    direct_est_puma <- 
+      emdi::direct(y = measure, 
+                   smp_data = data %>% select(one_of(measure, "PUMA", "PWGTP")), 
+                   # We subset the data here because the na.rm = TRUE argument in this
+                   # function call removes records with *any* missing values, 
+                   # regardless of whether they are the ones used directly in the run.
+                   smp_domains = "PUMA", 
+                   weights = "PWGTP", 
+                   var = TRUE, 
+                   threshold = NULL,
+                   boot_type = "naive", 
+                   B = 50, 
+                   seed = 123, 
+                   na.rm = TRUE)
+    
+    emdi_direct <- 
+      merge(direct_est_puma$ind %>% transmute(PUMA = as.integer(as.character(Domain)), share     = Mean),
+            direct_est_puma$MSE %>% transmute(PUMA = as.integer(as.character(Domain)), share_mse = Mean), 
+            by = "PUMA")
+    
+    comp <- 
+      merge(my_direct, 
+            emdi_direct, 
+            by = "PUMA",
+            suffixes = c("_my", "_emdi"))
+    with(comp, cor(share_my, share_emdi))
+    # Plot the comparison of estimates
+    ggplot(comp,
+           aes(x = share_emdi,
+               y = share_my)) +
+      geom_point() + 
+      geom_abline(color = "blue")
+    # These are identical
+    
+    # Plot the comparison of estimates of MSE's
+    with(comp, cor(share_mse_my, share_mse_emdi))
+    ggplot(comp,
+           aes(x = share_mse_emdi,
+               y = share_mse_my)) +
+      geom_point() + 
+      geom_abline(color = "green") 
+  }
+  
+  return(my_direct)
 }
 
 ```
@@ -199,15 +233,15 @@ run_sae <- function(direct_ests,                 # Direct, tract-level estimates
                  B = B_spec) # c(0, B)
   
   if (FALSE) {
-   fh_puma <- fh(fixed = selected_fm,
-                vardir = "share_mse", 
-                combined_data = combined_data_puma,
-                domains = "PUMA", 
-                method = "ml", 
-                MSE = TRUE,
-                B = B_spec) # c(0, B) 
+    fh_puma <- fh(fixed = selected_fm,
+                  vardir = "share_mse", 
+                  combined_data = combined_data_puma,
+                  domains = "PUMA", 
+                  method = "ml", 
+                  MSE = TRUE,
+                  B = B_spec) # c(0, B) 
   }
-    
+  
   # Collect output ------------------------------------------------------------#
   
   fh_collected_tract <- 
@@ -231,24 +265,24 @@ run_sae <- function(direct_ests,                 # Direct, tract-level estimates
   
   if (FALSE) {
     fh_collected_puma <- 
-    with(fh_puma, {
-      data.frame(PUMA                   = ind$Domain,
-                 share_direct           = ind$Direct,
-                 share_direct_mse_unadj = MSE$Direct,
-                 share_model            = model$fitted,
-                 share_model_mse_unadj  = model$variance,
-                 share_fh               = ind$FH,
-                 share_fh_mse_unadj     = MSE$FH)
-    }) %>% 
-    # Check understanding of weights construction in fh() -- this checks out, as
-    # a linear combination of standard errors (not variances)
-    mutate(implied_wgt = (share_fh - share_model)/(share_direct - share_model),
-           var_ratio_mod = share_direct_mse_puma / (share_direct_mse_puma + share_model_mse_puma),
-           var_ratio_dir = share_model_mse_puma  / (share_direct_mse_puma + share_model_mse_puma),
-           my_share_fh_mse_puma1 = var_ratio_dir^2*share_direct_mse_puma + (1-var_ratio_dir)^2*share_model_mse_puma,
-           my_share_fh_mse_puma5 =   implied_wgt^2*share_direct_mse_puma +   (1-implied_wgt)^2*share_model_mse_puma,
-           diff = share_fh_mse_puma - my_share_fh_mse_puma5) %>% 
-    data.table()
+      with(fh_puma, {
+        data.frame(PUMA                   = ind$Domain,
+                   share_direct           = ind$Direct,
+                   share_direct_mse_unadj = MSE$Direct,
+                   share_model            = model$fitted,
+                   share_model_mse_unadj  = model$variance,
+                   share_fh               = ind$FH,
+                   share_fh_mse_unadj     = MSE$FH)
+      }) %>% 
+      # Check understanding of weights construction in fh() -- this checks out, as
+      # a linear combination of standard errors (not variances)
+      mutate(implied_wgt = (share_fh - share_model)/(share_direct - share_model),
+             var_ratio_mod = share_direct_mse_unadj / (share_direct_mse_unadj + share_model_mse_unadj),
+             var_ratio_dir = share_model_mse_unadj  / (share_direct_mse_unadj + share_model_mse_unadj),
+             my_share_fh_mse_unadj1 = var_ratio_dir^2*share_direct_mse_unadj + (1-var_ratio_dir)^2*share_model_mse_unadj,
+             my_share_fh_mse_unadj2 =   implied_wgt^2*share_direct_mse_unadj +   (1-implied_wgt)^2*share_model_mse_unadj,
+             diff = share_fh_mse_unadj - my_share_fh_mse_unadj2) %>% 
+      data.table()
   }
   
   # /!\ Attempt alternative model estimation ----------------------------------#
@@ -260,6 +294,8 @@ run_sae <- function(direct_ests,                 # Direct, tract-level estimates
   # estimation
   
   if (FALSE) {
+    
+    ### Run own regression at the tract level  ----#
     my_fh_data_tract <- 
       direct_ests_tract %>% 
       merge(aux_data_use, by = c("PUMA", "GEOID")) %>% 
@@ -269,16 +305,14 @@ run_sae <- function(direct_ests,                 # Direct, tract-level estimates
          data = my_fh_data_tract)
     prediction_tract <- predict(my_fh_reg_tract, 
                                 se.fit = TRUE)
-    
-    my_fh_data_tract %>% 
+
+    my_fh_pred_tract <- 
+      copy(my_fh_data_tract) %>% 
       .[j = `:=`(my_share_model     = prediction_tract$fit,
                  my_share_model_se  = prediction_tract$se.fit,
                  my_share_model_mse = prediction_tract$se.fit^2)]
-    #View(cbind(fh_collected, prediction$fit, prediction$se.fit))
-    comp <- merge(fh_collected_tract, 
-                  my_fh_data_tract %>% select(GEOID, my_share_model, my_share_model_se, my_share_model_mse), 
-                  by = c("GEOID"))
     
+    ### Run own regression at the PUMA level  ----#
     my_fh_data_puma <- 
       direct_ests %>% 
       merge(acs5puma, by = c("PUMA")) %>% 
@@ -287,8 +321,15 @@ run_sae <- function(direct_ests,                 # Direct, tract-level estimates
       lm(as.formula(selected_fm),
          data = my_fh_data_puma)
     prediction_puma <- predict(my_fh_reg_puma, 
+                               newdata = aux_data_use,
                                se.fit = TRUE)
+    my_fh_pred_puma <-
+      copy(aux_data_use) %>% 
+      .[j = `:=`(my_share_model     = prediction_puma$fit,
+                 my_share_model_se  = prediction_puma$se.fit,
+                 my_share_model_mse = prediction_puma$se.fit^2)]
     
+    ### Compare the betas from each run ---------------------------------------#
     comp_all_betas <- 
       merge(tidy(my_fh_reg_tract) %>% transmute(term          = term, 
                                                 own_est_tract = round(estimate, 3),
@@ -309,9 +350,38 @@ run_sae <- function(direct_ests,                 # Direct, tract-level estimates
     View(comp_all_betas)
       # The fh() vs "own" coefficients estimates aren't terribly off: they're
       # within my rough expectations of how frequentist and bayesian methods would differ:
-      # within "model-sampling" variation. However, the tract vs puma-level estimats
+      # within "model-sampling" variation. However, the tract vs puma-level estimates
       # estimates are *way* off. 
       # - why are the tract estimates somehow more respectable? Is acs5puma constructed properly? 
+    
+    ### Compare the predictions from each model -------------------------------#
+    comp_preds_t.m <- 
+      merge(my_fh_pred_tract   %>% select(GEOID, my_tract_share = my_share_model, my_tract_share_mse = my_share_model_mse),
+            my_fh_pred_puma    %>% select(GEOID, my_puma_share  = my_share_model, my_puma_share_mse = my_share_model_mse), 
+            by = "GEOID") %>%
+      merge(fh_collected_tract %>% select(GEOID, fh_share = share_model, fh_share_mse = share_model_mse_unadj), 
+            by = "GEOID") %>% 
+      mutate(share_diff_tract_vs_fh    = my_tract_share - fh_share,
+             share_diff_tract_vs_fh_se = sqrt(my_tract_share_mse + fh_share_mse),
+             share_diff_puma_vs_fh     = my_puma_share - fh_share,
+             share_diff_puma_vs_fh_se  = sqrt(my_puma_share_mse + fh_share_mse))
+    
+    # Plot estimates along the 45 ---------------------------------------------#
+    # My Tract vs FH
+    ggplot(comp_preds_t.m,
+           aes(x = fh_share,
+               y = my_tract_share)) +
+      geom_point() +
+      geom_abline()
+    
+    # My PUMA vs FH
+   
+    # Plot differences vs original share, with std error of difference
+    ggplot(comp_preds_t.m,
+           aes(x = reorder(GEOID, fh_share),
+               y = value,
+               color = name)) +
+      geom_point()
   }
   
   
