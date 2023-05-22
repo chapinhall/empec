@@ -925,3 +925,137 @@ map_sae_components(my_dt, "sae_pov_model_05", "", val_limits = limits_05, save_l
 
 ```
 
+```{r build comparison of selected SAE with ACS1, eval = developer_mode}
+# Build 
+(puma_agg_sae <- 
+  sae_results_ccdf_wk_pov_05$sae_out %>% 
+  .[j = PUMA := as.numeric(PUMA)] %>% 
+  .[str_detect(vc_value, "^WorkElig_(0%|75%|150%).+"),
+    .(n_p = sum(n_pt),
+      n_p_elig    = sum(vc_count),
+      n_p_elig_fh    = sum(vc_fh_count_trunc),
+      n_p_elig_model = sum(vc_model_count_trunc)),
+    by = PUMA] %>% 
+  .[j = `:=`(pct_elig       = n_p_elig       / n_p,
+             pct_elig_fh    = n_p_elig_fh    / n_p,
+             pct_elig_model = n_p_elig_model / n_p)] %>% 
+   arrange(PUMA) %>% 
+  select(PUMA, n_sae = n_p, 
+         n_ccap_elig_fh = n_p_elig_fh, 
+         n_ccap_elig_model = n_p_elig_model,
+         pct_ccap_elig       = pct_elig,
+         pct_ccap_elig_fh    = pct_elig_fh, 
+         pct_ccap_elig_model = pct_elig_model))
+  # aggregate counts across vc_values and puma
+  # compare with puma aggregate calcs
+
+(puma_agg_acs1 <- 
+   acs1_child[between(AGEP, 0, 5),
+              .(sample_n = .N,
+                n_acs1 = sum(PWGTP),
+                  n_lt225fpl         = sum(PWGTP[fam_incpov_ratio <= 2.25]),
+                pct_lt225fpl         = sum(PWGTP[fam_incpov_ratio <= 2.25]) / sum(PWGTP),
+                  n_lt225fpl_worksch = sum(PWGTP[fam_incpov_ratio <= 2.25 & all_work_sch == 1]),
+                pct_lt225fpl_worksch = sum(PWGTP[fam_incpov_ratio <= 2.25 & all_work_sch == 1]) / sum(PWGTP)),
+              by = .(PUMA = as.numeric(PUMA))] %>% 
+   arrange(PUMA))
+
+puma_agg_comp <- 
+  merge(puma_agg_acs1,
+        puma_agg_sae,
+        by = "PUMA")
+```
+
+
+```{r visualize comparison of selected SAE with ACS1, eval = developer_mode}
+# Compare counts
+plot_puma_aggs_ns <- 
+  ggplot(puma_agg_comp,
+       aes(x = n_lt225fpl_worksch,
+           group = PUMA)) +
+  geom_point(aes(y = n_ccap_elig_fh),
+             color = "blue") +
+  geom_point(aes(y = n_ccap_elig_model),
+             color = "green") +
+  geom_point(data = puma_agg_comp %>% filter(PUMA == 02100),
+             aes(y = n_ccap_elig_fh),
+             color = "orange") +
+  geom_point(data = puma_agg_comp %>% filter(PUMA == 02100),
+             aes(y = n_ccap_elig_model),
+             color = "red") +
+  geom_abline() +
+  scale_x_continuous(limits = c(0, NA)) +
+  scale_y_continuous(limits = c(0, NA)) +
+  theme_minimal()
+
+ggplotly(plot_puma_aggs_ns, tooltip = "group")
+
+# Compare shares
+plot_puma_aggs_pcts <- 
+  ggplot(puma_agg_comp,
+       aes(x = pct_lt225fpl_worksch,
+           group = PUMA)) +
+  geom_point(aes(y = pct_ccap_elig),
+             color = "black") +
+  geom_point(aes(y = pct_ccap_elig_fh),
+             color = "blue") +
+  geom_point(aes(y = pct_ccap_elig_model),
+             color = "green") +
+  geom_point(data = puma_agg_comp %>% filter(PUMA == 02100),
+             aes(y = pct_ccap_elig_fh),
+             color = "orange") +
+  geom_point(data = puma_agg_comp %>% filter(PUMA == 02100),
+             aes(y = pct_ccap_elig_model),
+             color = "red") +
+  geom_abline() +
+  scale_x_continuous(limits = c(0, NA)) +
+  scale_y_continuous(limits = c(0, NA)) +
+  theme_minimal()
+
+ggplotly(plot_puma_aggs_pcts, tooltip = "group")
+
+```
+
+
+```{r check consistency of base population measures, eval = developer_mode}
+# /!\ Consider moving this to 01e if it's interesting
+
+puma_agg_pop <- 
+  pop_by_age %>% 
+  merge(geo_crosswalk[j = .(GEOID, PUMA = as.numeric(PUMA))] %>% unique(),
+        by = "GEOID") %>% 
+  as.data.table() %>% 
+  .[year == base_year,
+    j = .(n_pop = sum(age_0to5_count)),
+    by = PUMA] %>% 
+  arrange(PUMA)
+
+puma_agg_comp_pop <- 
+  puma_agg_comp %>% 
+  merge(puma_agg_pop,
+        by = "PUMA")
+
+plot_puma_pops <- 
+  ggplot(puma_agg_comp_pop,
+         aes(x = n_acs1,
+             y = n_pop,
+             group = PUMA)) +
+  geom_point() + 
+  geom_point(data = puma_agg_comp_pop %>% filter(PUMA == 2100),
+             color = "red") + 
+  geom_abline() +
+  scale_x_continuous(limits = c(0, NA)) +
+  scale_y_continuous(limits = c(0, NA)) +
+  theme_minimal()
+
+
+ggplotly(plot_puma_pops, tooltip = "group")
+```
+
+```{r investigate the amount of noise in the ACS1 sample}
+# The counts of young children (age 0-5) are very low
+acs1_child[between(AGEP, 0, 5), .N, by = PUMA] %>% .[order(PUMA)] %>% ggplot(aes(x = N)) + geom_histogram()
+
+# Bootstrapping values for each PUMA
+```
+
