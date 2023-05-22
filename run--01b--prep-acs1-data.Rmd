@@ -228,6 +228,24 @@ rm(acs1, acs1_hoh)
 gc()
 ```
 
+```{r output basics to be able to compare with direct pulls, eval = developer_mode}
+(puma_agg <- 
+   acs1_child[between(AGEP, 0, 5),
+              .(sample_n = .N,
+                n = sum(PWGTP),
+                  n_lt225fpl         =   comma(sum(PWGTP[fam_incpov_ratio <= 2.25])),
+                pct_lt225fpl         = percent(sum(PWGTP[fam_incpov_ratio <= 2.25]) / sum(PWGTP), accuracy = 0.01),
+                  n_lt225fpl_worksch =   comma(sum(PWGTP[fam_incpov_ratio <= 2.25 & all_work_sch == 1])),
+                pct_lt225fpl_worksch = percent(sum(PWGTP[fam_incpov_ratio <= 2.25 & all_work_sch == 1]) / sum(PWGTP), accuracy = 0.01)),
+              by = PUMA] %>% 
+   arrange(PUMA))
+
+if (FALSE) {
+  View(puma_agg)
+}
+```
+
+
 ```{r}
 save(acs1_child,
      file = glue("{output_path}acs1_data_{my_output_tag}.Rda"))
