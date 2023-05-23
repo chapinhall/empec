@@ -50,8 +50,6 @@ direct_est_tract <- function(data,          # Individual-level sample data used 
     mutate(vc_value = vul_cat_value) %>% 
     data.table()
   
-  direct_out[j = PUMA := as.numeric(as.character(PUMA))]
-  
   return(direct_out)
 }
 

@@ -46,7 +46,6 @@ apis %>% filter(grepl("acs5", name)) %>% with(table(vintage))
 
 # [B01001A-I] Sex by Age
 # [B09001] Population Under 18 Years of Age
-# [B17026] Ratio of Income to Poverty Level of Families in the Last 12 Months
 
 ## Predictors in Small Area Estimation Model
 
@@ -62,6 +61,8 @@ apis %>% filter(grepl("acs5", name)) %>% with(table(vintage))
 #	[C15002A-I] Sex by Educational Attainment for the Population 25 Years and Older
 # [B17001A-I] Poverty Status in Past 12 Months by Sex by Age
 # [B17012] Poverty Status in Past 12 Months of Families by Household Type by Number of Related Children under 18 Years
+# [B17024] Age By Ratio Of Income To Poverty Level In The Past 12 Months
+# [B17026] Ratio of Income to Poverty Level of Families in the Last 12 Months
 #	[B01003] Total Population
 
 # ------------------------------------ #
@@ -71,12 +72,12 @@ apis %>% filter(grepl("acs5", name)) %>% with(table(vintage))
 # Pull metadata for ACS 1-year and 5-year tables
 
 acs1_years <- 2019:2019
-acs1_tables <- c("B01001", "B09001", "B17026", 
+acs1_tables <- c("B01001", "B09001", "B17024", "B17026", 
                  "B03002", "B08006", "B08013", "B10051", "B23001", "C15002", 
 					       paste0("B17001", c("", LETTERS[1:9])),
                  "B17012", "B01003", "B10063", "B08303")
 acs5_years <- 2019:2019
-acs5_tables <-  c("B01001", "B09001", "B17026",
+acs5_tables <-  c("B01001", "B09001", "B17024", "B17026",
                   "B03002", "B08006", "B08013", "B10051", "B23001", "C15002", 
                   paste0("B17001", c("", LETTERS[1:9])),
                   "B17012", "B01003", "B10063", "B08303")
@@ -248,6 +249,29 @@ if (FALSE) {
     arrange(suffix)
 }
 
+# ---------------------------------------------------------------------------- #
+# Develop metadata for [B17024] Age by Ratio of Income to Poverty Level in the Past 12 Months  ------
+# ---------------------------------------------------------------------------- #
+
+meta_renames_B17024 <-
+  meta_sub %>%
+  filter(grepl("B17024", group)) %>%
+  separate(label, into = c("est", "count", "ageraw", "rawratio"), sep = "!!") %>%
+  mutate(age = gsub("\\D*(\\d+) (to|and) (\\d+)\\D*", "\\1to\\3", ageraw) %>% 
+               gsub("\\D*Under (\\d+)\\D*", "lt\\1", x = .) %>% 
+               gsub("\\D*(\\d+) \\D*", "\\1to\\1", x = .) %>% 
+               replace_na("All"),
+         ratio = gsub("(\\d*).(\\d+) to (\\d*).(\\d+)", "r\\1\\2to\\3\\4", rawratio) %>%
+                 gsub("(\\d*).(\\d+) and over", "r\\1\\2plus", x = .) %>%
+                 gsub("Under (\\d*).(\\d+)", "r0to\\1\\2", x = .) %>%
+                 replace_na("All")) %>%
+  ungroup()
+
+# Verify that variable names were correctly constructed, and save variable-to-variable name crosswalk
+
+meta_renames_B17024 %>% ungroup() %>% arrange(name) %>% select(ratio, rawratio) %>% unique()
+meta_renames_B17024 %>% ungroup() %>% arrange(name) %>% select(age, ageraw) %>% unique()
+meta_renames_B17024 <- meta_renames_B17024 %>% select(-group, -concept, -est, -count, -ageraw, -rawratio)
 
 # ---------------------------------------------------------------------------- #
 # Develop metadata for [B17026] Poverty Level of Families Past 12 Months  ------
@@ -256,7 +280,7 @@ if (FALSE) {
 meta_renames_B17026 <-
   meta_sub %>%
   filter(grepl("B17026", group)) %>%
-  separate(label, into=c("est", "count", "rawratio"), sep = "!!") %>%
+  separate(label, into = c("est", "count", "rawratio"), sep = "!!") %>%
   mutate(ratio = gsub("(\\d*).(\\d+) to (\\d*).(\\d+)", "r\\1\\2to\\3\\4", rawratio) %>%
            gsub("(\\d*).(\\d+) and over", "r\\1\\2plus", x = .) %>%
            gsub("Under (\\d*).(\\d+)", "r0to\\1\\2", x = .) %>%
@@ -876,8 +900,8 @@ summary(acs_childpop[!exclude_vars])
 # NSM: This code--not yet working--was put on pause, in favor of bringing in
 # and updating the `pull 5-year data on poverty and race.R` from the old repo.
 # In the future, rather than getting that pull to join this file, I believe it
-# will be more worthwhile getting the `pick_acs` methods working, as a more 
-# robust and extensible way of pulling ACS data.
+# will be more worthwhile getting more robust pull and refinement code working
+# for ACS data
 
 # acs_incpov_raceeth <-
 #   bind_rows(acs1_B17001, acs5_B17001) %>%  
@@ -885,6 +909,67 @@ summary(acs_childpop[!exclude_vars])
 #   unite(colname, ratio, stat) %>%
 #   spread(colname, val) 
 
+
+# ------------------------------------ #
+# Age by Ratio of Income to Poverty Line (Universe: population for who poverty is determined)
+# ------------------------------------ #
+
+acs_incpov_age <- 
+  bind_rows(acs5_B17024) %>% # acs1_B17024
+  mutate(se = moe/1.645) %>% 
+  select(-moe) %>% 
+  filter(age %in% c("lt6", "6to11", "12to17"))
+  
+acs_incpov_age_allratio <-
+  acs_incpov_age %>% 
+  filter(ratio == "All") %>% 
+  select(geo_val, age, est_all = est, se_all = se)
+
+unite_fpls <- function(range_label, ranges) {
+  stopifnot(all(ranges %in% unique(acs5_B17024$ratio)))
+  acs_incpov_age %>% 
+    filter(ratio %in% ranges) %>% 
+    group_by(source, endyear, geo, NAME, geo_val, age) %>% 
+    summarize(est = sum(est),
+              se  = sqrt(sum(se^2))) %>% 
+    mutate(ratio = range_label)
+}
+acs_incpov_age_myranges <- 
+  bind_rows(unite_fpls("r0to50",    c("r0to50")),
+            unite_fpls("r0to74",    c("r0to50", "r50to74")),
+            unite_fpls("r50to100",  c("r50to74", "r75to99")),
+            unite_fpls("r0to100",   c("r0to50", "r50to74", "r75to99")),
+            unite_fpls("r75to149",  c("r75to99", "r100to124", "r125to149")),
+            unite_fpls("r150to199", c("r150to174", "r175to184", "r185to199")),
+            unite_fpls("r100to184", c("r100to124", "r125to149", "r150to174", "r175to184")),
+            unite_fpls("r100to199", c("r100to124", "r125to149", "r150to174", "r175to184", "r185to199")),
+            unite_fpls("r100to199", c("r100to124", "r125to149", "r150to174", "r175to184", "r185to199")),
+            unite_fpls("r200to299", c("r200to299")),
+            unite_fpls("r300plus",  c("r300to399", "r400to499", "r500plus")))
+
+acs_incpov_age_out <- 
+  acs_incpov_age_myranges %>% 
+  merge(acs_incpov_age_allratio,
+        by = c("geo_val", "age")) %>% 
+  mutate(est = est / est_all,
+         se  = se_proportion(est, est_all, se, se_all),
+         prefix = "incpov") %>% 
+  select(-se_all) %>% 
+  rename(count = est_all) %>% 
+  pivot_longer(cols = c(est, se, count)) %>% 
+  unite("label", prefix, age, ratio, name) %>% 
+  unique() %>% 
+  pivot_wider(names_from = "label",
+              values_from = "value")
+
+# Check values
+if (FALSE) {
+  my_geo <- acs_incpov_age$geo_val[100]
+  (check_num <- acs_incpov_age %>% filter(geo_val == my_geo, age == "lt6", ratio %in% c("r0to50", "r50to74")) %>% select(age, ratio, est, se))
+  (check_denom <- acs_incpov_age_allratio %>% filter(geo_val == my_geo, age == "lt6"))
+  (check_final <- acs_incpov_age_out %>% filter(geo_val == my_geo) %>% select(incpov_lt6_r0to74_est, incpov_lt6_r0to74_se))
+  (sum(check_num$est) / check_denom$est_all) == check_final$incpov_lt6_r0to74_est
+}
 
 
 # ------------------------------------ #
@@ -1525,6 +1610,7 @@ acs_final <-
   full_join(acs_emp_age25to34) %>% 
   full_join(acs_raceeth) %>%
   full_join(acs_grandparents) %>%
+  full_join(acs_incpov_age_out) %>%
   full_join(acs_incpov) %>%
   full_join(acs_povline) %>%
   full_join(acs_famtype) %>%

@@ -61,8 +61,8 @@ se_product <- function(A, B, A_se, B_se) {
 
   # See derivation using Delta Method, above.
 
-se_proportion <- function(var1, var2, se1, se2) {
-  return((1/var2)*sqrt( (1-(var1/var2))*(se1)^2 + (var1/var2)^2*(se2)^2) )
+se_proportion <- function(A, B, se_A, se_B) {
+  return((1/B)*sqrt( (1-(A/B))*(se_A)^2 + (A/B)^2*(se_B)^2) )
 }
 
 # STANDARD ERROR FOR (NON-PROPORTION) RATIO
@@ -70,8 +70,8 @@ se_proportion <- function(var1, var2, se1, se2) {
   # This is only an approximation of the true SE, since we do not observe the covariance between the components of the
   # ratio in the published ACS data.
 
-se_ratio <- function(var1, var2, se1, se2) {
-  return((1/var2)*sqrt( (se1)^2 + (var1/var2)^2*(se2)^2) )
+se_ratio <- function(A, B, se_A, se_B) {
+  return((1/B)*sqrt( (se_A)^2 + (A/B)^2*(se_B)^2) )
 }
 
 # SUM OF STANDARD ERRORS

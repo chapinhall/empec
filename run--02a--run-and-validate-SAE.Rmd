@@ -12,9 +12,16 @@ if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
 if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 if (!"direct_est_tract"     %in% objects()) source_rmd("method--small-area-estimation-functions.Rmd", echo = FALSE)
+```
 
+```{r eval = FALSE}
+# Within an `eval = FALSE` chunk, this option will be set when running this
+# script interactively, but not when called by `run--00`. This is significant
+# in that 00 will check that this has been run, set rerun_sae to FALSE in order
+# to focus on report rendering and not this time-consuming run.
 rerun_sae <- TRUE
 ```
+
 
 ```{r load data for SAE runs}
 
@@ -82,7 +89,7 @@ show_acs_n_bys(c("fam_incpov_ratio_cat_by100", "hoh_industry_vulnerable"))
 ```
 
 ```{r investigate work elibility for ccdf by income thresholds}
-show_acs_n_bys(c("work_incpov_status75"))
+try(show_acs_n_bys(c("work_incpov_status185")), silent = TRUE)
 ```
 
 ## Results of SAE Estimation
@@ -122,28 +129,30 @@ work_incpov_spec_field <-
 
 
 ```{r set specifications for sae}
-# /!\ NSM: in the future, look to add race/ethnicity and industry of workers
-sae_controls_simple <- 
-  paste0("incpov_r", incpov_ranges_for_estimation, "_est")
+# /!\ Consider adding race/ethnicity and industry of workers
+sae_controls_simple_05 <- 
+  paste0("incpov_lt6_r", incpov_ranges_for_estimation, "_est")
 
-sae_controls_mid <- 
-  c(sae_controls_simple,
-    paste0(c("f_lesshs", "m_lesshs", "f_hsgrad", "m_hsgrad", "f_somecoll", "m_somecoll", # This is omitting `f_coll` and `m_coll`
-             "pctMale_noSp", "pctFemale_noSp"), # This is omitting `pctMarried`
+sae_controls_simple_612 <- 
+  paste0("incpov_6to11_r", incpov_ranges_for_estimation, "_est")
+
+sae_extra_controls <- 
+  c(paste0(c("f_lesshs", "m_lesshs", "f_hsgrad", "m_hsgrad", "f_somecoll", "m_somecoll", # This is omitting `f_coll` and `m_coll`
+             "pctMale_noSp", "pctFemale_noSp",                                           # This is omitting `pctMarried`
+             "employrate_m_a2534", "employrate_f_a2534", "lfrate_m_a2534", "lfrate_f_a2534"), 
            "_est"))
 
-sae_controls_added <- 
-  c(sae_controls_mid,
-    paste0(c("employrate_m", "employrate_f", "lfrate_m", "lfrate_f"),
-           "_est"))
+sae_controls_added_2534_05 <- 
+  c(sae_controls_simple_05, sae_extra_controls)
 
-sae_controls_added_2534 <- 
-  c(sae_controls_mid,
-    paste0(c("employrate_m_a2534", "employrate_f_a2534", "lfrate_m_a2534", "lfrate_f_a2534"),
-           "_est"))
+sae_controls_added_2534_612 <- 
+  c(sae_controls_simple_612, sae_extra_controls)
 ```
 
 ```{r subset data for the SAE}
+acs1_child[j = PUMA := str_pad(PUMA, width = 5, side = "left", pad = "0")]
+stopifnot(all(geo_crosswalk$PUMA %in% acs1_child$PUMA))
+
 acs1_child05_sae <- 
   acs1_child[between(AGEP, 0, 5)]
 
@@ -247,13 +256,13 @@ if (rerun_sae) {
   if (parallelize_sae) {
     
     runlist <- 
-      list(sae_results_incpov_simple_05     = list(incpov_spec_field,      acs1_child05_sae,  sae_controls_simple),
-           sae_results_incpov_simple_612    = list(incpov_spec_field,      acs1_child612_sae, sae_controls_simple),
-           sae_results_incpov_ctrls2534_05  = list(incpov_spec_field,      acs1_child05_sae,  sae_controls_added_2534),
-           sae_results_incpov_ctrls2534_612 = list(incpov_spec_field,      acs1_child612_sae, sae_controls_added_2534),
-           sae_results_ccdf_wk_sp_05        = list("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534), #/!!\ why do we not include sae_results_ccdf_wk_sp_612?
-           sae_results_ccdf_wk_pov_05       = list(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534),
-           sae_results_ccdf_wk_pov_612      = list(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534))
+      list(sae_results_incpov_simple_05     = list(incpov_spec_field,      acs1_child05_sae,  sae_controls_simple_05),
+           sae_results_incpov_simple_612    = list(incpov_spec_field,      acs1_child612_sae, sae_controls_simple_612),
+           sae_results_incpov_ctrls2534_05  = list(incpov_spec_field,      acs1_child05_sae,  sae_controls_added_2534_05),
+           sae_results_incpov_ctrls2534_612 = list(incpov_spec_field,      acs1_child612_sae, sae_controls_added_2534_612),
+           sae_results_ccdf_wk_sp_05        = list("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534_05),
+           sae_results_ccdf_wk_pov_05       = list(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534_05),
+           sae_results_ccdf_wk_pov_612      = list(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534_612))
     
     # Code to recruit (almost) as many core processors as are available (but not more than we need)
     cores <- detectCores() - 1 # not to overload your computer
@@ -279,13 +288,13 @@ if (rerun_sae) {
     }
     
   } else {
-    sae_results_incpov_simple_05     <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child05_sae,  sae_controls_simple)
-    sae_results_incpov_simple_612    <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child612_sae, sae_controls_simple)
-    sae_results_incpov_ctrls2534_05  <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child05_sae,  sae_controls_added_2534)
-    sae_results_incpov_ctrls2534_612 <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child612_sae, sae_controls_added_2534)
-    sae_results_ccdf_wk_sp_05        <- run_sae_combos_bycontrols("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534) #/!!\ why do we not include sae_results_ccdf_wk_sp_612?
-    sae_results_ccdf_wk_pov_05       <- run_sae_combos_bycontrols(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534)
-    sae_results_ccdf_wk_pov_612      <- run_sae_combos_bycontrols(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534)
+    sae_results_incpov_simple_05     <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child05_sae,  sae_controls_simple_05)
+    sae_results_incpov_simple_612    <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child612_sae, sae_controls_simple_612)
+    sae_results_incpov_ctrls2534_05  <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child05_sae,  sae_controls_added_2534_05)
+    sae_results_incpov_ctrls2534_612 <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child612_sae, sae_controls_added_2534_612)
+    sae_results_ccdf_wk_sp_05        <- run_sae_combos_bycontrols("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534_05)
+    sae_results_ccdf_wk_pov_05       <- run_sae_combos_bycontrols(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534_05)
+    sae_results_ccdf_wk_pov_12       <- run_sae_combos_bycontrols(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534_612)
   }
   
   specs <- c("incpov_simple_05", 
@@ -303,8 +312,10 @@ if (rerun_sae) {
 if (rerun_sae) {
   # Organize contents
   sae_aux_data_acs5 <- acs5tract_sae
-  sae_controls_list <- list(sae_controls_simple,
-                            sae_controls_added_2534)
+  sae_controls_list <- list(sae_controls_simple_05,
+                            sae_controls_simple_612,
+                            sae_controls_added_2534_05,
+                            sae_controls_added_2534_612)
   results <- paste0("sae_results_", specs)
   
   # Save the bundle of objects
@@ -646,8 +657,15 @@ cbind(sae_results_incpov_simple_05[["agg_comp_model"]]$agg_comp_cor     %>% muta
 ```{r compare SAE estimate to acs5}
 compare_sae_lt100fpl <- function(sae_spec, title, xlab, ylab) {
   
+  # To handle the fact that different age runs of the SAE use different age-specific
+  # income-to-poverty constructions, we remove the age-related part of the field name
+  old_incpov_names <- str_subset(cn(sae_spec), "incpov.+est")
+  new_incpov_names <- str_replace(old_incpov_names, "(incpov).+(_r.+_est)", "\\1\\2")
+  
   comp_data <-
     sae_spec[vc_value %in% c("0%-50%", "50%-100%")] %>% 
+    setnames(old_incpov_names,
+             new_incpov_names) %>% 
     mutate(incpov_r0to100_est = incpov_r0to50_est + incpov_r50to100_est) %>% 
     select(GEOID, share_fh_trunc, incpov_r0to100_est) %>% 
     group_by(GEOID) %>% 
@@ -850,7 +868,7 @@ map_sae_components <- function(dt, fill_field, field_label, val_limits, save_lab
   
   pumaShp_sub <-
     pumaShp %>% 
-    filter(as.integer(PUMACE10) %in% pumas_to_keep)
+    filter(PUMA %in% pumas_to_keep)
   
   my_plot <- 
     ggplot() +
@@ -890,8 +908,12 @@ limits_612 <- range(with(tractShp_pov, c(acs1_pov_612)), # sae_pov_fh_612, sae_p
 ```
 
 ```{r generate maps}
-
-my_dt <- tractShp_pov %>% filter(str_detect(GEOID, "17031"))
+# /!\ Look into why some geographies are displaying as "NA". Must of course do with underlying data
+# In Chicago, O'Hare is a valid missing. However, others shouldn't be.
+# /*\ It may be desirable to filter these maps to a sub-state geography because,
+# at the state level, more dense areas are simultaneously often those with higher
+# poverty values, and also areas that won't show up clearly on a state-wide map
+my_dt <- tractShp_pov #%>% filter(str_detect(GEOID, "17031"))
 
 map_sae_components(my_dt, "acs1_pov_05",      "", val_limits = limits_05, save_label = "Poverty (ACS1), age 0-5")
 map_sae_components(my_dt, "acs5_pov",         "", val_limits = limits_05, save_label = "Poverty (ACS5), age 0-5")

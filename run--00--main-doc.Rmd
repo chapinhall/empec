@@ -53,7 +53,7 @@ However, because the ACS data are only a sample of the full population, they are
 
 The ACS 5-Year (ACS5) data represents an aggregation of 5-year spans of annual ACS survey data. While less specific in timing, this aggregation of survey responses allows for statistical validity at smaller levels of geography. ACS 5-Year data are available at the level of [Census Tracts](https://www.census.gov/programs-surveys/geography/about/glossary.html#:~:text=Census%20tracts%20generally%20have%20a,on%20the%20density%20of%20settlement.), each of which has a size of approximately 4,000 individuals. Chicago contains nearly 800 Census Tracts, or about 10 for each Chicago Community Area, on average. If desired, ACS 5-Year data could be downloaded at the zip code level. 
 
-The ACS 5-Year data are not released as microdata, but rather in a range of [pre-calculated tables](https://www.socialexplorer.com/data/ACS2020_5yr/metadata/?ds=ACS20_5yr). While there is a significant number of these tables—over 2200—there are practical limitations to what is represented.
+The ACS 5-Year data are not released as microdata, but rather in a range of [pre-calculated tables](https://www.socialexplorer.com/data/ACS2020_5yr/metadata/?ds=ACS20_5yr). While there is a significant number of these tables--over 2,200--there are practical limitations to what is represented.
 
 Finally, the [Current Population Survey (CPS)](https://www.census.gov/programs-surveys/cps.html) is a US Census Bureau survey which tracks families over the span of about 16 months (4 initial interviews each one month apart, an 8 month pause, and another 4 months of follow-up), and has information about income, family structure, ages/education/work status and relationships of all individuals in the household. This makes it useful to both identify household eligibility for Head Start and CCDF, and examine trends in employment, income, family composition--including program eligibility--evolve over time.
 
@@ -111,7 +111,7 @@ where $g$ is our small geography (tract), and $G$ is the big geography (PUMA).
 
 However, the share for the smaller geography would be noisier given the smaller population that it represents as a sampled measure. Thus, we assume
 
-$$\sigma_{gt-1}^{c,direct}=\sigma_{Gt-1}^c\frac{n_{Gt-1}}{n_{gt-1}}$$
+$$\sigma_{gt-1}^{c,direct}=\Sigma_{Gt-1}^c\frac{n_{Gt-1}}{n_{gt-1}}$$
 
 <!-- /!\ NSM: Note that this above adjustment is no longer current. It's not maintained because the standard error is not a property of the PUMA, but of the survey sample of the PUMA. Making the adjustment to recognize the noise of the tracts is an artificial one, hoping that sampling variation approximates variation due to spatial heterogeneity. Not clear what the most principled way is to do that. Perhaps ACS5 data could usefully approximate the latter... -->
 
@@ -165,6 +165,16 @@ In practice, we compose $\bar{z}_{gt-1}$ using both SAE estimates as well as ACS
 <!-- /!\ We may consider consolidating and renaming the 02 script, as it is -->
 <!-- in a sense auxiliary rather than part of the main development pipeline -->
 
+```{r}
+rerun_sae <- FALSE
+if (!file.exists(glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rda"))) {
+  cat(glue("The Small Area Estimates have not yet been generated for this report.\n",
+           "You must run the `run--02a` script--and any necessary 'upstream' scripts ",
+           "before rendering this report"))
+  stop()
+}
+```
+
 
 ```{r child = c("method--small-area-estimation-functions.Rmd", "run--02a--run-and-validate-SAE.Rmd")}
 
@@ -211,12 +221,6 @@ Topics for further development in the future:
 2. Demonstration that using uniform draws of income within CPS reported income bands replicates the distribution of incomes identified in the ASEC
 3. Other exhibits that are currently generated in the data prep or analysis files, but which don't belong in the main draft.
 -->
-
-
-
-
-
-
 
 
 
