@@ -164,12 +164,7 @@ save(nowcast_parallel_counts,
      file = glue("{output_path}Now-cast counts at the tract level, pre-disaggregation - {my_output_tag}.Rda"))
 ```
 
-
-### Examine Now-cast Estimates versus Base-Year (SAE) Estimates
-
-We compare now-cast estimates to baseline SAE estimates for only Head Start eligibility, because in the SAE estimates we do not currently estimate <50% as its own threshold, nor income measures directly connected to CCDF eligibility.
-
-```{r reshape}
+```{r reshape measures long}
 share_pre_post <- 
   nowcast_parallel_counts %>% 
   dplyr::select(-year) %>% 
@@ -178,6 +173,11 @@ share_pre_post <-
   pivot_wider(names_from = wide_name,
               values_from = value)
 ```
+
+
+### Examine Now-cast Estimates versus Base-Year (SAE) Estimates
+
+We compare now-cast estimates to baseline SAE estimates for only Head Start eligibility, because in the SAE estimates we do not currently estimate <50% as its own threshold, nor income measures directly connected to CCDF eligibility.
 
 ```{r function to compare now-cast vs SAE}
 comp_nowcast_vs_sae <- function(share_ests, title, xlab, ylab, save_tag) {
