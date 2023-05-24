@@ -18,10 +18,6 @@ if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
-## Details of CPS Microdata Development
-
-The sample is restricted to families of head of householders. This is practically driven by the availability of family income as available only for those individuals who are related to the head of household.
-
 ```{r read in cps data and documentation}
 cps_documentation <- read_ipums_ddi(glue("{input_path}{cps_raw}.xml"))
 
@@ -36,6 +32,11 @@ if (print_documentation) {
                  fields = c("FAMINC", "ASECFLAG", "STATEFIP", "RELATE"))
 }
 ```
+
+Current Population Survey (CPS) microdata are manually downloaded from the [IPUMS CPS](https://cps.ipums.org/cps/) site from `r base_year` through the most recent available month, and 
+
+
+The sample is restricted to families of head of householders. This is practically driven by the availability of family income as available only for those individuals who are related to the head of household.
 
 Hawaii and Alaska are dropped, as they follow different federal poverty guidelines than other states, and are expected to have clearly distinct economic dynamics.
 
@@ -369,6 +370,8 @@ cps_pov <-
              fam_incpov_ratio_le.5_adj   = 1*(fam_incpov_ratio_adj <= 0.5),
              fam_incpov_ratio_le1        = 1*(fam_incpov_ratio     <= 1.0),
              fam_incpov_ratio_le1_adj    = 1*(fam_incpov_ratio_adj <= 1.0),
+             fam_incpov_ratio_le1.85     = 1*(fam_incpov_ratio     <= 1.85),
+             fam_incpov_ratio_le1.85_adj = 1*(fam_incpov_ratio_adj <= 1.85),
              fam_incpov_ratio_le2        = 1*(fam_incpov_ratio     <= 2.0),
              fam_incpov_ratio_le2_adj    = 1*(fam_incpov_ratio_adj <= 2.0),
              fam_incpov_ratio_le2.25     = 1*(fam_incpov_ratio     <= 2.25),
@@ -713,14 +716,16 @@ cps_post <-
                  YEAR, MONTH, HWTFINL, is_validation,
                  faminc_adj, fam_incpov_ratio,
                  hoh_empl_post = 1*(EMPSTAT == 10),
-                 deep_pov_post     = fam_incpov_ratio_le.5,
-                 hs_elig_post      = fam_incpov_ratio_le1,
-                 pfa_elig_post     = fam_incpov_ratio_le2,
-                 upk_elig_post     = fam_incpov_ratio_le2.25,
-                 deep_pov_post_adj = fam_incpov_ratio_le.5_adj,
-                 hs_elig_post_adj  = fam_incpov_ratio_le1_adj,
-                 pfa_elig_post_adj = fam_incpov_ratio_le2_adj,
-                 upk_elig_post_adj = fam_incpov_ratio_le2.25_adj,
+                 incpov_le50_post  = fam_incpov_ratio_le.5,
+                 incpov_le100_post = fam_incpov_ratio_le1,
+                 incpov_le185_post = fam_incpov_ratio_le1.85,
+                 incpov_le200_post = fam_incpov_ratio_le2,
+                 incpov_le225_post = fam_incpov_ratio_le2.25,
+                 incpov_le50_post_adj  = fam_incpov_ratio_le.5_adj,
+                 incpov_le100_post_adj = fam_incpov_ratio_le1_adj,
+                 incpov_le185_post_adj = fam_incpov_ratio_le1.85_adj,
+                 incpov_le200_post_adj = fam_incpov_ratio_le2_adj,
+                 incpov_le225_post_adj = fam_incpov_ratio_le2.25_adj,
                  ccdf_elig_tight_inc, ccdf_elig_tight_inc_adj,
                  ccdf_elig_loose_inc, ccdf_elig_loose_inc_adj)]
 dim(cps_post)

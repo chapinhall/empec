@@ -88,15 +88,15 @@ cps_transition_pov_unadj <-
   calc_cps_transitions(base_data = cps_child_base[YEAR == 2019 & METRO %in% 2:4],
                        #stratum_vars = "child_agegroup",
                        vulnerability_vars = c("fam_incpov_ratio_cat_by100"), 
-                       outcome_vars = c("hs_elig_post",
-                                        "pfa_elig_post"))
+                       outcome_vars = c("incpov_le100_post",
+                                        "incpov_le200_post"))
 
 cps_transition_pov_adj <- 
   calc_cps_transitions(base_data = cps_child_base[YEAR == 2019 & METRO %in% 2:4],
                        #stratum_vars = "child_agegroup",
                        vulnerability_vars = c("fam_incpov_ratio_cat_by100_adj"), 
-                       outcome_vars = c("hs_elig_post_adj",
-                                        "pfa_elig_post_adj"))
+                       outcome_vars = c("incpov_le100_post_adj",
+                                        "incpov_le100_post_adj"))
 
 cps_transition_pov_comp <-
   bind_rows(cps_transition_pov_unadj,
@@ -122,8 +122,8 @@ cps_transition_pov_indv <-
                        #stratum_vars = "child_agegroup",
                        vulnerability_vars = c("fam_incpov_ratio_cat_by100_adj",
                                               "hoh_industry_vulnerable"), 
-                       outcome_vars = c("hs_elig_post_adj",
-                                        "pfa_elig_post_adj"))
+                       outcome_vars = c("incpov_le100_post_adj",
+                                        "incpov_le200_post_adj"))
 
 visualize_cps_transitions(trans_calcs = cps_transition_pov_indv, 
                           vul_vars = c("fam_incpov_ratio_cat_by100_adj",
@@ -141,8 +141,8 @@ cps_transition_pov_schkid <-
                        #stratum_vars = "child_agegroup",
                        vulnerability_vars = c("fam_incpov_ratio_cat_by100_adj",
                                               "has_schage_kid_base"), 
-                       outcome_vars = c("hs_elig_post_adj", 
-                                        "pfa_elig_post_adj",
+                       outcome_vars = c("incpov_le100_post_adj", 
+                                        "incpov_le200_post_adj",
                                         "hoh_empl_post"))
 
 visualize_cps_transitions(trans_calcs = cps_transition_pov_schkid, 
@@ -218,7 +218,7 @@ trans_ratio_calc_byinput <- function(subset_data, subset_label) {
   calc_cps_transitions(base_data = subset_data, 
                        stratum_vars = NULL, 
                        vulnerability_vars = c("fam_incpov_ratio_cat_by100"), 
-                       outcome_vars = c("hs_elig_post", "pfa_elig_post"),
+                       outcome_vars = c("incpov_le100_post", "incpov_le200_post"),
                        use_boot = TRUE) %>% 
     mutate(subset_label = subset_label)
 }
@@ -656,10 +656,11 @@ for (cps_recency in c("most_recent", "allbase")) {
         # Using the poverty estimates to predict poverty-related eligibility, 
         # as well as CCDF eligibility because why not. Also there's reason to 
         # believe that more parsimonious specifications may do better.
-        outcome_vars <- c("deep_pov_post_adj", 
-                          "hs_elig_post_adj", 
-                          "pfa_elig_post_adj", 
-                          "upk_elig_post_adj", 
+        outcome_vars <- c("incpov_le50_post_adj", 
+                          "incpov_le100_post_adj", 
+                          "incpov_le185_post_adj", 
+                          "incpov_le200_post_adj ", 
+                          "incpov_le225_post_adj ", 
                           "ccdf_elig_tight_inc_adj")
         sae_controls <- transition_pred_vars_toadd_pov
       } else if (str_detect(sae_spec, "^ccdf")) {
@@ -798,7 +799,7 @@ Comparing conditional vs unconditional estimates of SAE measures.
 ```{r compare now-casting betas, results = "asis"}
 compare_betas(
   betas = filter(nowcast_betas_out,
-                 outcome_var       == "hs_elig_post_adj",
+                 outcome_var       == "incpov_le100_post_adj",
                  sae_spec          == "incpov_ctrls2534_05",
                  cps_base_recency  == "most_recent",
                  cps_geo_subsample == "none"),
@@ -814,7 +815,7 @@ compare_betas(
 
 compare_betas(
   betas = filter(nowcast_betas_out,
-                 outcome_var      == "hs_elig_post_adj",
+                 outcome_var      == "incpov_le100_post_adj",
                  sae_spec         == "incpov_ctrls2534_05",
                  cps_base_recency == "most_recent",
                  trans_spec       == "cond"),
@@ -828,7 +829,7 @@ compare_betas(
 
 compare_betas(
   betas = filter(nowcast_betas_out,
-                 outcome_var       == "hs_elig_post_adj",
+                 outcome_var       == "incpov_le100_post_adj",
                  sae_spec %in% c("incpov_ctrls2534_05", "incpov_ctrls2534_612"),
                  cps_base_recency  == "most_recent",
                  cps_geo_subsample == "none",
@@ -843,7 +844,7 @@ compare_betas(
 
 compare_betas(
   betas = filter(nowcast_betas_out,
-                 outcome_var       == "hs_elig_post_adj",
+                 outcome_var       == "incpov_le100_post_adj",
                  sae_spec          == "incpov_ctrls2534_05",
                  cps_geo_subsample == "none",
                  trans_spec        == "cond"),
@@ -920,7 +921,7 @@ plot_trans_sensitivity_comp <- function(data, comp_col, base_val) {
 ```
 
 ```{r compare SAE specifications for HS prediction}
-plot_trans_sensitivity_comp(nowcast_out[outcome_var == "hs_elig_post_adj" & cps_base_recency == "most_recent"],
+plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & cps_base_recency == "most_recent"],
                             comp_col = "sae_spec",
                             base_val = "incpov_ctrls2534_05") +
   labs(title = case_when(my_output_tag == "IL" ~ "For Head Start, Sensitivities Seem Reasonably Consistent, Except for Simplest Spec",
@@ -940,7 +941,7 @@ plot_trans_sensitivity_comp(nowcast_out[outcome_var == "ccdf_elig_tight_inc_adj"
 ```
 
 ```{r compare CPS subsetting sensitivity for HS prediction - spec 1}
-plot_trans_sensitivity_comp(nowcast_out[outcome_var == "hs_elig_post_adj" & sae_spec == "incpov_ctrls2534_05"],
+plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & sae_spec == "incpov_ctrls2534_05"],
                             comp_col = "cps_geo_subsample",
                             base_val = "none") +
   labs(title = case_when(my_output_tag == "IL" ~ "For Head Start, Sensitivities Seem Reasonably Consistent, Except for Simplest Spec",
@@ -950,7 +951,7 @@ plot_trans_sensitivity_comp(nowcast_out[outcome_var == "hs_elig_post_adj" & sae_
 ```
 
 ```{r compare CPS subsetting sensitivity for HS prediction - spec 2}
-plot_trans_sensitivity_comp(nowcast_out[outcome_var == "hs_elig_post_adj" & sae_spec == "incpov_ctrls2534_05"],
+plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & sae_spec == "incpov_ctrls2534_05"],
                             comp_col = "cps_base_recency",
                             base_val = "most_recent") +
   labs(title = case_when(my_output_tag == "IL" ~ "For HS, Using the 2020 Baseline yields 25% lower eligibility estimates",
