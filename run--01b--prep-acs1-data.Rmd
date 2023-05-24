@@ -18,14 +18,12 @@ if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
-## Details of ACS 1-Year Microdata Development
-
 ```{r read in acs1 data and documentation}
 my_pums <- 
   pums_variables %>% 
   filter(year == 2019, # base_year, ... currently using 2019 because 2021 documentation is not yet available for the current version of tidycensus
-         survey == "acs1"
-  )
+         survey == "acs1") %>% 
+  select(var_code, var_label, level, val_min, val_max, val_label)
 
 acs1_save_file <- glue("{input_path}census_acs1_{base_year}.csv")
 if (!file.exists(acs1_save_file)) {
@@ -35,17 +33,9 @@ if (!file.exists(acs1_save_file)) {
 }
 ```
 
+### Sample Restrictions
 
-```{r review acs documentation}
-# Codebook for full and interactive codebook can be viewed by running the `View(pums_variables)`
-# command. However, this cannot render within an .Rmd file, so it is here 
-# enclosed in an `if` that will not run when the document is knit
-if (FALSE) {
-  View(my_pums)
-}
-```
-
-ACS 1-Year microdata are subset to households not living in group quarters, to `r my_state_abbr` records, and to year `r base_year`.
+ACS 1-Year microdata for `r base_year` are downloaded from the [Census Application Program Interface (API)](https://www.census.gov/data/developers/data-sets/acs-1year.html) and subset to households not living in group quarters, and to `r my_state_abbr` records.
 
 ```{r subset microdata}
 # TYPE (Census) -- 1 - Housing unit, 2 - group quarters
@@ -63,11 +53,13 @@ if (exists("my_county")) {
 }
 ```
 
+### Calculation of Household-Level Measures
 
 ```{r view variables relevant to head-of-household coding, results = "asis", eval = developer_mode}
 if (print_documentation) {
-  View(my_pums %>% filter(var_code %in% c("RELSHIPP", "SCHL", "INDP", "RAC2P", "HISP")),
-       "YEAR & TYPE Doc")
+  my_pums %>% 
+    filter(var_code %in% c("RELSHIPP", "SCHL", "INDP", "RAC2P", "HISP")) %>% 
+    kable()
 }
 ```
 
@@ -77,6 +69,8 @@ acs1[by = .(YEAR, SERIALNO),
   summary()
 ```
 
+Although not currently used in this analysis, this codebase develops indicators pertaining to the head of household, including education, race/ethnicity, and industry of employment (if applicable). In other future specifications, these may be considered for inclusion in measures predicted by the SAE method and, in turn, used to capture macroeconomic trends in the "now"casting step.
+<!-- /*\ Note: this note about modeling is specific to the current implementation in Illinois, and may be of interest for modifying locally  -->
 
 ```{r prepare ACS 1-year microdata for head of household}
 # Note: for households that contain multiple families, this method may produce inaccurate results (i.e., head of household may be unrelated to child in multi-family households).
@@ -102,26 +96,24 @@ acs1_hoh <-
   dplyr::select(YEAR, SAMPLE, SERIALNO, hoh_educ, hoh_industry, hoh_industry_vulnerable, hoh_race, hoh_hispanic)
 ```
 
-
-### Prepare the Family-Level Records
-
-Although child records include family income information sufficient to establish eligibility for Head Start and Preschool For All, eligibility for the Child Care Assistance Program (CCAP) requires information on whether adults in the household are engaged in qualifying activities, either work or education.
-
-Note that this information is not strictly necessary to develop for the baseline sample, as the baseline must only establish "vulnerability" to become eligible. However, information about parent activities related to CCAP-eligibility may well be meaningful vulnerabilities.
-
 ```{r view variables relevant to constructing household-level measures, eval = developer_mode, results = "asis"}
 if (print_documentation) {
-  show_ipums_doc(acs_documentation, 
-               fields = c("RELSHIPP", #"RELATED", # Note: currently no info on detailed  relationship in Census data (versus our original source of IPUMS)
-                          "SCH", "ESR" #, "EMPSTATD"
-                          ))  
+  my_pums %>% 
+    filter(var_code %in% c("RELSHIPP", "SCH", "ESR")) %>%
+    kable()
 }
 ```
 
+An additional set of indicators is built using all information about household members to capture not just family income (which the ACS has in a field reported even for younger members of the household) but also presence and labor force status of adults in the household:
 
+* Presence of spouse is determined based on either an opposite- or same-sex spouse to the head of household
+* Qualification of head of household or spouse in work or school is determined by either:
+  - civilian employment either "at work" or "with a job but not at work"
+  - enrollment in public or private school or college
+
+<!-- /!\\ Note that the Chapin Hall research team is currently working on separating income and family relationships information for "subfamilies" that may be residing together with the primary family which the Head-of-Household that is the main respondent belongs to. -->
 
 ```{r prepare ACS 1-year microdata for families}
-
 # Key field values (Census)
 # ESR -- 0 - N/A (less than 16 yrs old), 1 - Civilian employed, at work, 2 - Civilian employed, with a job but not at work, 3 - Unemployed, 4 - Armed forces, at work, 5 - Armed forces, with a job but not at work, 6 - Not in labor force
 # SCH -- 0 - N/A (less than 3 yrs old), 1 - No, has not attended in the last 3 months, 2 - Yes, public school or public college, 3 - Yes, private school or college or home school
@@ -135,10 +127,12 @@ acs1_hh <-
 
   # /!\ Not built, but possibly of interest may be gender of households, and
   # separate examination of SCH and ESR
+```
 
+
+```{r examine build of household fields}
 # Allow examination of cases
 if (FALSE) {
-  # Directly examine build
   check <- 
     merge(acs1[j = .(YEAR, SERIALNO, RELSHIPP, SEX, AGEP, SCH, ESR)],
           acs1_hh[j = .(YEAR, SERIALNO, spouse_present, all_work_sch)],
@@ -157,11 +151,27 @@ if (FALSE) {
 
 ```{r view variables relevant to child coding, results = "asis", eval = developer_mode}
 if (print_documentation) {
-  show_ipums_doc(acs_documentation,
-                 c("AGEP", "POVPIP", "RAC2P", "HISP", "PWGTP", "YEAR", "SERIALNO"#, "FAMUNIT" # no variables for famunit 
-                   ))
+  show_vars <- c("AGEP", "POVPIP", "RAC2P", "HISP", "PWGTP", "YEAR") #, "FAMUNIT" # no variables for famunit 
+  my_pums %>% 
+    filter(var_code %in% show_vars) %>% 
+    kable()
 }
 ```
+
+Besides the indicators above, all other relevant characteristics are measured relative to children themselves (including family income which is reported in records for all members of the household). Development of these data involve:
+
+* Subsetting of children to ages 14 and below
+* Inclusion of all measures constructed for heads of household and the household overall
+* Age group of child bucketed into intervals of 0-2, 3-5, 6-8, 9-12, and 13-14 <!-- check on the bin_age function which establishes this -->
+* Race of child partitioned into "white alone", "Black/African-American alone", and "other"
+* Ethnicity of child partitioned into "Hispanic" and "non-Hispanic"
+* Family income partitioned into different schemes for use in different modeling specifications, and for alignment to values that CCDF income eligibility thresholds may take on:
+  - 0-50% FPL, 50-125%, 125-185%, 185-300%, 300%+ (useful in contexts where the CCDF income eligibility threshold is 185% FPL)
+  - 0-50% FPL, 50-100%, 100-200%, 200-300%, 300%+ (useful in contexts where the CCDF income eligibility threshold is 200% FPL)
+  - 0-75% FPL, 75-150%, 150-225%, 225-300%, 300%+ (useful in contexts where the CCDF income eligibility threshold is 225% FPL)
+  - 0-50% FPL, 50-100%, 100-150%, 150-200%, 200-250%, 250-300%, 300%+ (useful for flexibility despite buckets with relatively few households)
+  - 0-100% FPL, 100-200%, 200-300%, 300%+ (useful for simpler reference)
+* Combinations of partitions defined above to both represent share categories predicted in the SAE method, as well as direct calculation of CCDF eligibility rates in the baseline year
 
 ```{r prepare ACS 1-year microdata for children}
 acs1_child <- 
@@ -212,8 +222,6 @@ plot_freq("work_spouse_status")
 plot_freq("work_incpov_status100")
 ```
 
-
-
 ```{r verify that data sets only have one obs per child, eval = developer_mode}
 acs1_child %>% 
   group_by("SAMPLE", "SERIALNO", "SPORDER") %>% 
@@ -229,6 +237,9 @@ gc()
 ```
 
 ```{r output basics to be able to compare with direct pulls, eval = developer_mode}
+# /*\ This diagnostic was motivated by a specific exercise in building comparisons
+# with by-hand pulls of ACS data from ipums.org. If of interest outside of the original
+# IL-based application, the income threshold may need modification.
 (puma_agg <- 
    acs1_child[between(AGEP, 0, 5),
               .(sample_n = .N,
