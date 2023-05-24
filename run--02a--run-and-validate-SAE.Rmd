@@ -120,7 +120,7 @@ incpov_ranges_for_estimation <- c("0to50", "50to100", "100to199", "200to299")
 # added to make a direct comparison.
 
 work_incpov_spec_field <- 
-  case_when(local_ccdf_thresh == 185 ~ "work_incpov_status185", #/!!\ this doesn't exist?
+  case_when(local_ccdf_thresh == 185 ~ "work_incpov_status185",
             local_ccdf_thresh == 200 ~ "work_incpov_status100",
             local_ccdf_thresh == 225 ~ "work_incpov_status75",
             TRUE ~ "work_incpov_status100")
