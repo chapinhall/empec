@@ -37,7 +37,7 @@ for (f in c("geo", "acs1", "cps", "acs5", "pop")) {
 }
 ```
 
-## Examine size of potential vulnerability groups for modeling choices
+### Examine size of potential vulnerability groups for modeling choices
 
 Investigate the potential depth of slicing vulnerability types and strata for potential use.
 
@@ -96,7 +96,7 @@ show_acs_n_bys(c("fam_incpov_ratio_cat_by100", "hoh_industry_vulnerable"))
 try(show_acs_n_bys(c("work_incpov_status185")), silent = TRUE)
 ```
 
-## Results of SAE Estimation
+### Results of SAE Estimation
 
 ```{r setup run options based on local ccdf details}
 # Categories of income-to-poverty ratios available in the ACS 5-year data
@@ -169,6 +169,11 @@ acs5tract_sae <- acs5tract
 if (exists("my_county_fip")) {
   acs1_child05_sae <- 
     acs1_child05_sae %>% 
+    .[j = in_my_geo := 1*(PUMA %in% geo_crosswalk[COUNTYFIP == my_county_fip]$PUMA)] %>% 
+    .[in_my_geo == 1]
+  
+  acs1_child612_sae <- 
+    acs1_child612_sae %>% 
     .[j = in_my_geo := 1*(PUMA %in% geo_crosswalk[COUNTYFIP == my_county_fip]$PUMA)] %>% 
     .[in_my_geo == 1]
   
@@ -339,7 +344,7 @@ for (spec in specs) {
 }
 ```
 
-### Compare Direct versus FH Output Estimates
+#### Compare Direct versus FH Output Estimates
 
 As a reality check, confirm that a single "direct" estimate applies to all tracts within each given PUMA. The result should be that there are all "0" numbers of duplicates. 
 
@@ -498,7 +503,7 @@ if (my_output_tag == "Cook2022") {
 ```
 
 
-### Examine the Estimated Composition of Tracts
+#### Examine the Estimated Composition of Tracts
 
 ```{r examine SAE share composition by tract -- FH estimates}
 plot_sae_comp_by_tract <- function(sae_est, base_cat, title) {
@@ -541,7 +546,7 @@ plot_sae_comp_by_tract(sae_results_ccdf_wk_pov_05_out,
                        title = "Vulnerability Cat Composition by Tract -- Work Eligibility by Income-to-Pov")
 ```
 
-### Examine Aggregate Comparison Plots
+#### Examine Aggregate Comparison Plots
 
 Because PUMA data are very thin, we will not adjust our tract-level estimates to match their totals. Instead, we will just compare them to get a rough sense of correspondence.
 
@@ -557,7 +562,7 @@ sae_results_incpov_ctrls2534_05[["agg_comp_fh"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For Poverty, SAE Methods for 0-5 Return Estimates Broadly Consistent with\nObserved PUMA-Level Counts",
-           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 0-5 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 0-5 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") 
 
@@ -565,7 +570,7 @@ sae_results_incpov_ctrls2534_05[["agg_comp_model"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For Poverty, SAE Methods for 0-5 Return Estimates Broadly Consistent with\nObserved PUMA-Level Counts",
-           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 0-5 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 0-5 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") 
 
@@ -574,7 +579,7 @@ sae_results_incpov_ctrls2534_612[["agg_comp_fh"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For Poverty, SAE Methods Return Estimates Broadly Consistent with\nObserved PUMA-Level Counts",
-           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 6-12 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 6-12 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") 
 
@@ -583,7 +588,7 @@ sae_results_incpov_ctrls2534_612[["agg_comp_model"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For Poverty, SAE Methods Return Estimates Broadly Consistent with\nObserved PUMA-Level Counts",
-           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 6-12 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 6-12 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") 
 
@@ -596,7 +601,7 @@ sae_results_ccdf_wk_pov_05[["agg_comp_fh"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For (Work Elig x Poverty), SAE Estimates are Largely Disconnected",
-           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 0-5 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 0-5 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") +
   theme(strip.text = element_text(size = 8),
@@ -606,7 +611,7 @@ sae_results_ccdf_wk_pov_05[["agg_comp_model"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For (Work Elig x Poverty), SAE Estimates are Largely Disconnected",
-           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 0-5 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 0-5 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") +
   theme(strip.text = element_text(size = 8),
@@ -617,7 +622,7 @@ sae_results_ccdf_wk_pov_612[["agg_comp_fh"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For (Work Elig x Poverty), SAE Estimates are Largely Disconnected",
-           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 6-12 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 6-12 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") +
   theme(strip.text = element_text(size = 8),
@@ -627,7 +632,7 @@ sae_results_ccdf_wk_pov_612[["agg_comp_model"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For (Work Elig x Poverty), SAE Estimates are Largely Disconnected",
-           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 6-12 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 6-12 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") +
   theme(strip.text = element_text(size = 8),
@@ -654,7 +659,7 @@ cbind(sae_results_incpov_simple_05[["agg_comp_model"]]$agg_comp_cor     %>% muta
   # But also, in a sense, this is a cleaner perspective on the results of the model
 ```
 
-### Compare Tract-Level SAE Estimates to the ACS 5-year
+#### Compare Tract-Level SAE Estimates to the ACS 5-year
 
 <!-- From direct examination of estimates, we had found cases where SAE estimates of <100% FPL were much higher than the ACS 5-year estimates for tracts within certain CCAs. First, we want to systematically investigate the extent of these outliers. -->
 
@@ -770,7 +775,7 @@ sae_results_incpov_ctrls2534_05$sae_out %>%
   .[order(GEOID, vc_value)]
 ```
 
-### Adjust SAE Estimates to Match PUMA-level Aggregates
+#### Adjust SAE Estimates to Match PUMA-level Aggregates
 
 ```{r eval = FALSE}
 # This is not yet implemented, because many of the PUMA-level counts, especially
@@ -832,7 +837,7 @@ if (FALSE) {
 ```
 
 
-### Map Components of the SAE Estimates
+#### Map Components of the SAE Estimates
 
 ```{r set up comparisons of data}
 pov_p <- 
