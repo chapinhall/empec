@@ -57,6 +57,7 @@ geo_crosswalk_puma <-
   mutate(STATEFIP  = str_pad(STATEFIP, width = 2, side = "left", pad = "0"),
          TRACTFIP  = str_pad(TRACTFIP, width = 6, side = "left", pad = "0"),
          COUNTYFIP = str_pad(COUNTYFP, width = 3, side = "left", pad = "0"),
+         PUMA      = str_pad(PUMA,     width = 5, side = "left", pad = "0"),
          GEOID = paste0(STATEFIP, COUNTYFIP, TRACTFIP))
 
 geo_crosswalk_zcta <-
