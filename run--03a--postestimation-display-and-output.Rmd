@@ -61,36 +61,52 @@ nowcast_parallel_setup <-
          nowcast_share_se = elig_share_se)
 
 # For each output, select the sensitivity and (calculation of) related measure
+# /!\ These related `base_share` measures are, in many cases, not aligned with
+# the estimated measures themselves (and so we set them as NA).
+# This is because the only `share_#_#` predictors that are carried along are 
+# those that were predicted in the SAE estimation. The most direct updated
+# step would be to produce different runs of the SAE, although this is currently
+# highly time-consuming.
 
-nowcast_parallel_deep_pov <- 
+nowcast_parallel_incpov_le50 <- 
   nowcast_parallel_setup %>% 
-  filter(outcome_var == "deep_pov_post_adj",
+  filter(outcome_var == "incpov_le50_post_adj",
          str_detect(sae_spec, "incpov_ctrls2534")) %>% 
   mutate(base_share = share_0_50)
 
-nowcast_parallel_hs_elig <- 
+nowcast_parallel_incpov_le100 <- 
   nowcast_parallel_setup %>% 
-  filter(outcome_var == "hs_elig_post_adj",
+  filter(outcome_var == "incpov_le100_post_adj",
          str_detect(sae_spec, "incpov_ctrls2534")) %>% 
   mutate(base_share = share_0_50 + share_50_100)
 
-nowcast_parallel_pfa_elig <- 
+nowcast_parallel_incpov_le185 <- 
   nowcast_parallel_setup %>% 
-  filter(outcome_var == "pfa_elig_post_adj",
+  filter(outcome_var == "incpov_le185_post_adj",
+         str_detect(sae_spec, "incpov_ctrls2534")) %>% 
+  mutate(base_share = NA)
+
+nowcast_parallel_incpov_le200 <- 
+  nowcast_parallel_setup %>% 
+  filter(outcome_var == "incpov_le200_post_adj",
          str_detect(sae_spec, "incpov_ctrls2534")) %>% 
   mutate(base_share = share_0_50 + share_50_100 + share_100_200)
 
-nowcast_parallel_upk_elig <- 
+nowcast_parallel_incpov_le225 <- 
   nowcast_parallel_setup %>% 
-  filter(outcome_var == "upk_elig_post_adj",
+  filter(outcome_var == "incpov_le225_post_adj",
          str_detect(sae_spec, "incpov_ctrls2534")) %>% 
-  mutate(base_share = share_0_50 + share_50_100 + share_100_200)
+  mutate(base_share = NA)
 
 nowcast_parallel_ccdf_elig <- 
   nowcast_parallel_setup %>% 
   filter(outcome_var == "ccdf_elig_tight_inc_adj",
          str_detect(sae_spec, "ccdf_wk_pov"))
 
+# We are able to ensure alignment of the base_share values to CCDF eligibility
+# because the SAE target categories are explicitly chosen in the 02a script to
+# ensure this (via equivalent references to `local_ddf_thresh` to set model
+# specification)
 if (local_ccdf_thresh == 185) {
   nowcast_parallel_ccdf_elig <- 
     nowcast_parallel_ccdf_elig %>% 
@@ -111,10 +127,11 @@ if (local_ccdf_thresh == 185) {
 
 # Generate parallel base/nowcast constructions wide by base/now measures 
 nowcast_parallel_preshape <- 
-  bind_rows(nowcast_parallel_deep_pov,
-            nowcast_parallel_hs_elig,
-            nowcast_parallel_pfa_elig,
-            nowcast_parallel_upk_elig,
+  bind_rows(nowcast_parallel_incpov_le50,
+            nowcast_parallel_incpov_le100,
+            nowcast_parallel_incpov_le185,
+            nowcast_parallel_incpov_le200,
+            nowcast_parallel_incpov_le225,
             nowcast_parallel_ccdf_elig) %>% 
   dplyr::select(GEOID, outcome_var, age, base_share, base_share_se, nowcast_share, nowcast_share_se) %>% 
   # /!\ ** This unique() should not be necessary. However, it's occurring because
@@ -211,21 +228,21 @@ comp_nowcast_vs_sae <- function(share_ests, title, xlab, ylab, save_tag) {
 
 
 ```{r compare now-cast vs SAE for deep poverty}
-comp_nowcast_vs_sae(share_ests = share_pre_post %>% filter(str_detect(outcome_var, "deep_pov")),
+comp_nowcast_vs_sae(share_ests = share_pre_post %>% filter(str_detect(outcome_var, "incpov_le50")),
                     title = case_when(my_output_tag == "IL" ~ "Tract-Level Now-Cast Estimates are Generally Above Baseline",
                                       TRUE ~ ""),
                     xlab = glue("Baseline (SAE) - {base_year}"),
                     ylab = glue("Now-Cast - {base_year+1}"),
-                    save_tag = "deep_pov")
+                    save_tag = "incpov_le50")
 ```
 
 ```{r compare now-cast vs SAE for HS}
-comp_nowcast_vs_sae(share_ests = share_pre_post %>% filter(str_detect(outcome_var, "hs_elig")),
+comp_nowcast_vs_sae(share_ests = share_pre_post %>% filter(str_detect(outcome_var, "incpov_le100")),
                     title = case_when(my_output_tag == "IL" ~ "Tract-Level Now-Cast Estimates are Generally Above Baseline",
                                       TRUE ~ ""),
                     xlab = glue("Baseline (SAE) - {base_year}"),
                     ylab = glue("Now-Cast - {base_year+1}"),
-                    save_tag = "hs_elig")
+                    save_tag = "incpov_le100")
 ```
 
 ```{r compare now-cast vs SAE for CCAP}
@@ -286,7 +303,7 @@ plot_elig_diff_vs_char <-
 
 
 ```{r}
-plot_elig_diff_vs_char(outcome_string = "hs_elig",
+plot_elig_diff_vs_char(outcome_string = "incpov_le100",
                        outcome_desc   = "HS Eligibility", 
                        char_field     = "raceeth_wh_nonh_est",
                        char_desc      = "% White Non-Hisp in Tract",
