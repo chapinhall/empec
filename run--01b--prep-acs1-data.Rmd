@@ -256,8 +256,33 @@ if (FALSE) {
 }
 ```
 
+```{r calculate selected statistics at the PUMA level with standard errors to facilitate later checks}
+# Function to calculate poverty rates
+calc_acs1_puma_pov <- function(my_data, indices) {
+  my_data[indices,
+          j = .(pct_pov = meanNA(fam_incpov_ratio <= 1.00)),
+          by = .(child_agegroup_combo, PUMA)] %>% 
+    .[order(child_agegroup_combo, PUMA)] %>% 
+    pull(pct_pov)
+}
+
+acs1_child_mod <- 
+  acs1_child %>% 
+  .[j = child_agegroup_combo := case_when(child_agegroup %in% c("0to2", "3to5") ~ "0to5",
+                                          TRUE ~ child_agegroup)] %>% 
+  .[order(child_agegroup_combo, PUMA)]
+
+acs1_boot <- boot(acs1_child_mod, calc_acs1_puma_pov, R = 200)
+acs1_puma_stats <- 
+  cbind(acs1_boot$data[j = .(child_agegroup_combo, PUMA)] %>% unique(),
+        data.table(pct_pov    = acs1_boot$t0,
+                   pct_pov_check = apply(acs1_boot$t, 2, mean)),
+                   pct_pov_se = sqrt(apply(acs1_boot$t, 2, var)))
+```
+
 
 ```{r}
 save(acs1_child,
+     acs1_puma_stats,
      file = glue("{output_path}acs1_data_{my_output_tag}.Rda"))
 ```

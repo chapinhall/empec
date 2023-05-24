@@ -9,7 +9,7 @@ packages.list <-
     "zoo", "moments", "rgdal", "leaflet", "RColorBrewer", "ggalluvial", "tigris",
     "extrafont", "remotes", "broom", "sf", "lwgeom", "foreach", "doParallel",
     "xlsx", "tidycensus", "fredr", "ipumsr", "tsibble", "forecast", "fable", 
-    "ggtext", "data.table", "tidyr", "dplyr", "scales")
+    "boot", "ggtext", "data.table", "tidyr", "dplyr", "scales")
 
 for (p in packages.list) {
   if (!p %in% installed.packages()[, "Package"]) install.packages(p)
