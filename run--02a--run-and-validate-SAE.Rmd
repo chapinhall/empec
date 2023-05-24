@@ -62,10 +62,6 @@ show_acs_n_bys <- function(by_vars) {
 
 <!-- /!\ Consider building this into a graphical view. -->
 
-```{r, eval = developer_mode}
-show_acs_n_bys(c("fam_incpov_ratio_cat_by100", "child_race"))
-```
-
 ```{r age and income by 100s, eval = developer_mode}
 show_acs_n_bys("fam_incpov_ratio_cat_by100")
 ```

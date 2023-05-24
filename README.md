@@ -114,7 +114,7 @@ zcta_starts <- c("XX", "XX", "XX")
 # threshold as a % of the Federal Poverty Line (e.g. a value of 225 for 225% of FPL)
 local_ccdf_name_short <- "<local abbreviation for childcare subsidy, if not 'CCDF'>"
 local_ccdf_name_long  <- "<local name for childcare subsidy>"
-local_ccdf_thresh <- <numeric value for income-to-poverty line threashold for inital CCDF eligibility>
+local_ccdf_thresh <- <numeric value for income-to-poverty line threashold for initial CCDF eligibility>
 
 ### Set Other Run Parameters ---------------------------------------------------
 
@@ -133,25 +133,22 @@ use_only_sae_model_estimates <- TRUE
 
 # Data Sources and their Uses
 
-## American Community Survey (ACS) 5-Year Data
-
-ACS 5-Year data (ACS5) are aggregated across five recent years of ACS survey data, gaining sample size--and thus greater ability and validity--for reporting at geographically more granular levels. We focus on tables released at the Census tract level, which are intended to represent areas about 4,000 inhabitants on average. With that definition, Census tracts naturally vary in size across urban and rural contexts.
-
-The use of ACS5 data is to gain correlates to childcare demand at a geographically granular level.
-
 ## American Community Survey (ACS) 1-Year Data
 
-ACS 1-Year data (ACS1) microdata are used to build estimated counts and shares of children in households with different circumstances of vulnerability to being impacted by the pandemic.
+ACS 1-Year data (ACS1) microdata has information about each member of surveyed households, including age, employment/school attendance status, and income. These are used to build estimated counts and shares of children in CCAP-eligible households.
+However, ACS1 data are only as geographically specific as the Census Public Use Microdata Code (PUMA) level, which reflects areas containing a minimum of 100,000 individuals. For example, there are 17 PUMAs inside of Chicago, but also 15 PUMAs in Illinois that span multiple counties.
 
-The `pull--acs1-microdata.R` script now automatically pulls ACS1 microdata via the Census API. Whereas previously ACS1 data was pulled manually from IPUMS.org, this process is now better automated and is able to obtain updated ACS1 from Census once ready, rather than waiting for IPUMS to process their release. While the IPUMS microdata release adds considerable value in harmonization, our use is selective and well-understood enough that direct sourcing from Census has no strong downside.
+## American Community Survey (ACS) 5-Year Data
 
-## Current Population Survey
+ACS 5-Year data (ACS5) are aggregated across five consecutive years of ACS survey data, gaining sample size--and thus greater ability and validity--for reporting at geographically more granular levels. We focus on tables released at the Census tract level, which are intended to represent areas about 4,000 inhabitants on average. With that definition, Census tracts naturally vary in size across urban and rural contexts. However, the ACS5 data are released as aggregate tables -- such as estimated number of kids under each federal poverty level -- and not microdata. While CCAP eligibility is not reflected, the ACS5 data provides information useful for distinguishing the general socioeconomic characteristics of smaller geographic areas.
 
-Current Population Survey (CPS) microdata are used to examine the economic dynamics of households across the time period of just more than a year. These data are drawn for year 2019 both because there is a lag in reporting, and because this was the last data release prior to complications of the pandemic.
+## Current Population Survey (CPS)
+
+CPS collects information about each member of surveyed households on a monthly basis, providing recent information, only 1-2 months lagged. However, CPS does not provide information at a geographically granular level. CPS is used to build statistical relationships between household socioeconomic status baseline year and CCAP eligibility as of its most recent available data, which is applied to estimate Census-tract level CCAP eligibility as of the most recent month of CPS data.
 
 The CPS data were downloaded interactively from the [IPUMS CPS](https://cps.ipums.org/cps/) (originally "Integrated Public Use Microdata Series") website. Annual Supplementary Economic Characteristics (ASEC) data and Basic Monthly Data were pulled for 2019 and all months forward for the current exercise, and for both 2007-2009 for the sake of validating our method using data from throughout the Great Recession.
 
-Before making selections of variables, it is necessary within Sample Selections to select the "Cross Sectional" option. This makes it possible to download the Basic Monthly Files which have a more complex longitudinal structure than the Annual Social and Economic Supplement (ASEC) sample. See [this article](https://www.census.gov/topics/population/foreign-born/guidance/cps-guidance/cps-vs-asec.html) for a comparison of the genearl CPS versus ASEC samples. This selection must be made before selecting variables. Otherwise the existing selections will be lost.
+Before making selections of variables, it is necessary within Sample Selections to select the "Cross Sectional" option. This makes it possible to download the Basic Monthly Files which have a more complex longitudinal structure than the Annual Social and Economic Supplement (ASEC) sample. See [this article](https://www.census.gov/topics/population/foreign-born/guidance/cps-guidance/cps-vs-asec.html) for a comparison of the general CPS versus ASEC samples. This selection must be made before selecting variables. Otherwise the existing selections will be lost.
 
 The following fields were pulled:
 
@@ -166,15 +163,15 @@ The following fields were pulled:
 	- WORK: EMPSTAT, LABFORCE, OCC, IND, CLASSWKR
 	- EDUCATION: EDUC, SCHLCOLL
 	- TECHNICAL: PERNUM, WTFINL, FAMID
-	- POVERTY (ASEC only)
+* PERSON (included under "ANNUAL SOCIAL & ECONOMIC SUPPLEMENT (ASEC)")	
+	- INCOME: INCTOT, INCWAGE, INCUNEMP
+	- POVERTY: POVERTY
 
 Be sure to download the DDI file which has documentation of fields in this pull. To do so, click on the "DDI" link, and right-click to "Save As" this file to the "input/" subfolder within the repository.
 
-## Poverty Threshold data
+## Poverty Guidelines data
 
-Income-to-poverty ratio information is a key determinant of eligibility for child care supports. While some data sources--including the ACS5 and ACS1--have detailed information about income-to-poverty, there are levels of additional detail of interest for construction within the CPS data.
-
-Poverty information for 2020 is draw from [this source](https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/prior-hhs-poverty-guidelines-federal-register-references/2020-poverty-guidelines).
+Poverty Guidelines information is a key determinant of eligibility for child care supports. This information is drawn from [this source](https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/prior-hhs-poverty-guidelines-federal-register-references/).
 
 
 # Code Files
@@ -191,9 +188,8 @@ Code files in this repository include:
 These files can be run manually, but are generally set up to be run automatically by the `run` scripts below that require their output.
 
 * `pull--acs1-microdata.R` -- automatically pulls ACS1 microdata using the Census API
-* `pull--acs5-general-data.R` -- this pulls and processes many ACS5 tables of interest, used in the Small Area Estimation method
+* `pull--acs5-general-data.R` -- pulls and processes many ACS5 tables of interest, used in the Small Area Estimation method
 * `pull--acs5-data-on-poverty-by-race.R` -- a select subset of ACS5 data with information about poverty-by-race data, using in postprocessing steps to provide estimated racial breakdowns of eligibility counts. In the future, this can incorporated into the `pull--acs5-general-data.R` script.
-
 
 ## Run Scripts
 
@@ -202,6 +198,7 @@ These files can be run manually, but are generally set up to be run automaticall
 * `run--01b--prep-acs1-data.Rmd` -- reads pulls of ACS1 microdata and develops necessary structures for use in the Small Area Estimation method
 * `run--01c--prep-cps-data.Rmd` -- reads pulls of CPS microdata (instructions provided above) and develops necessary structures for use in the "now-casting" method
 * `run--01d--prep-acs5-data.Rmd` -- adds onto the output from the `pull--acs5-general-data.R` script, adding some additional fields, and aggregating calculations and standard errors up to the PUMA level
+* `run--01e--prep-pop-by-age-data.Rmd` -- pulls data from the Census redistricting files, SF1 Census files, and ACS5 to get population by age group to use in projecting population counts for young children
 * `run--02a--run-and-validate-SAE.Rmd` -- run a range of SAE specifications for a range of measures--including share of households by income-to-poverty ratio, and measures related to predicting CCDF eligibility--and examine their properties to gauge their individual reliability, and compare their output
 * `run--02b--run-and-validate-nowcasting.Rmd` -- run a range of "now-casting" analyses, apply them to baseline+SAE measures to estimate counts, and examine patterns and maps of the output.
 * `run--03a--postestimation-display-and-output.Rmd` -- after selecting sensitivities based on output guidance from the `02` scripts, this script examines patterns of the results, and outputs the final estimates in maps and Excel tables
@@ -211,8 +208,7 @@ These files can be run manually, but are generally set up to be run automaticall
 
 * `method--general-helper-functions.R` -- these are general functions used throughout the scripts, including processing for ACS data, calculating income-to-poverty ratios, and converting age, income, and industry codes into categorical groups/classifications
 * `method--small-area-estimation-functions.Rmd` -- run Small Area Estimation (SAE) method to estimate, in prior years, counts of program-eligible children for small geographies
-* `method--nowcasting-functions.Rmd` -- these are functions that use Current Population Survey data to "now-cast" the Small Area counts to a recent month
-
+* `method--nowcasting-functions.Rmd` -- these are functions that use CPS data to "now-cast" the Small Area counts to a recent month
 
 ## Other Diagnostic Scripts
 
@@ -221,7 +217,7 @@ The diagnostic scripts generally represent one-time examinations that were run t
 * `diagnostic--basictabs_cps.Rmd` -- this investigates the size of the CPS, and in effect establishes the fact that given a focus on children under age 5, it is necessary to pool households across the US to maximize sample size to characterize recent trends in household economic dynamics
 * `diagnostic--analyze_familyincome_cps.Rmd` -- this investigates the ability for the CPS to provide income characterizations useful for determining CCAP program eligibility
 * `diagnostic--validate_estimates.R` -- build comparison between new statistical estimates and ACS microdata estimates
-* `diagnostic--validate_estimates.Rmd` -- displays comparisons built in `validate_estimates.R`
+* `diagnostic--validate_estimates.Rmd` -- displays comparisons built in `diagnostic--validate_estimates.R`
 
 ## Sandbox Scripts
 

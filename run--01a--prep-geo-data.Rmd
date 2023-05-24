@@ -47,12 +47,14 @@ geo_crosswalk_puma <-
   .[STATEFP == my_state_fip] %>% 
   # /!\ Am not aware of the significance of the FIP versus CE suffix. It's an 
   # assumption that there's no consequence to dropping the distinction
-  rename(STATEFIP = STATEFP, 
-         TRACTFIP = TRACTCE,
-         PUMA     = PUMA5CE) %>% 
-  mutate(STATEFIP  = str_pad(STATEFIP, width = 2, side = "left", pad = "0"),
-         TRACTFIP  = str_pad(TRACTFIP, width = 6, side = "left", pad = "0"),
-         COUNTYFIP = str_pad(COUNTYFP, width = 3, side = "left", pad = "0"),
+  rename(STATEFIP  = STATEFP,
+         COUNTYFIP = COUNTYFP,
+         TRACTFIP  = TRACTCE,
+         PUMA      = PUMA5CE) %>% 
+  mutate(STATEFIP  = str_pad(STATEFIP,  width = 2, side = "left", pad = "0"),
+         TRACTFIP  = str_pad(TRACTFIP,  width = 6, side = "left", pad = "0"),
+         COUNTYFIP = str_pad(COUNTYFIP, width = 3, side = "left", pad = "0"),
+         PUMA      = str_pad(PUMA,      width = 5, side = "left", pad = "0"),
          GEOID = paste0(STATEFIP, COUNTYFIP, TRACTFIP))
 
 geo_crosswalk_zcta <-
@@ -95,10 +97,22 @@ zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_starts)
 ```
 
 ```{r rename certain fields in shapefiles to agree with those in the crosswalks}
+tractShp <- 
+  tractShp %>%
+  rename(STATEFIP  = STATEFP,
+         COUNTYFIP = COUNTYFP,
+         TRACTFIP  = TRACTCE)
+
+pumaShp <- 
+  pumaShp %>%
+  rename(STATEFIP  = STATEFP10,
+         PUMA      = PUMACE10)
+
 countyShp <-
   countyShp %>% 
   rename(COUNTYFIP = COUNTYFP,
-         County = NAME)
+         STATEFIP  = STATEFP,
+         County    = NAME)
 
 zctaShp <-
   zctaShp %>% 
@@ -109,8 +123,8 @@ zctaShp <-
 ```{r add county name to geo_crosswalk help label estimates}
 geo_crosswalk <- 
   geo_crosswalk %>% 
-  merge(countyShp %>% as.data.frame() %>% transmute(COUNTYFP = as.integer(COUNTYFIP), County = County) %>% unique(),
-        by = "COUNTYFP",
+  merge(countyShp %>% as.data.frame() %>% select(COUNTYFIP, County) %>% unique(),
+        by = "COUNTYFIP",
         all.x = TRUE)
 ```
 
@@ -160,7 +174,7 @@ if (exists("my_aux_geo")) {
               color = "green", 
               fill = NA, 
               linewidth = 1) + 
-      geom_sf(data = tractShp %>% filter(COUNTYFP == "031"), 
+      geom_sf(data = tractShp %>% filter(COUNTYFIP == "031"), 
               color = "red",   
               fill = NA) +
       theme_void()

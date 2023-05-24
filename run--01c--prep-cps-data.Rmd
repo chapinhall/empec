@@ -537,8 +537,8 @@ Develop flags for eligibility of child care subsidies through the federal Child 
 
 * live in the state, 
 * are employed and/or attending an eligible educational activity
-* haver children younger than 13 that need care during the adult work or school hours, or children with documented special needs up to age 19
-* have family income below [allowable limits](https://www.dhs.state.il.us/page.aspx?item=118832), representing income below 200% of the federal poverty line for initial eligibility, and below 250% of FPL for 12-month redetermination
+* have children younger than 13 that need care during the adult work or school hours, or children with documented special needs up to age 19
+* have family income below [allowable limits](https://www.dhs.state.il.us/page.aspx?item=118832), representing income below 225% of the federal poverty line for initial eligibility, and below 275% of FPL for 12-month redetermination
 
 The [Child Care Assitance Program Policy Manual](https://www.dhs.state.il.us/page.aspx?item=9877) has detail around eligibility, including exempt and non-exempt income.
 
