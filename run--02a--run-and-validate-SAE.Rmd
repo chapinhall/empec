@@ -168,68 +168,18 @@ ggplot() +
 ```
 
 
-However, they differ for important reasons: even at the PUMA level they differ, and the fact that they differ reflects recency.
+<!-- Note: Previous versions of this code explored the proportions of sample
+falling in combinations of other categorical buckets, including education or
+race/ethnicity of the head of household, and the "vulnerability" of the HOH
+industry of employment. Much of this was early in code development, and at times
+surrounding the COVID-19 pandemic when things like socioeconomic status and 
+industry of employment was particularly significant.
 
+That descriptive exploration can be seen as of the following commit of this file
+at:
+https://github.com/chapinhall/elpep/blob/be808bdf9b99087b528580e510abc759c06a40a4/run--02a--run-and-validate-SAE.Rmd
 
-
-### Examine size of potential vulnerability groups for modeling choices
-
-Investigate the potential depth of slicing vulnerability types and strata for potential use.
-
-```{r perform useful subsetting}
-acs1_child05_baseyr <-
-  acs1_child[YEAR == base_year & 
-               child_agegroup %in% c("0to2", "3to5")]
-
-acs1_child612_baseyr <-
-  acs1_child[YEAR == base_year & 
-               child_agegroup %in% c("6to8", "9to12")]
-```
-
-```{r establish function for showing comparisons}
-show_acs_n_bys <- function(by_vars) {
-  acs1_child05_baseyr[j = .(n = .N), 
-                      by = by_vars] %>% # child_agegroup, 
-    setorderv(cols = by_vars) %>%  # child_agegroup, 
-    datatable(filter = 'top')  
-}
-```
-
-<!-- /!\ Consider building this into a graphical view. -->
-
-```{r, eval = developer_mode}
-show_acs_n_bys(c("fam_incpov_ratio_cat_by100", "child_race"))
-```
-
-```{r age and income by 100s, eval = developer_mode}
-show_acs_n_bys("fam_incpov_ratio_cat_by100")
-```
-
-```{r age and income by 50s, eval = developer_mode}
-show_acs_n_bys("fam_incpov_ratio_cat_mix")
-```
-
-```{r age race pov, eval = developer_mode}
-show_acs_n_bys(c("fam_incpov_ratio_cat_by100", "child_race"))
-```
-
-```{r ed and industry, eval = developer_mode}
-show_acs_n_bys(c("hoh_educ", "hoh_industry"))
-```
-
-<!-- Note--vulnerable industry is defined as being in education, health, social services, arts, or food services. -->
-
-```{r ed and vulnerable industry, eval = developer_mode}
-show_acs_n_bys(c("hoh_educ", "hoh_industry_vulnerable"))
-```
-
-```{r investigate head of household characteristics for pandemic vulnerability -- specifically social services and food, eval = developer_mode}
-show_acs_n_bys(c("fam_incpov_ratio_cat_by100", "hoh_industry_vulnerable"))
-```
-
-```{r investigate work elibility for ccdf by income thresholds}
-try(show_acs_n_bys(c("work_incpov_status185")), silent = TRUE)
-```
+-->
 
 ### Results of SAE Estimation
 
