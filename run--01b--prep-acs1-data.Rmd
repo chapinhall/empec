@@ -33,6 +33,11 @@ if (!file.exists(acs1_save_file)) {
 }
 ```
 
+```{r ensure that ACS1 PUMA values are character to be consistent with other datasets}
+acs1[j = PUMA := str_pad(PUMA, width = 5, side = "left", pad = "0")]
+```
+
+
 ### Sample Restrictions
 
 ACS 1-Year microdata for `r base_year` are downloaded from the [Census Application Program Interface (API)](https://www.census.gov/data/developers/data-sets/acs-1year.html) and subset to households not living in group quarters, and to `r my_state_abbr` records.
@@ -212,7 +217,7 @@ acs1_child <-
 ```{r examine frequencies, eval = developer_mode}
 plot_freq <- function(meas) {
   ggplot(acs1_child,
-         aes_string(x = meas)) +
+         aes(x = get(meas))) +
     stat_count() + 
     theme(axis.text.x = element_text(angle = 90))
 }
@@ -268,8 +273,13 @@ calc_acs1_puma_pov <- function(my_data, indices) {
 
 acs1_child_mod <- 
   acs1_child %>% 
-  .[j = child_agegroup_combo := case_when(child_agegroup %in% c("0to2", "3to5") ~ "0to5",
-                                          TRUE ~ child_agegroup)] %>% 
+  .[j = child_agegroup_combo := 
+      case_when(child_agegroup %in% c("0to2", "3to5") ~ "0to5",
+                TRUE ~ as.character(child_agegroup)) %>% 
+      factor(levels = c(setdiff(levels(child_agegroup), 
+                                c("0to2", "3to5")),
+                        "0to5")) %>% 
+      fct_relevel("0to5")] %>% 
   .[order(child_agegroup_combo, PUMA)]
 
 acs1_boot <- boot(acs1_child_mod, calc_acs1_puma_pov, R = 200)
