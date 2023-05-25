@@ -98,6 +98,12 @@ nowcast_parallel_incpov_le225 <-
          str_detect(sae_spec, "incpov_ctrls2534")) %>% 
   mutate(base_share = NA)
 
+nowcast_parallel_incpov_le400 <- 
+  nowcast_parallel_setup %>% 
+  filter(outcome_var == "incpov_le400_post_adj",
+         str_detect(sae_spec, "incpov_ctrls2534")) %>% 
+  mutate(base_share = share_0_50 + share_50_100 + share_100_200 + share_200_300 + share_300_400)
+
 nowcast_parallel_ccdf_elig <- 
   nowcast_parallel_setup %>% 
   filter(outcome_var == "ccdf_elig_tight_inc_adj",

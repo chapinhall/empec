@@ -659,8 +659,9 @@ for (cps_recency in c("most_recent", "allbase")) {
         outcome_vars <- c("incpov_le50_post_adj", 
                           "incpov_le100_post_adj", 
                           "incpov_le185_post_adj", 
-                          "incpov_le200_post_adj ", 
-                          "incpov_le225_post_adj ", 
+                          "incpov_le200_post_adj", 
+                          "incpov_le225_post_adj", 
+                          "incpov_le400_post_adj", 
                           "ccdf_elig_tight_inc_adj")
         sae_controls <- transition_pred_vars_toadd_pov
       } else if (str_detect(sae_spec, "^ccdf")) {

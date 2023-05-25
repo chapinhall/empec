@@ -375,7 +375,9 @@ cps_pov <-
              fam_incpov_ratio_le2        = 1*(fam_incpov_ratio     <= 2.0),
              fam_incpov_ratio_le2_adj    = 1*(fam_incpov_ratio_adj <= 2.0),
              fam_incpov_ratio_le2.25     = 1*(fam_incpov_ratio     <= 2.25),
-             fam_incpov_ratio_le2.25_adj = 1*(fam_incpov_ratio_adj <= 2.25))]
+             fam_incpov_ratio_le2.25_adj = 1*(fam_incpov_ratio_adj <= 2.25),
+             fam_incpov_ratio_le4.00     = 1*(fam_incpov_ratio     <= 4.0),
+             fam_incpov_ratio_le4.00_adj = 1*(fam_incpov_ratio_adj <= 4.0))]
 ```
 
 ```{r check the correspondence of adjusted and unadjusted FAMINC numbers, eval = developer_mode}
@@ -721,11 +723,13 @@ cps_post <-
                  incpov_le185_post = fam_incpov_ratio_le1.85,
                  incpov_le200_post = fam_incpov_ratio_le2,
                  incpov_le225_post = fam_incpov_ratio_le2.25,
+                 incpov_le400_post = fam_incpov_ratio_le4.00,
                  incpov_le50_post_adj  = fam_incpov_ratio_le.5_adj,
                  incpov_le100_post_adj = fam_incpov_ratio_le1_adj,
                  incpov_le185_post_adj = fam_incpov_ratio_le1.85_adj,
                  incpov_le200_post_adj = fam_incpov_ratio_le2_adj,
                  incpov_le225_post_adj = fam_incpov_ratio_le2.25_adj,
+                 incpov_le400_post_adj = fam_incpov_ratio_le4.00_adj,
                  ccdf_elig_tight_inc, ccdf_elig_tight_inc_adj,
                  ccdf_elig_loose_inc, ccdf_elig_loose_inc_adj)]
 dim(cps_post)

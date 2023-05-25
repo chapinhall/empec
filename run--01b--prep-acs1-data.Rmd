@@ -13,8 +13,8 @@ print_documentation <- FALSE
 
 ```{r }
 # run scripts for necessary packages and objects as necessary
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
@@ -171,11 +171,11 @@ Besides the indicators above, all other relevant characteristics are measured re
 * Race of child partitioned into "white alone", "Black/African-American alone", and "other"
 * Ethnicity of child partitioned into "Hispanic" and "non-Hispanic"
 * Family income partitioned into different schemes for use in different modeling specifications, and for alignment to values that CCDF income eligibility thresholds may take on:
-  - 0-50% FPL, 50-125%, 125-185%, 185-300%, 300%+ (useful in contexts where the CCDF income eligibility threshold is 185% FPL)
-  - 0-50% FPL, 50-100%, 100-200%, 200-300%, 300%+ (useful in contexts where the CCDF income eligibility threshold is 200% FPL)
-  - 0-75% FPL, 75-150%, 150-225%, 225-300%, 300%+ (useful in contexts where the CCDF income eligibility threshold is 225% FPL)
-  - 0-50% FPL, 50-100%, 100-150%, 150-200%, 200-250%, 250-300%, 300%+ (useful for flexibility despite buckets with relatively few households)
-  - 0-100% FPL, 100-200%, 200-300%, 300%+ (useful for simpler reference)
+  - 0-50% FPL, 50-125%, 125-185%, 185-300%, 300-400%, 400%+ (useful in contexts where the CCDF income eligibility threshold is 185% FPL)
+  - 0-50% FPL, 50-100%, 100-200%, 200-300%, 300-400%, 400%+ (useful in contexts where the CCDF income eligibility threshold is 200% FPL)
+  - 0-75% FPL, 75-150%, 150-225%, 225-300%, 300-400%, 400%+ (useful in contexts where the CCDF income eligibility threshold is 225% FPL)
+  - 0-50% FPL, 50-100%, 100-150%, 150-200%, 200-250%, 250-300%, 300-400%, 400%+ (useful for flexibility despite buckets with relatively few households)
+  - 0-100% FPL, 100-200%, 200-300%, 300-400%, 400%+ (useful for simpler reference)
 * Combinations of partitions defined above to both represent share categories predicted in the SAE method, as well as direct calculation of CCDF eligibility rates in the baseline year
 
 ```{r prepare ACS 1-year microdata for children}
@@ -194,11 +194,11 @@ acs1_child <-
                        RAC2P == 2 ~ "black",
                        TRUE ~ "other_multiple"),
            child_hispanic = 1*(HISP != 1),
-           fam_incpov_ratio_cat_mix   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00)),
-           fam_incpov_ratio_cat_to185 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00)),
-           fam_incpov_ratio_cat_by50  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 3, by = 0.5)),
-           fam_incpov_ratio_cat_by75  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 3, by = 0.75)),
-           fam_incpov_ratio_cat_by100 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 3, by = 1.0)),
+           fam_incpov_ratio_cat_mix   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00, 4.00)),
+           fam_incpov_ratio_cat_to185 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00, 4.00)),
+           fam_incpov_ratio_cat_by50  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 0.5)),
+           fam_incpov_ratio_cat_by75  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 0.75)),
+           fam_incpov_ratio_cat_by100 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 1.0)),
            obs_weight = PWGTP)] %>% 
   .[j = `:=`(work_spouse_status = paste(ifelse(all_work_sch   == 1, "WorkElig",      "NotWorkElig"),
                                         ifelse(spouse_present == 1, "SpousePresent", "NoSpousePresent"),
