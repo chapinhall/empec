@@ -101,7 +101,8 @@ bin_age <- function(a) {
             #between(a,  5,  5) ~ "5to5", 
             between(a,  6,  8) ~ "6to8", 
             between(a,  9, 12) ~ "9to12", 
-            between(a, 13, 14) ~ "13to14") 
+            between(a, 13, 14) ~ "13to14") %>% 
+    factor(levels = c("0to2", "3to5", "6to8", "9to12", "13to14"))
 }
 
 # Recode poverty decimal ------------------------------------------------------#
@@ -120,7 +121,8 @@ bin_incpov_ratio <- function(incpov_ratio, pov_breaks = seq(0, 3, by = 0.5)) {
   
   pov_cuts <- cut(incpov_ratio, 
                   breaks = pov_breaks_aug,
-                  labels = pov_labels)
+                  labels = pov_labels,
+                  include.lowest = TRUE)
   return(pov_cuts)
 }
 
