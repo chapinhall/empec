@@ -21,7 +21,7 @@ if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R"
 ```{r read in acs1 data and documentation}
 my_pums <- 
   pums_variables %>% 
-  filter(year == 2019, # base_year, ... currently using 2019 because 2021 documentation is not yet available for the current version of tidycensus
+  filter(year   == {base_year},
          survey == "acs1") %>% 
   select(var_code, var_label, level, val_min, val_max, val_label)
 
@@ -83,8 +83,8 @@ acs1_hoh <-
   acs1 %>%
   .[RELSHIPP == 20] %>%
   .[, `:=`(hoh_educ = 
-             case_when(between(SCHL,  2, 14) ~ "less_hs", 
-                       between(SCHL, 15, 17) ~ "hs", 
+             case_when(between(SCHL,  2, 15) ~ "less_hs", 
+                       between(SCHL, 16, 17) ~ "hs", 
                        between(SCHL, 18, 20) ~ "somecoll", 
                        between(SCHL, 21, 21) ~ "coll", 
                        between(SCHL, 22, 24) ~ "collplus", 

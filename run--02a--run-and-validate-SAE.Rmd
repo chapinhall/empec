@@ -69,7 +69,8 @@ show_acs1_cat_density("fam_incpov_ratio_cat_by100", "Income-to-Poverty by 100%s"
 Next, we examine effectively the same distribution, but with more detail below 100% of the FPL. While this cuts the ACS1 sample more thinly, it also would better differentiate circumstances for families that may be very important for predicting eligibility status in the nowcasting.
 
 ```{r examine overall distribution of ACS1 sample with detail below poverty}
-# This examines whether 
+# This examines whether sample density is likely sufficient to characterize 
+# population shares below poverty (broken into ranges of 0-50 and 50-100)
 show_acs1_cat_density("fam_incpov_ratio_cat_mix", "Income-to-Poverty with Detail Below Poverty")
 ```
 

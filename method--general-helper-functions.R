@@ -184,16 +184,17 @@ faminc_bounds <- tribble(~faminc, ~faminc_lb, ~faminc_ub,
 # Source for 2020: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/prior-hhs-poverty-guidelines-federal-register-references/2020-poverty-guidelines/2020-poverty-guidelines-computations
 # Source for 2021: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/prior-hhs-poverty-guidelines-federal-register-references/2021-poverty-guidelines/2021-poverty-guidelines-computations
 # Source for 2022: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines
+# Source for 2023: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/prior-hhs-poverty-guidelines-federal-register-references/2023-poverty-guidelines-computations
 fpl_by_year <- 
-  tribble(~fpl_fam_size, ~fpl_2018, ~fpl_2019, ~fpl_2020, ~fpl_2021, ~fpl_2022,
-                      1,     12140,     12490,    12760,      12880,     13590,
-                      2,     16460,     16910,    17240,      17420,     18310,
-                      3,     20780,     21330,    21720,      21960,     23030,
-                      4,     25100,     25750,    26200,      26500,     27750,
-                      5,     29420,     30170,    30680,      31040,     32470,
-                      6,     33740,     34590,    35160,      35580,     37190,
-                      7,     38060,     39010,    39640,      40120,     41910,
-                      8,     42380,     43430,    44120,      44660,     46630)
+  tribble(~fpl_fam_size, ~fpl_2018, ~fpl_2019, ~fpl_2020, ~fpl_2021, ~fpl_2022, ~fpl_2023,
+                      1,     12140,     12490,    12760,      12880,     13590,     14580,
+                      2,     16460,     16910,    17240,      17420,     18310,     19720,
+                      3,     20780,     21330,    21720,      21960,     23030,     24860,
+                      4,     25100,     25750,    26200,      26500,     27750,     30000,
+                      5,     29420,     30170,    30680,      31040,     32470,     35140,
+                      6,     33740,     34590,    35160,      35580,     37190,     40280,
+                      7,     38060,     39010,    39640,      40120,     41910,     45420,
+                      8,     42380,     43430,    44120,      44660,     46630,     50560)
 
 # Augment the table to generate FPL values for families up to size 20
 fpl_by_year_fam_size7 <- fpl_by_year %>% filter(fpl_fam_size == 7) %>% dplyr::select(-fpl_fam_size)
