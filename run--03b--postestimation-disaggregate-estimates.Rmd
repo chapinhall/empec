@@ -405,6 +405,7 @@ ggplot(aux_lvl_ests_long,
 static_map_val <- function(estimates,
                            geo_level,
                            geo_level_merge_field = geo_level,
+                           geo_level_desc = geo_level,
                            outcome,
                            field_desc,
                            plot_stat, # can take values "nowcast" or "diff"
@@ -505,7 +506,7 @@ static_map_val <- function(estimates,
       
   if (save_map) {
     ggsave(plot = my_plot,
-           filename = glue("{output_path}Map of {measure_label_out} for {geo_level}_{my_output_tag}.png"),
+           filename = glue("{output_path}Map of {measure_label_out} for {geo_level_desc}_{my_output_tag}.png"),
            #width = 7,
            height = 7,
            units = "in")  
@@ -556,6 +557,7 @@ for (out_var in c("ccdf", "le100", "le200")) {
   static_map_level_diff(estimates = nowcast_agg_aux %>% filter(age == "age_0to5"),
                         geo_level = "aux",
                         geo_level_merge_field = "aux_geo_label",
+                        geo_level_desc = my_aux_geo_desc,
                         outcome = out_var,
                         field_desc = out_var_desc,
                         save_map = TRUE, 
@@ -572,4 +574,30 @@ for (out_var in c("ccdf", "le100", "le200")) {
   -> geo aggregation                ... shows conversion to useful basis
 
 -->
+
+```{r compare levels of outcomes}
+comp_out <-
+  nowcast_agg_aux %>%
+    filter(pd == "nowcast" & age == "age_0to5") %>%
+    select(aux_geo_label, outcome_var, share) %>% 
+    pivot_wider(names_from = "outcome_var",
+                values_from = "share")
+
+  ggplot(comp_out,
+         aes(x = incpov_le225_post_adj,
+             y = ccdf_elig_tight_inc_adj)) +
+  geom_point() +
+  geom_abline()
+  
+  ggplot(comp_out,
+         aes(x = incpov_le225_post_adj,
+             y = incpov_le100_post_adj)) +
+  geom_point() +
+  geom_abline()
+
+```
+
+```{r}
+nowcast_parallel_counts
+```
 

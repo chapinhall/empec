@@ -197,7 +197,7 @@ acs1_child <-
            fam_incpov_ratio_cat_mix   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00, 4.00)),
            fam_incpov_ratio_cat_to185 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00, 4.00)),
            fam_incpov_ratio_cat_by50  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 0.5)),
-           fam_incpov_ratio_cat_by75  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 0.75)),
+           fam_incpov_ratio_cat_by75  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.75, 1.50, 2.25, 3.00, 4.00)),
            fam_incpov_ratio_cat_by100 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 1.0)),
            obs_weight = PWGTP)] %>% 
   .[j = `:=`(work_spouse_status = paste(ifelse(all_work_sch   == 1, "WorkElig",      "NotWorkElig"),

@@ -197,6 +197,22 @@ share_pre_post <-
               values_from = value)
 ```
 
+### Map Now-cast Estimates
+
+```{r generate maps for now-cast estimates, fig.height = 12}
+tractShp %>% 
+  merge(share_pre_post, 
+        by = "GEOID") %>%
+  filter(outcome_var %like% "le50") %>%
+  ggplot(aes(fill = share_nowcast)) +
+  geom_sf(color = NA) +
+  facet_wrap(~ outcome_var) +
+  theme_void() +
+  theme(strip.text = element_text(size = 14))
+
+```
+
+
 
 ### Examine Now-cast Estimates versus Base-Year (SAE) Estimates
 

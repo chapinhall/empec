@@ -96,7 +96,7 @@ cps_transition_pov_adj <-
                        #stratum_vars = "child_agegroup",
                        vulnerability_vars = c("fam_incpov_ratio_cat_by100_adj"), 
                        outcome_vars = c("incpov_le100_post_adj",
-                                        "incpov_le100_post_adj"))
+                                        "incpov_le200_post_adj"))
 
 cps_transition_pov_comp <-
   bind_rows(cps_transition_pov_unadj,
@@ -397,15 +397,24 @@ cps_child_base_post <-
          
          # Develop income measures in parallel with what is developed in the SAE
          # methods
-         share_0_50    = 1*(fam_incpov_ratio_cat_by50_adj  ==   "0%-50%"),
-         share_50_100  = 1*(fam_incpov_ratio_cat_by50_adj  ==  "50%-100%"),
-         share_50_125  = 1*(fam_incpov_ratio_cat_to185_adj ==  "50%-125%"),
-         share_0_100   = 1*(fam_incpov_ratio_cat_by100_adj ==   "0%-100%"),
+         share_0_50    = 1*(fam_incpov_ratio_cat_by50_adj  == "0%-50%"),
+         share_0_75    = 1*(fam_incpov_ratio_cat_by75_adj  == "0%-75%"),
+         share_0_100   = 1*(fam_incpov_ratio_cat_by100_adj == "0%-100%"),
+         share_50_100  = 1*(fam_incpov_ratio_cat_by50_adj  == "50%-100%"),
+         share_50_125  = 1*(fam_incpov_ratio_cat_to185_adj == "50%-125%"),
+         share_75_150  = 1*(fam_incpov_ratio_cat_by75_adj  == "75%-150%"),
+         share_100_150 = 1*(fam_incpov_ratio_cat_by50_adj  == "100%-150%"),
          share_100_200 = 1*(fam_incpov_ratio_cat_by100_adj == "100%-200%"),
          share_125_185 = 1*(fam_incpov_ratio_cat_to185_adj == "125%-185%"),
+         share_150_200 = 1*(fam_incpov_ratio_cat_by50_adj  == "150%-200%"),
+         share_150_225 = 1*(fam_incpov_ratio_cat_by75_adj  == "150%-225%"),
          share_185_300 = 1*(fam_incpov_ratio_cat_to185_adj == "185%-300%"),
+         share_200_250 = 1*(fam_incpov_ratio_cat_by50_adj  == "200%-250%"),
          share_200_300 = 1*(fam_incpov_ratio_cat_by100_adj == "200%-300%"),
-         share_300     = 1*(fam_incpov_ratio_cat_by100_adj == "300%+"))
+         share_225_300 = 1*(fam_incpov_ratio_cat_by75_adj  == "225%-300%"),
+         share_250_300 = 1*(fam_incpov_ratio_cat_by50_adj  == "250%-300%"),
+         share_300_400 = 1*(fam_incpov_ratio_cat_by100_adj == "300%-400%"),
+         share_400     = 1*(fam_incpov_ratio_cat_by100_adj == "400%+"))
 
 # Generate work eligibility and income interactions consistent with SAE methods.
 # At the same time, also make sure to create un-interacted income categories
@@ -418,44 +427,46 @@ if (local_ccdf_thresh == 185) {
            share_NotWorkElig_50_125  = (1 - ccdf_elig_loose)*share_50_125,
            share_NotWorkElig_125_185 = (1 - ccdf_elig_loose)*share_125_185,
            share_NotWorkElig_185_300 = (1 - ccdf_elig_loose)*share_185_300,
-           share_NotWorkElig_300     = (1 - ccdf_elig_loose)*share_300,
+           share_NotWorkElig_300_400 = (1 - ccdf_elig_loose)*share_300_400,
+           share_NotWorkElig_400     = (1 - ccdf_elig_loose)*share_400,
            share_WorkElig_0_50       =      ccdf_elig_loose *share_0_50,
            share_WorkElig_50_125     =      ccdf_elig_loose *share_50_125,
            share_WorkElig_125_185    =      ccdf_elig_loose *share_125_185,
            share_WorkElig_185_300    =      ccdf_elig_loose *share_185_300,
-           share_WorkElig_300        =      ccdf_elig_loose *share_300)
+           share_WorkElig_300_400    =      ccdf_elig_loose *share_300_400,
+           share_WorkElig_400        =      ccdf_elig_loose *share_400)
   
 } else if (local_ccdf_thresh == 200) {
   cps_child_base_post <- 
     cps_child_base_post %>% 
-    mutate(share_NotWorkElig_0_100   = (1 - ccdf_elig_loose)*share_0_100,
+    mutate(share_NotWorkElig_0_50    = (1 - ccdf_elig_loose)*share_0_50,
+           share_NotWorkElig_50_100  = (1 - ccdf_elig_loose)*share_50_100,
            share_NotWorkElig_100_200 = (1 - ccdf_elig_loose)*share_100_200,
            share_NotWorkElig_200_300 = (1 - ccdf_elig_loose)*share_200_300,
-           share_NotWorkElig_300     = (1 - ccdf_elig_loose)*share_300,
-           share_WorkElig_0_100      =      ccdf_elig_loose *share_0_100,
+           share_NotWorkElig_300_400 = (1 - ccdf_elig_loose)*share_300_400,
+           share_NotWorkElig_400     = (1 - ccdf_elig_loose)*share_400,
+           share_WorkElig_0_50       =      ccdf_elig_loose *share_0_50,
+           share_WorkElig_50_100     =      ccdf_elig_loose *share_50_100,
            share_WorkElig_100_200    =      ccdf_elig_loose *share_100_200,
            share_WorkElig_200_300    =      ccdf_elig_loose *share_200_300,
-           share_WorkElig_300        =      ccdf_elig_loose *share_300)
+           share_WorkElig_300_400    =      ccdf_elig_loose *share_300_400,
+           share_WorkElig_400        =      ccdf_elig_loose *share_400)
   
 } else if (local_ccdf_thresh == 225) {
   cps_child_base_post <- 
     cps_child_base_post %>% 
-    mutate(share_0_75    = 1*(fam_incpov_ratio_cat_by75_adj ==   "0%-75%"),
-           share_75_150  = 1*(fam_incpov_ratio_cat_by75_adj ==  "75%-150%"),
-           share_150_225 = 1*(fam_incpov_ratio_cat_by75_adj == "150%-225%"),
-           share_225_300 = 1*(fam_incpov_ratio_cat_by75_adj == "225%-300%"),
-           share_300     = 1*(fam_incpov_ratio_cat_by75_adj == "300%+"),
-           
-           share_NotWorkElig_0_75    = (1 - ccdf_elig_loose)*share_0_75,
+    mutate(share_NotWorkElig_0_75    = (1 - ccdf_elig_loose)*share_0_75,
            share_NotWorkElig_75_150  = (1 - ccdf_elig_loose)*share_75_150,
            share_NotWorkElig_150_225 = (1 - ccdf_elig_loose)*share_150_225,
            share_NotWorkElig_225_300 = (1 - ccdf_elig_loose)*share_225_300,
-           share_NotWorkElig_300     = (1 - ccdf_elig_loose)*share_300,
+           share_NotWorkElig_300_400 = (1 - ccdf_elig_loose)*share_300_400,
+           share_NotWorkElig_400     = (1 - ccdf_elig_loose)*share_400,
            share_WorkElig_0_75       =      ccdf_elig_loose *share_0_75,
            share_WorkElig_75_150     =      ccdf_elig_loose *share_75_150,
            share_WorkElig_150_225    =      ccdf_elig_loose *share_150_225,
            share_WorkElig_225_300    =      ccdf_elig_loose *share_225_300,
-           share_WorkElig_300        =      ccdf_elig_loose *share_300)
+           share_WorkElig_300_400    =      ccdf_elig_loose *share_300_400,
+           share_WorkElig_400        =      ccdf_elig_loose *share_400)
 }
 ```
 
@@ -521,7 +532,7 @@ transition_pred_vars_acs5 <-
     "pctFemale_noSp_est", "pctMale_noSp_est", "pctMarried_est")
 
 transition_pred_vars_toadd_pov      <- 
-  c("share_0_50", "share_50_100", "share_100_200", "share_200_300", "share_300")
+  c("share_0_50", "share_50_100", "share_100_200", "share_200_300", "share_300_400", "share_400")
 
 transition_pred_vars_toadd_ccdf_elig_pov <- 
   str_subset(colnames(cps_child_base_post),
