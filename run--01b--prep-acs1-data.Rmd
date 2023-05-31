@@ -214,7 +214,7 @@ acs1_child <-
                                            sep = "_"))]
 ```
 
-```{r examine the correspondence of work vs non-work, eval = developer_mode}
+```{r examine the correspondence of work vs non-work by income, eval = developer_mode}
 # For given income, what is the % of children whose parents are work eligible
 # We examine this to test our expectation that as income increases, families are,
 # on average, more likely to be work eligible for CCDF
@@ -232,6 +232,31 @@ acs1_child %>%
   theme_minimal() +
   theme(legend.position = "none")
 ```
+```{r examine the correspondence of work vs non-work by income and puma, eval = developer_mode}
+# For given income, what is the % of children whose parents are work eligible
+#   examining variation across PUMAs
+# We examine this to test our expectation that as income increases, families are,
+# on average, more likely to be work eligible for CCDF
+
+acs1_child %>%
+  .[between(AGEP, 0, 5) & 
+    fam_incpov_ratio_cat_by75 %in% c("0%-75%", "75%-150%", "150%-225%"),
+    j = .(pct_workelig = meanNA(all_work_sch),
+          n = .N),
+    by = .(PUMA)] %>% 
+  ggplot(aes(x = PUMA,
+             y = pct_workelig,
+             fill = pct_workelig)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = n),
+            vjust = -1) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "PUMA",
+       y = glue("% of Parents Work-Eligible for {local_ccdf_name_short}")) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
 ```{r check puma-level correspondence of income lt 225 vs ccdf eligibility, eval = developer_mode}
 ccdf_vs_le225_puma <- 
   acs1_child %>% 
@@ -295,12 +320,13 @@ workelig_and_incelig_by_puma <-
     j = .(pct_incelig = meanNA(fam_incpov_ratio_cat_by75 %in% c("0%-75%", "75%-150%", "150%-225%")),
           pct_workelig = meanNA(all_work_sch),
           n = .N),
-    by = .(PUMA, age = ifelse(AGEP <= 2, "0to2", "3to5"))]
+    by = .(PUMA)] #, age = ifelse(AGEP <= 5, "0to5", "6to12"))]
 
 ggplot(workelig_and_incelig_by_puma,
        aes(x = pct_incelig, 
-           y = pct_workelig,
-           color = age)) +
+           y = pct_workelig
+           #,color = age
+           )) +
   geom_point() + 
   geom_abline() +
   geom_smooth() + 
