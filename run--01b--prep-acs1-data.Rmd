@@ -214,6 +214,102 @@ acs1_child <-
                                            sep = "_"))]
 ```
 
+```{r examine the correspondence of work vs non-work, eval = developer_mode}
+# For given income, what is the % of children whose parents are work eligible
+# We examine this to test our expectation that as income increases, families are,
+# on average, more likely to be work eligible for CCDF
+
+acs1_child %>%
+  .[j = .(pct_workelig = meanNA(all_work_sch)),
+    by = fam_incpov_ratio_cat_by75] %>% 
+  ggplot(aes(x = fam_incpov_ratio_cat_by75,
+             y = pct_workelig,
+             fill = pct_workelig)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(labels = percent) +
+  labs(x = "Income-to-Poverty Ratio",
+       y = glue("% of Parents Work-Eligible for {local_ccdf_name_short}")) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+```{r check puma-level correspondence of income lt 225 vs ccdf eligibility, eval = developer_mode}
+ccdf_vs_le225_puma <- 
+  acs1_child %>% 
+  .[between(AGEP, 0, 5),
+    j = .(pct_le225_elig = meanNA(fam_incpov_ratio_cat_by75 %in% c("0%-75%", "75%-150%", "150%-225%")),
+          pct_ccdf_elig = mean(work_incpov_status75 %in% c("WorkElig_0%-75%", "WorkElig_75%-150%", "WorkElig_150%-225%"))),
+    by = PUMA]
+
+ggplot(ccdf_vs_le225_puma,
+       aes(x = pct_le225_elig,
+           y = pct_ccdf_elig,
+           group = PUMA)) +
+  geom_point() +
+  geom_text(aes(label = PUMA,
+                vjust = 1.5)) +
+  geom_abline() +
+  geom_smooth() + 
+  theme_minimal()
+```
+
+```{r check puma-level correspondence of poverty vs ccdf eligibility, eval = developer_mode}
+ccdf_vs_hs_puma <- 
+  acs1_child %>% 
+  .[between(AGEP, 0, 5),
+    j = .(pct_hs_elig = meanNA(fam_incpov_ratio_cat_by100 == "0%-100%"),
+          pct_ccdf_elig = mean(work_incpov_status75 %in% c("WorkElig_0%-75%", "WorkElig_75%-150%", "WorkElig_150%-225%")),
+          n = .N),
+    by = PUMA]
+
+ggplot(ccdf_vs_hs_puma,
+       aes(x = pct_hs_elig,
+           y = pct_ccdf_elig,
+           group = PUMA)) +
+  geom_point(aes(size = n)) +
+  geom_text(aes(label = PUMA,
+                vjust = 1.5)) +
+  geom_abline() +
+  geom_smooth() + 
+  theme_minimal()
+```
+```{r map locations of PUMAs with discrepancy, eval = developer_mode}
+pumaShp %>% 
+  merge(ccdf_vs_hs_puma,
+        by = "PUMA") %>% 
+  mutate(diff = pct_ccdf_elig - pct_hs_elig) %>% 
+  ggplot(aes(fill = diff)) +
+  geom_sf(aes(color = factor(PUMA == "03413"))) +
+  geom_sf(data = auxShp,
+          color = "white",
+          fill = NA) +
+  scale_color_manual(breaks = c(FALSE, TRUE),
+                     values = c("black", "red")) +
+  theme_void()
+```
+
+```{r examine puma-level correspondence between income eligibility and work eligibility, eval = developer_mode, fig.height = 10}
+
+workelig_and_incelig_by_puma <- 
+  acs1_child %>% 
+  .[between(AGEP, 0, 5),
+    j = .(pct_incelig = meanNA(fam_incpov_ratio_cat_by75 %in% c("0%-75%", "75%-150%", "150%-225%")),
+          pct_workelig = meanNA(all_work_sch),
+          n = .N),
+    by = .(PUMA, age = ifelse(AGEP <= 2, "0to2", "3to5"))]
+
+ggplot(workelig_and_incelig_by_puma,
+       aes(x = pct_incelig, 
+           y = pct_workelig,
+           color = age)) +
+  geom_point() + 
+  geom_abline() +
+  geom_smooth() + 
+  theme_minimal()
+
+```
+
+
+
 ```{r examine frequencies, eval = developer_mode}
 plot_freq <- function(meas) {
   ggplot(acs1_child,
@@ -224,8 +320,10 @@ plot_freq <- function(meas) {
 plot_freq("fam_incpov_ratio_cat_by50")
 plot_freq("fam_incpov_ratio_cat_by100")
 plot_freq("work_spouse_status")
-plot_freq("work_incpov_status100")
+plot_freq("work_incpov_status75")
 ```
+
+
 
 ```{r verify that data sets only have one obs per child, eval = developer_mode}
 acs1_child %>% 
