@@ -228,6 +228,56 @@ elig_stats_puma <-
     by = PUMA] 
 ```
 
+```{r}
+ggplot(elig_stats_puma,
+       aes(x = pct_le100_elig,
+           y = pct_ccdf_elig)) +
+  geom_point() + 
+  scale_x_continuous(labels = percent) +
+  scale_y_continuous(labels = percent) +
+  labs(title = glue("Comparison of PUMA-level Poverty and {local_ccdf_name_short} Eligibility"),
+       subtitle = glue("Given the {local_ccdf_name_short} work requirement, the relative stability of this relationship may be surprising,\n",
+                       "since labor force attachment may be expected to be lower, on average, in higher poverty\n",
+                       "communities"),
+       x = "Poverty Rate",
+       y = glue("Rate of {local_ccdf_name_short} Eligibility")) +
+  theme_minimal()
+```
+
+
+```{r examine puma-level correspondence between income eligibility and work eligibility}
+
+workelig_and_incelig_by_puma <- 
+  acs1_child %>% 
+  .[between(AGEP, 0, 5),
+    j = .(pct_incelig = meanNA(fam_incpov_ratio_cat_by75 %in% c("0%-75%", "75%-150%", "150%-225%")),
+          pct_workelig = meanNA(all_work_sch),
+          n = .N),
+    by = .(PUMA)] #, age = ifelse(AGEP <= 5, "0to5", "6to12"))]
+
+ggplot(workelig_and_incelig_by_puma,
+       aes(x = pct_incelig, 
+           y = pct_workelig
+           #,color = age
+           )) +
+  geom_point() + 
+  geom_abline() +
+  geom_smooth() + 
+  scale_x_continuous(labels = percent,
+                     limits = c(0, NA)) +
+  scale_y_continuous(labels = percent,
+                     limits = c(0, NA)) +
+  #coord_fixed() +
+  labs(title = glue("PUMA-level Work vs Income-Eligibility for {local_ccdf_name_short} for Families of Children 0-5"),
+       # /*\ Note: check that the pattern and thus interpretation holds
+       subtitle = glue("The negative relationship leads to a stable overall {local_ccdf_name_short} eligiblity rate as PUMAs with lower\n",
+                       "incomes and lower labor market participation can end up with eligibility rates similar to PUMAs\n",
+                       "with relatively higher income and higher labor market participation"),
+       x = glue("Income Eligibility Rate"),
+       y = glue("% Work Eligibility Rate")) +
+  theme_minimal()
+```
+
 ```{r examine layers of eligibility}
 elig_stats_puma_stack <-
   elig_stats_puma %>% 
@@ -252,40 +302,6 @@ elig_stats_puma_stack %>%
   labs(title = glue("PUMA-level Rates of {local_ccdf_name_short} Eligibility, With Work and Income Eligibility"),
        subtitle = glue("{local_ccdf_name_short} eligibility can often be composed of countervailing income and work eligibility"),
        x = glue("PUMAs sorted by % {local_ccdf_name_short} eligibility")) + 
-  theme_minimal()
-```
-
-```{r examine puma-level correspondence between income eligibility and work eligibility, eval = developer_mode}
-
-workelig_and_incelig_by_puma <- 
-  acs1_child %>% 
-  .[between(AGEP, 0, 5),
-    j = .(pct_incelig = meanNA(fam_incpov_ratio_cat_by75 %in% c("0%-75%", "75%-150%", "150%-225%")),
-          pct_workelig = meanNA(all_work_sch),
-          n = .N),
-    by = .(PUMA)] #, age = ifelse(AGEP <= 5, "0to5", "6to12"))]
-
-ggplot(workelig_and_incelig_by_puma,
-       aes(x = pct_incelig, 
-           y = pct_workelig
-           #,color = age
-           )) +
-  geom_point() + 
-  geom_abline() +
-  geom_smooth() + 
-  scale_x_continuous(labels = percent,
-                     limits = c(0, NA)) +
-  scale_y_continuous(labels = percent,
-                     limits = c(0, NA)) +
-  coord_fixed() +
-  labs(title = glue("PUMA-level Work vs Income-Eligibility for {local_ccdf_name_short}, Children 0-5"),
-       # /*\ Note: check that the pattern and thus interpretation holds
-       subtitle = glue("The negative relationship leads to a stable overall {local_ccdf_name_short} eligiblity rate\n",
-                       "as PUMAs with lower incomes and lower labor market participation can \n",
-                       "end up with eligibility rates similar to PUMAs with relatively higher income\n",
-                       "and higher labor market participation"),
-       x = glue("Income Eligibility Rate"),
-       y = glue("% Work Eligibility Rate")) +
   theme_minimal()
 ```
 
