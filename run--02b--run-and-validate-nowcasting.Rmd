@@ -879,7 +879,7 @@ compare_betas(
                     TRUE ~ ""),
   comp_var = "cps_base_recency",
   comp_var_label = "CPS Base Recency",
-  save_tag = "ccdf_comp-geo-subset"
+  save_tag = "ccdf_comp-base-recency"
 )
 ```
 

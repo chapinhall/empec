@@ -60,7 +60,7 @@ show_acs1_cat_density <- function(my_cat, my_subtitle) {
 }
 ```
 
-Below we see the size of the ACS1 sample partitioned by income-to-poverty cateogires defined by "100%"s. This is reasonably even at lower levels.
+Below we see the size of the ACS1 sample partitioned by income-to-poverty categories defined by "100%"s. This is reasonably even at lower levels.
 
 ```{r examine overall distribution of ACS1 sample for poverty}
 show_acs1_cat_density("fam_incpov_ratio_cat_by100", "Income-to-Poverty by 100%s")
@@ -1166,7 +1166,7 @@ plot_puma_pops <-
              y = n_pop,
              group = PUMA)) +
   geom_point() + 
-  geom_point(data = puma_agg_comp_pop %>% filter(PUMA == 2100),
+  geom_point(data = puma_agg_comp_pop %>% filter(PUMA == "02100"),
              color = "red") + 
   geom_abline() +
   scale_x_continuous(limits = c(0, NA)) +

@@ -111,7 +111,7 @@ nowcast_parallel_ccdf_elig <-
 
 # We are able to ensure alignment of the base_share values to CCDF eligibility
 # because the SAE target categories are explicitly chosen in the 02a script to
-# ensure this (via equivalent references to `local_ddf_thresh` to set model
+# ensure this (via equivalent references to `local_ccdf_thresh` to set model
 # specification)
 if (local_ccdf_thresh == 185) {
   nowcast_parallel_ccdf_elig <- 
@@ -138,6 +138,7 @@ nowcast_parallel_preshape <-
             nowcast_parallel_incpov_le185,
             nowcast_parallel_incpov_le200,
             nowcast_parallel_incpov_le225,
+            nowcast_parallel_incpov_le400,
             nowcast_parallel_ccdf_elig) %>% 
   dplyr::select(GEOID, outcome_var, age, base_share, base_share_se, nowcast_share, nowcast_share_se) %>% 
   # /!\ ** This unique() should not be necessary. However, it's occurring because

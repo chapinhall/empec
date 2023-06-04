@@ -216,9 +216,9 @@ write_agg_output <- function(x, agg_level, sheet_name, add, out_label) {
                                str_detect(outcome_var, "_le50_")  ~ "Below 50% FPL",
                                str_detect(outcome_var, "_le100_") ~ "Below 100% FPL",
                                str_detect(outcome_var, "_le185_") ~ "Below 185% FPL",
-                               str_detect(outcome_var, "_le200_") ~ "Below 200%",
-                               str_detect(outcome_var, "_le225_") ~ "Below 225%",
-                               str_detect(outcome_var, "_le400_") ~ "Below 400%"),
+                               str_detect(outcome_var, "_le200_") ~ "Below 200% FPL",
+                               str_detect(outcome_var, "_le225_") ~ "Below 225% FPL",
+                               str_detect(outcome_var, "_le400_") ~ "Below 400% FPL"),
            
            # Calculate bounds, and round
            count_lb = round(count + qnorm(.1)*count_se),
