@@ -44,6 +44,10 @@ geo_crosswalk_puma <-
     # 2010 PUMA definitions. Temporarily, we are planning to continue to work on
     # a 2010 basis by pulling ACS5 data from 2019
     # "https://www2.census.gov/geo/docs/maps-data/data/rel2020/2020_Census_Tract_to_2020_PUMA.txt"
+    # This Users Guide for the 2021 ACS 1-year release notes, on page 12, that
+    # "PUMAs are expected to be updated using the Census 2020 data for data year 
+    # 2022."
+    #   https://www2.census.gov/programs-surveys/acs/tech_docs/pums/2021ACS_PUMS_User_Guide.pdf
   .[STATEFP == my_state_fip] %>% 
   # /!\ Am not aware of the significance of the FIP versus CE suffix. It's an 
   # assumption that there's no consequence to dropping the distinction
@@ -80,6 +84,12 @@ if (exists("my_county_fip")) {
 ```{r auto pull of tract and puma shapefiles}
 
 # Declare which vintage of Census TIGER shapefiles should be pulled
+# /!\ As noted above, we choose a "pre-2020" vintage of TIGER shape files to 
+# align our estimates to Census 2010 geographies. This is ultimately driven by the
+# fact that the 2021 ACS1 data are released for census 2010 geographies, and rather
+# than map all other more up-to-date data sources to that, we are choosing to wait
+# for the release of 2022 ACS1 data, anticipated for September 14, 2023:
+#   https://www.census.gov/programs-surveys/acs/news/data-releases/2022/release.html#:~:text=The%202022%20American%20Community%20Survey%20%28ACS%29%201-year%20estimates,and%20places%20with%20populations%20of%2065%2C000%20or%20more.
 tiger_year <- 2019
 
 # Set up input to tigris functions for pulling by county
@@ -197,7 +207,7 @@ if (exists("my_aux_geo")) {
     tract_aux_intersection_pcts %>% 
     filter(pct_area > 0.01)
     # /!\ Non-trivial overlaps need to be investigated -- in some practice cases
-    # we've seen overlaps of over 20% where we expected trivial overlaps at best
+    # we've seen overlaps of over 20% where we expected trivial overlaps at best,
     # suggesting that there's something more than just projection issues.
     # %>% filter(pct_area > 0.50)
   #stopifnot(any(table(tract_aux_intersection_keep$GEOID) > 1) == FALSE)

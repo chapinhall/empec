@@ -18,9 +18,8 @@ for (f in c("geo", "acs1", "cps", "acs5", "pop")) {
 load(file = glue("{output_path}Now-cast counts at the tract level, pre-disaggregation - {my_output_tag}.Rda"))
 ```
 
-# Aggregate/Disaggregate by Age and Geography
 
-## Disaggregate Estimates by Age Group
+### Disaggregate Estimates by Age Group
 
 Our strategy to disaggregate estimates by age group--primarily to break our estimates for ages 0-5 into 0-2 and 3-5--is to take the empirical age breakdown specific to each outcome, from the ACS 1-year data. 
 
@@ -36,7 +35,11 @@ calc_breakdown <- function(acs1_outcome_sub, outcome_var) {
            outcome_var = outcome_var)
 }
 
-if(local_ccdf_thresh == 200) {
+if (local_ccdf_thresh == 185) {
+  ccdf_elig_cats <- c("WorkElig_0%-50%", 
+                      "WorkElig_50%-125%",
+                      "WorkElig_125%-185%")
+} else if (local_ccdf_thresh == 200) {
   ccdf_elig_cats <- c("WorkElig_0%-100%", 
                       "WorkElig_100%-200%")
 } else if (local_ccdf_thresh == 225) {
@@ -47,15 +50,19 @@ if(local_ccdf_thresh == 200) {
 
 age_breakdown_byoutcome <-
  bind_rows(calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_mix   == "0%-50%"),
-                          "deep_pov_post_adj"),
+                          "incpov_le50_post_adj"),
            calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 == "0%-100%"), 
-                          "hs_elig_post_adj"),
+                          "incpov_le100_post_adj"),
+           calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_to185 %in% c("0%-50%", "50%-125%", "125%-185%")), 
+                          "incpov_le185_post_adj"),
            calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 %in% c("0%-100%", "100%-200%")), 
-                          "pfa_elig_post_adj"),
-           calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 %in% c("0%-100%", "100%-200%")), 
-                          "upk_elig_post_adj"),
+                          "incpov_le200_post_adj"),
+           calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by75  %in% c("0%-75%", "75%-150%", "150%-225%")), 
+                          "incpov_le225_post_adj"),
+           calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 %in% c("0%-100%", "100%-200%", "200%-300%", "300%-400%")), 
+                          "incpov_le400_post_adj"),
            calc_breakdown(acs1_child %>% filter(work_incpov_status75 %in% ccdf_elig_cats),
-                             "ccdf_elig_tight_inc_adj"))
+                          "ccdf_elig_tight_inc_adj"))
 
 ```
 
@@ -96,7 +103,7 @@ nowcast_elig_counts_final <-
 
 ```
 
-## Aggregate Estimates to Larger Geographies
+### Aggregate Estimates to Larger Geographies
 
 ```{r function to add level of aggregation if not already available}
 add_agg_level <- function(ests, agg_level) {
@@ -168,7 +175,7 @@ if (exists("my_aux_geo")) {
 }
 ```
 
-### Generate Excel Tables with Estimates at Each Geographic Aggregation for CCDF
+#### Generate Excel Tables with Estimates at Each Geographic Aggregation for CCDF
 
 ```{r develop time period indication for output }
 # Automate the calculation of the time period
@@ -204,12 +211,14 @@ write_agg_output <- function(x, agg_level, sheet_name, add, out_label) {
     # convert age to narrative
     mutate(Age = str_replace(age, "age_(\\d+)to(\\d+)", "Age \\1-\\2"),
            
-           Outcome = str_replace(outcome_var, "^([a-z]+)_.+", "\\1"),
-           Outcome = case_when(Outcome == "ccdf" ~ glue("{local_ccdf_name_short}-Elig"),
-                               Outcome == "hs"   ~ "HS-Elig",
-                               Outcome == "deep" ~ "Below 50% FPL",
-                               Outcome == "pfa"  ~ "Below 200% FPL",
-                               Outcome == "upk"  ~ "Below 225% FPL"),
+           #Outcome = str_replace(outcome_var, "^([a-z]+)_.+", "\\1"),
+           Outcome = case_when(str_detect(outcome_var, "^ccdf") ~ glue("{local_ccdf_name_short}-Elig"),
+                               str_detect(outcome_var, "_le50_")  ~ "Below 50% FPL",
+                               str_detect(outcome_var, "_le100_") ~ "Below 100% FPL",
+                               str_detect(outcome_var, "_le185_") ~ "Below 185% FPL",
+                               str_detect(outcome_var, "_le200_") ~ "Below 200% FPL",
+                               str_detect(outcome_var, "_le225_") ~ "Below 225% FPL",
+                               str_detect(outcome_var, "_le400_") ~ "Below 400% FPL"),
            
            # Calculate bounds, and round
            count_lb = round(count + qnorm(.1)*count_se),
@@ -345,9 +354,9 @@ write_agg_output(x = nowcast_agg_pay %>% filter(outcome_var %like% "ccdf"),
                  out_label = local_ccdf_name_short)
 ```
 
-# Examine Final Estimates
+### Examine Final Estimates
 
-## Compare Nowcast Estimates vs Baseline
+#### Compare Nowcast Estimates vs Baseline
 
 ```{r function to compare pre-post changes in aggregates, eval = "my_aux_geo" %in% objects(), results = "asis"}
 
@@ -383,19 +392,20 @@ ggplot(aux_lvl_ests_long,
                                    hjust = 1.0))
 ```
 
-## Compare Estimates At Different Levels of Aggregation
+#### Compare Estimates At Different Levels of Aggregation
 
 ```{r}
 
 ```
 
 
-## Map Levels and Differences
+#### Map Levels and Differences
 
 ```{r generate static plots}
 static_map_val <- function(estimates,
                            geo_level,
                            geo_level_merge_field = geo_level,
+                           geo_level_desc = geo_level,
                            outcome,
                            field_desc,
                            plot_stat, # can take values "nowcast" or "diff"
@@ -496,7 +506,7 @@ static_map_val <- function(estimates,
       
   if (save_map) {
     ggsave(plot = my_plot,
-           filename = glue("{output_path}Map of {measure_label_out} for {geo_level}_{my_output_tag}.png"),
+           filename = glue("{output_path}Map of {measure_label_out} for {geo_level_desc}_{my_output_tag}.png"),
            #width = 7,
            height = 7,
            units = "in")  
@@ -521,12 +531,12 @@ static_map_level_diff <- function(plot_stats = c("nowcast", "diff"),
 
 ```{r generate static plots of ccdf eligibility in levels and differences}
 
-for (out_var in c("ccdf", "hs", "upk")) {
+for (out_var in c("ccdf", "le100", "le200")) {
   out_var_desc <- 
     switch(out_var,
-           "ccdf" = glue("CCAP Eligibility ({date_range})"),
-           "hs"   = glue("Head Start Eligibility ({date_range})"),
-           "upk"  = glue("Income <225% ({date_range})"))
+           "ccdf"  = glue("CCAP Eligibility ({date_range})"),
+           "le100" = glue("Head Start Eligibility ({date_range})"),
+           "le200" = glue("Income <200% FPL ({date_range})"))
   
   static_map_level_diff(estimates = nowcast_agg_zip %>% filter(age == "age_0to5"),
                         geo_level = "ZCTA",
@@ -547,6 +557,7 @@ for (out_var in c("ccdf", "hs", "upk")) {
   static_map_level_diff(estimates = nowcast_agg_aux %>% filter(age == "age_0to5"),
                         geo_level = "aux",
                         geo_level_merge_field = "aux_geo_label",
+                        geo_level_desc = my_aux_geo_desc,
                         outcome = out_var,
                         field_desc = out_var_desc,
                         save_map = TRUE, 
@@ -563,4 +574,30 @@ for (out_var in c("ccdf", "hs", "upk")) {
   -> geo aggregation                ... shows conversion to useful basis
 
 -->
+
+```{r compare levels of outcomes}
+comp_out <-
+  nowcast_agg_aux %>%
+    filter(pd == "nowcast" & age == "age_0to5") %>%
+    select(aux_geo_label, outcome_var, share) %>% 
+    pivot_wider(names_from = "outcome_var",
+                values_from = "share")
+
+  ggplot(comp_out,
+         aes(x = incpov_le225_post_adj,
+             y = ccdf_elig_tight_inc_adj)) +
+  geom_point() +
+  geom_abline()
+  
+  ggplot(comp_out,
+         aes(x = incpov_le225_post_adj,
+             y = incpov_le100_post_adj)) +
+  geom_point() +
+  geom_abline()
+
+```
+
+```{r}
+nowcast_parallel_counts
+```
 

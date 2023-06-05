@@ -37,62 +37,152 @@ for (f in c("geo", "acs1", "cps", "acs5", "pop")) {
 }
 ```
 
-## Examine size of potential vulnerability groups for modeling choices
+### Motivating target choices for the SAE
 
-Investigate the potential depth of slicing vulnerability types and strata for potential use.
+Our application Small Area Estimation (SAE) methods attempts to bring PUMA-level phenomena and represent them down to the Census tract level. The specific choice of categories $c=1,...,C$ which we observe children as falling into at the PUMA level, and which we hope to predict at the tract level, depend on a balance of community characteristics that are (1) important to have measured in smaller areas as of the base-line year (as opposed to having lagged measures); and (2) at a level of detail that can be effectively captured.
 
-```{r perform useful subsetting}
-acs1_child05_baseyr <-
-  acs1_child[YEAR == base_year & 
-               child_agegroup %in% c("0to2", "3to5")]
+With respect to that first item, at the time of this draft we expect that family income-to-poverty status and work status both expect to be highly dynamic, given changes in hiring and labor force participation and high inflation. With respect to the second item, while we would ideally want to have detailed information about household composition, precise income-to-poverty status, and details of work, the more detailed we set our $C$ categories, the less precision we will have.
 
-acs1_child612_baseyr <-
-  acs1_child[YEAR == base_year & 
-               child_agegroup %in% c("6to8", "9to12")]
-```
+The figures below examine how evenly the ACS1 sample is divided among different category schemes.
 
-```{r establish function for showing comparisons}
-show_acs_n_bys <- function(by_vars) {
-  acs1_child05_baseyr[j = .(n = .N), 
-                      by = by_vars] %>% # child_agegroup, 
-    setorderv(cols = by_vars) %>%  # child_agegroup, 
-    datatable(filter = 'top')  
+```{r function to show distribution}
+show_acs1_cat_density <- function(my_cat, my_subtitle) {
+  ggplot(acs1_child,
+         aes(x = get(my_cat))) +
+    geom_bar(fill = chHex1) +
+    facet_wrap(~ child_agegroup_combo) +
+    labs(title = "Number of ACS1 Sample Observations by Category Scheme",
+         subtitle = my_subtitle,
+         x = "") +
+    theme_minimal() + 
+    theme(axis.text.x = element_text(angle = 90,
+                                     hjust = 1))
 }
 ```
 
-<!-- /!\ Consider building this into a graphical view. -->
+Below we see the size of the ACS1 sample partitioned by income-to-poverty categories defined by "100%"s. This is reasonably even at lower levels.
 
-```{r age and income by 100s, eval = developer_mode}
-show_acs_n_bys("fam_incpov_ratio_cat_by100")
+```{r examine overall distribution of ACS1 sample for poverty}
+show_acs1_cat_density("fam_incpov_ratio_cat_by100", "Income-to-Poverty by 100%s")
 ```
 
-```{r age and income by 50s, eval = developer_mode}
-show_acs_n_bys("fam_incpov_ratio_cat_mix")
+Next, we examine effectively the same distribution, but with more detail below 100% of the FPL. While this cuts the ACS1 sample more thinly, it also would better differentiate circumstances for families that may be very important for predicting eligibility status in the nowcasting.
+
+```{r examine overall distribution of ACS1 sample with detail below poverty}
+# This examines whether sample density is likely sufficient to characterize 
+# population shares below poverty (broken into ranges of 0-50 and 50-100)
+show_acs1_cat_density("fam_incpov_ratio_cat_mix", "Income-to-Poverty with Detail Below Poverty")
 ```
 
-```{r age race pov, eval = developer_mode}
-show_acs_n_bys(c("fam_incpov_ratio_cat_by100", "child_race"))
+Below, we see the size of the sample partitioned jointly by household work eligibility for CCDF, and income-to-poverty bands that are somewhat larger and chosen to align with the CCDF income threshold of `r local_ccdf_thresh`% of FPL. Although there is no requirement in either the SAE or nowcasting methods to have this alignment, this specification will allow for later direct comparison of SAE estimates of CCDF eligibility for the base year `r base_year` and the nowcast estimates.
+
+```{r examine overall distribution of ACS1 sample with detail below poverty}
+# Here is the tailored
+if (local_ccdf_thresh == 185) {
+  show_acs1_cat_density("work_incpov_status185", 
+                      glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+} else if (local_ccdf_thresh == 200) {
+  show_acs1_cat_density("work_incpov_status100", 
+                      glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+} else if (local_ccdf_thresh == 225) {
+  show_acs1_cat_density("work_incpov_status75", 
+                      glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+}
 ```
 
-```{r ed and industry, eval = developer_mode}
-show_acs_n_bys(c("hoh_educ", "hoh_industry"))
+The figures below explore the amount of variation in each category across PUMAs. We perform this check to examine the extent to which there are gaps--specifically, exact zeroes--of children in given categories.
+
+```{r function examine PUMA-level counts of each category}
+show_acs1_cat_density_by_puma <- function(my_cat, my_subtitle) {
+ ggplot(acs1_child,
+       aes(x = PUMA)) +
+  geom_bar(fill = chHex2) +
+  facet_grid(get(my_cat) ~ child_agegroup_combo,
+             scales = "free_y") +
+  labs(title = "Number of ACS1 Sample Observations by PUMA, by Age Group and Category",
+       subtitle = my_subtitle,
+       caption = "(Note: scale of y-axis varies to show detail)",
+       y = "Count of Observations in ACS1 Sample") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90,
+                                   hjust = 1))  
+}
 ```
 
-<!-- Note--vulnerable industry is defined as being in education, health, social services, arts, or food services. -->
 
-```{r ed and vulnerable industry, eval = developer_mode}
-show_acs_n_bys(c("hoh_educ", "hoh_industry_vulnerable"))
+```{r examine PUMA-level counts for poverty with detail, fig.height = 8}
+show_acs1_cat_density_by_puma("fam_incpov_ratio_cat_mix", "Income-to-Poverty Ratio, with Detail Below 100% FPL")
 ```
 
-```{r investigate head of household characteristics for pandemic vulnerability -- specifically social services and food, eval = developer_mode}
-show_acs_n_bys(c("fam_incpov_ratio_cat_by100", "hoh_industry_vulnerable"))
+```{r examine PUMA-level counts for combo of work eligibility and poverty, fig.height = 12}
+# /!\ Some of these categories are quite thin: either zero or very low counts.
+# While that can be okay for the purposes of the SAE (and we do check our results below 
+# for whether we can meaningfully capture variation), the counts here are arguably 
+# too thin for us to consider inflating our tract-level SAE estimated counts to
+# equal the corresponding PUMA-level counts, given how much sample variation there
+# presumably would be.
+
+if (local_ccdf_thresh == 185) {
+  show_acs1_cat_density_by_puma("work_incpov_status185", 
+                                glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+} else if (local_ccdf_thresh == 200) {
+  show_acs1_cat_density_by_puma("work_incpov_status100", 
+                                glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+} else if (local_ccdf_thresh == 225) {
+  show_acs1_cat_density_by_puma("work_incpov_status75", 
+                                glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+}
 ```
 
-```{r investigate work elibility for ccdf by income thresholds}
-try(show_acs_n_bys(c("work_incpov_status185")), silent = TRUE)
+
+
+### Examine pattern contrasts between ACS1 and ACS5 measures
+
+ACS1 data are naturally less variable than ACS5 because they reflect averages up to the PUMA level. Thus, the red line below has "density" to the left of the blue peak, and a longer trail of high values at the right. Those reflect tracts with values of poverty that are respectively lower and higher than the overall range of PUMA-level values.
+
+The orange line--representing PUMA-level aggregates of the ACS5 data--is closer to the blue in the overall distribution. However, the fact that the blue line is slightly shifted left captures the fact that PUMA-level poverty rates for young children in `r base_year` are slightly lower than those in prior years.
+
+```{r compare the distribution of values}
+ggplot() +
+  geom_density(data = acs1_puma_stats,
+               aes(x = pct_pov),
+               color = "blue") +
+  geom_density(data = acs5tract,
+               aes(x = incpov_lt6_r0to100_est),
+               color = "red") +
+  geom_density(data = acs5puma,
+               aes(x = incpov_lt6_r0to100_est),
+               color = "orange") +
+  scale_x_continuous(labels = percent) + 
+  labs(title = "Comparing Distributions of Poverty Rates for Children Under 6",
+       subtitle = glue("<span style='color:blue'>PUMA-level ACS1-year Data for {base_year}</span><br>",
+                       "<span style='color:red'>Tract-level ACS5-year Data for 2015-2019</span><br>",
+                       "<span style='color:orange'>PUMA-level ACS5-year Data for 2015-2019</span>"),
+       # 
+       # 
+       # subtitle = glue("ACS1 data reflects PUMA-level values for {base_year}\n",
+       #                 "ACS5 data reflects tract-level values for 2015-2019"),
+       x = "Poverty Rate for Children Under 6",
+       y = "Density of the Distribution") +
+  theme_minimal() +
+  theme(plot.subtitle = element_markdown(lineheight = 1.1))
 ```
 
-## Results of SAE Estimation
+
+<!-- Note: Previous versions of this code explored the proportions of sample
+falling in combinations of other categorical buckets, including education or
+race/ethnicity of the head of household, and the "vulnerability" of the HOH
+industry of employment. Much of this was early in code development, and at times
+surrounding the COVID-19 pandemic when things like socioeconomic status and 
+industry of employment was particularly significant.
+
+That descriptive exploration can be seen as of the following commit of this file
+at:
+https://github.com/chapinhall/elpep/blob/be808bdf9b99087b528580e510abc759c06a40a4/run--02a--run-and-validate-SAE.Rmd
+
+-->
+
+### Results of SAE Estimation
 
 ```{r setup run options based on local ccdf details}
 # Categories of income-to-poverty ratios available in the ACS 5-year data
@@ -165,6 +255,11 @@ acs5tract_sae <- acs5tract
 if (exists("my_county_fip")) {
   acs1_child05_sae <- 
     acs1_child05_sae %>% 
+    .[j = in_my_geo := 1*(PUMA %in% geo_crosswalk[COUNTYFIP == my_county_fip]$PUMA)] %>% 
+    .[in_my_geo == 1]
+  
+  acs1_child612_sae <- 
+    acs1_child612_sae %>% 
     .[j = in_my_geo := 1*(PUMA %in% geo_crosswalk[COUNTYFIP == my_county_fip]$PUMA)] %>% 
     .[in_my_geo == 1]
   
@@ -335,11 +430,11 @@ for (spec in specs) {
 }
 ```
 
-### Compare Direct versus FH Output Estimates
+#### Compare Direct versus FH Output Estimates
 
 As a reality check, confirm that a single "direct" estimate applies to all tracts within each given PUMA. The result should be that there are all "0" numbers of duplicates. 
 
-```{r check that all tracts in each puma have the same direct estimate}
+```{r check that all tracts in each puma have the same direct estimate, eval = developer_mode}
 sae_results_incpov_simple_05_out %>% 
   group_by(vc_value, GEOID, PUMA) %>% 
   summarize(ndups = n_distinct(share_direct) - 1) %>% 
@@ -494,7 +589,7 @@ if (my_output_tag == "Cook2022") {
 ```
 
 
-### Examine the Estimated Composition of Tracts
+#### Examine the Estimated Composition of Tracts
 
 ```{r examine SAE share composition by tract -- FH estimates}
 plot_sae_comp_by_tract <- function(sae_est, base_cat, title) {
@@ -537,7 +632,7 @@ plot_sae_comp_by_tract(sae_results_ccdf_wk_pov_05_out,
                        title = "Vulnerability Cat Composition by Tract -- Work Eligibility by Income-to-Pov")
 ```
 
-### Examine Aggregate Comparison Plots
+#### Examine Aggregate Comparison Plots
 
 Because PUMA data are very thin, we will not adjust our tract-level estimates to match their totals. Instead, we will just compare them to get a rough sense of correspondence.
 
@@ -553,7 +648,7 @@ sae_results_incpov_ctrls2534_05[["agg_comp_fh"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For Poverty, SAE Methods for 0-5 Return Estimates Broadly Consistent with\nObserved PUMA-Level Counts",
-           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 0-5 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 0-5 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") 
 
@@ -561,7 +656,7 @@ sae_results_incpov_ctrls2534_05[["agg_comp_model"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For Poverty, SAE Methods for 0-5 Return Estimates Broadly Consistent with\nObserved PUMA-Level Counts",
-           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 0-5 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 0-5 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") 
 
@@ -570,7 +665,7 @@ sae_results_incpov_ctrls2534_612[["agg_comp_fh"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For Poverty, SAE Methods Return Estimates Broadly Consistent with\nObserved PUMA-Level Counts",
-           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 6-12 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 6-12 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") 
 
@@ -579,7 +674,7 @@ sae_results_incpov_ctrls2534_612[["agg_comp_model"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For Poverty, SAE Methods Return Estimates Broadly Consistent with\nObserved PUMA-Level Counts",
-           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 6-12 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Poverty, SAE Methods for 6-12 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") 
 
@@ -592,7 +687,7 @@ sae_results_ccdf_wk_pov_05[["agg_comp_fh"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For (Work Elig x Poverty), SAE Estimates are Largely Disconnected",
-           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 0-5 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 0-5 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") +
   theme(strip.text = element_text(size = 8),
@@ -602,7 +697,7 @@ sae_results_ccdf_wk_pov_05[["agg_comp_model"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For (Work Elig x Poverty), SAE Estimates are Largely Disconnected",
-           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 0-5 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 0-5 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") +
   theme(strip.text = element_text(size = 8),
@@ -613,7 +708,7 @@ sae_results_ccdf_wk_pov_612[["agg_comp_fh"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For (Work Elig x Poverty), SAE Estimates are Largely Disconnected",
-           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 6-12 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 6-12 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") +
   theme(strip.text = element_text(size = 8),
@@ -623,7 +718,7 @@ sae_results_ccdf_wk_pov_612[["agg_comp_model"]]$agg_comp_plot +
   labs(title = 
          case_when(
            my_output_tag == "IL" ~ "For (Work Elig x Poverty), SAE Estimates are Largely Disconnected",
-           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 6-12 Are Broadly Consistent with\nbserved PUMA-level Counts",
+           my_output_tag == "Cook2022" ~ "For Work Status/Income, SAE Methods for 6-12 Are Broadly Consistent with\nObserved PUMA-level Counts",
            TRUE ~ ""),
        x = "Observed ACS 1-year Counts") +
   theme(strip.text = element_text(size = 8),
@@ -650,7 +745,7 @@ cbind(sae_results_incpov_simple_05[["agg_comp_model"]]$agg_comp_cor     %>% muta
   # But also, in a sense, this is a cleaner perspective on the results of the model
 ```
 
-### Compare Tract-Level SAE Estimates to the ACS 5-year
+#### Compare Tract-Level SAE Estimates to the ACS 5-year
 
 <!-- From direct examination of estimates, we had found cases where SAE estimates of <100% FPL were much higher than the ACS 5-year estimates for tracts within certain CCAs. First, we want to systematically investigate the extent of these outliers. -->
 
@@ -728,33 +823,61 @@ compare_sae_lt100fpl <- function(sae_spec, title, xlab, ylab) {
 <!-- Next, we want to understand the source of these idiosyncracies. Direct inspection suggested that our first handful of outlier tracts had very low poverty but also very low rates of labor force participation and employment.  -->
 
 ```{r build plot of comparisons}
+# /*\ Add appropriate figure titles with interpretation of results, using the
+# same condition on `my_output_tag` as below
+
+# /!\ Note -- by and large, the SAE estimates are notably compressed relative to
+# the ACS5 measures. The reason for this is that the SAE estimates are anchored
+# on PUMA-level values from the ACS1. Although the model component of the SAE
+# estimates uses ACS5 measures for x_g, which capture the higher level of variation,
+# the fact that the model is predicting s_G (i.e., large geographic measures that
+# have some variation averaged away) mean that the estimated betas will put
+# the SAE predictions into a narrower space. While using x_G for estimate would
+# yield unbiased betas, the use of x_g to predict those betas would likely yield
+# unstable predictions, e.g. ones that could range below 0% or above 100%. The
+# current modeling choice substitutes a certain amount of compression (and thus 
+# bias) for stability. The GMM method described in the "00" script would solve
+# the need to make this tradeoff, giving a more natural structure to the relationship
+# of PUMA-level measures, and tract-level predictors.
+# 
+# (Note that, previously, we saw more consistency in this diagnostic. We believe
+# that was erroneous, due to the fact that (1) ACS 5-year measures of overall poverty
+# rates were compared with SAE estimates that were properly estimated for ages
+# 0-5; and that (2) poverty rates for families with young children are higher
+# than those for other families. Thus, the compressed SAE estimates were compared
+# to a measure for a different population that featured more similarity.
+
+diagnostic_note <- 
+  glue("NOTE: This comparison is not expected to show consistency, given\n",
+       "our expectation of the SAE method showing some compression")
+
 compare_sae_lt100fpl(
   sae_results_incpov_simple_05$sae_out,
-  title = case_when(my_output_tag == "IL" ~ "Tract-Level SAE Poverty Estimates Generally Correspond to ACS 5-year Estimates",
-                    my_output_tag == "Cook2022" ~ "Simple Spec Tract-Level SAE Poverty Estimates for 0-5 Year Olds\nRoughly Corresponds to ACS 5-year Estimates, Although Is Clearly\nAbove the Past at the Low End and Slightly Attenuated at the High",
+  title = case_when(my_output_tag == "IL"       ~ diagnostic_note,
+                    my_output_tag == "Cook2022" ~ diagnostic_note,
                     TRUE ~ ""),
-  xlab = "Observed ACS 5-year Poverty Rate",
-  ylab = "SAE Estimate of Poverty Rate"
+  xlab = "Observed ACS 5-year Poverty Rate, Ages 0-5 -- Simple Spec",
+  ylab = "SAE Estimate of Poverty Rate, Age 0-5"
 ) +
   theme_minimal()
 
 compare_sae_lt100fpl(
   sae_results_incpov_ctrls2534_05$sae_out,
-  title = case_when(my_output_tag == "IL" ~ "Tract-Level SAE Poverty Estimates Generally Correspond to ACS 5-year Estimates",
-                    my_output_tag == "Cook2022" ~ "Rich-Spec Tract-Level SAE Poverty Estimates for 0-5 Year Olds\nRoughly Corresponds to ACS 5-year Estimates, Although Is Clearly\nAbove the Past at the Low End and Slightly Attenuated at the High",
+  title = case_when(my_output_tag == "IL"       ~ diagnostic_note,
+                    my_output_tag == "Cook2022" ~ diagnostic_note,
                     TRUE ~ ""),
-  xlab = "Observed ACS 5-year Poverty Rate",
-  ylab = "SAE Estimate of Poverty Rate"
+  xlab = "Observed ACS 5-year Poverty Rate, Ages 0-5 -- Rich Spec",
+  ylab = "SAE Estimate of Poverty Rate, Ages 0-5"
 ) +
   theme_minimal()
 
 compare_sae_lt100fpl(
   sae_results_incpov_ctrls2534_612$sae_out,
-  title = case_when(my_output_tag == "IL" ~ "Tract-Level SAE Poverty Estimates Generally Correspond to ACS 5-year Estimates",
-                    my_output_tag == "Cook2022" ~ "Rich-Spec Tract-Level SAE Poverty Estimates for 6-12 Year Olds\nRoughly Corresponds to ACS 5-year Estimates, Although Is Clearly\nAbove the Past at the Low End and Slightly Attenuated at the High",
+  title = case_when(my_output_tag == "IL"       ~ diagnostic_note,
+                    my_output_tag == "Cook2022" ~ diagnostic_note,
                     TRUE ~ ""),
-  xlab = "Observed ACS 5-year Poverty Rate",
-  ylab = "SAE Estimate of Poverty Rate") +
+  xlab = "Observed ACS 5-year Poverty Rate, Ages 6-12 -- Rich Spec",
+  ylab = "SAE Estimate of Poverty Rate, Ages 6-12") +
   theme_minimal()
 ```
 
@@ -766,7 +889,13 @@ sae_results_incpov_ctrls2534_05$sae_out %>%
   .[order(GEOID, vc_value)]
 ```
 
-### Adjust SAE Estimates to Match PUMA-level Aggregates
+<!-- #### Adjust SAE Estimates to Match PUMA-level Aggregates -->
+
+<!-- Note: Although we have piloted the code to ex-post match SAE estimates to 
+align with the PUMA-level distribution of children across SAE target categories,
+the diagnostic check in the "examine PUMA-level counts" chunks above have 
+led us to believe that the sample data are too variable at that level to use as
+reliable anchors. -->
 
 ```{r eval = FALSE}
 # This is not yet implemented, because many of the PUMA-level counts, especially
@@ -828,7 +957,7 @@ if (FALSE) {
 ```
 
 
-### Map Components of the SAE Estimates
+#### Map Components of the SAE Estimates
 
 ```{r set up comparisons of data}
 pov_p <- 
@@ -919,5 +1048,139 @@ map_sae_components(my_dt, "acs1_pov_05",      "", val_limits = limits_05, save_l
 map_sae_components(my_dt, "acs5_pov",         "", val_limits = limits_05, save_label = "Poverty (ACS5), age 0-5")
 map_sae_components(my_dt, "sae_pov_model_05", "", val_limits = limits_05, save_label = "Poverty (SAE), age 0-5")
 
+```
+
+```{r build comparison of selected SAE with ACS1, eval = developer_mode}
+# Build 
+(puma_agg_sae <- 
+  sae_results_ccdf_wk_pov_05$sae_out %>% 
+  .[j = PUMA := as.numeric(PUMA)] %>% 
+  .[str_detect(vc_value, "^WorkElig_(0%|75%|150%).+"),
+    .(n_p = sum(n_pt),
+      n_p_elig    = sum(vc_count),
+      n_p_elig_fh    = sum(vc_fh_count_trunc),
+      n_p_elig_model = sum(vc_model_count_trunc)),
+    by = PUMA] %>% 
+  .[j = `:=`(pct_elig       = n_p_elig       / n_p,
+             pct_elig_fh    = n_p_elig_fh    / n_p,
+             pct_elig_model = n_p_elig_model / n_p)] %>% 
+   arrange(PUMA) %>% 
+  select(PUMA, n_sae = n_p, 
+         n_ccap_elig_fh = n_p_elig_fh, 
+         n_ccap_elig_model = n_p_elig_model,
+         pct_ccap_elig       = pct_elig,
+         pct_ccap_elig_fh    = pct_elig_fh, 
+         pct_ccap_elig_model = pct_elig_model))
+  # aggregate counts across vc_values and puma
+  # compare with puma aggregate calcs
+
+(puma_agg_acs1 <- 
+   acs1_child[between(AGEP, 0, 5),
+              .(sample_n = .N,
+                n_acs1 = sum(PWGTP),
+                  n_lt225fpl         = sum(PWGTP[fam_incpov_ratio <= 2.25]),
+                pct_lt225fpl         = sum(PWGTP[fam_incpov_ratio <= 2.25]) / sum(PWGTP),
+                  n_lt225fpl_worksch = sum(PWGTP[fam_incpov_ratio <= 2.25 & all_work_sch == 1]),
+                pct_lt225fpl_worksch = sum(PWGTP[fam_incpov_ratio <= 2.25 & all_work_sch == 1]) / sum(PWGTP)),
+              by = .(PUMA = as.numeric(PUMA))] %>% 
+   arrange(PUMA))
+
+puma_agg_comp <- 
+  merge(puma_agg_acs1,
+        puma_agg_sae,
+        by = "PUMA")
+```
+
+
+```{r visualize comparison of selected SAE with ACS1, eval = developer_mode}
+# Compare counts
+plot_puma_aggs_ns <- 
+  ggplot(puma_agg_comp,
+       aes(x = n_lt225fpl_worksch,
+           group = PUMA)) +
+  geom_point(aes(y = n_ccap_elig_fh),
+             color = "blue") +
+  geom_point(aes(y = n_ccap_elig_model),
+             color = "green") +
+  geom_point(data = puma_agg_comp %>% filter(PUMA == 02100),
+             aes(y = n_ccap_elig_fh),
+             color = "orange") +
+  geom_point(data = puma_agg_comp %>% filter(PUMA == 02100),
+             aes(y = n_ccap_elig_model),
+             color = "red") +
+  geom_abline() +
+  scale_x_continuous(limits = c(0, NA)) +
+  scale_y_continuous(limits = c(0, NA)) +
+  theme_minimal()
+
+ggplotly(plot_puma_aggs_ns, tooltip = "group")
+
+# Compare shares
+plot_puma_aggs_pcts <- 
+  ggplot(puma_agg_comp,
+       aes(x = pct_lt225fpl_worksch,
+           group = PUMA)) +
+  geom_point(aes(y = pct_ccap_elig),
+             color = "black") +
+  geom_point(aes(y = pct_ccap_elig_fh),
+             color = "blue") +
+  geom_point(aes(y = pct_ccap_elig_model),
+             color = "green") +
+  geom_point(data = puma_agg_comp %>% filter(PUMA == 02100),
+             aes(y = pct_ccap_elig_fh),
+             color = "orange") +
+  geom_point(data = puma_agg_comp %>% filter(PUMA == 02100),
+             aes(y = pct_ccap_elig_model),
+             color = "red") +
+  geom_abline() +
+  scale_x_continuous(limits = c(0, NA)) +
+  scale_y_continuous(limits = c(0, NA)) +
+  theme_minimal()
+
+ggplotly(plot_puma_aggs_pcts, tooltip = "group")
+
+```
+
+
+```{r check consistency of base population measures, eval = developer_mode}
+# /!\ Consider moving this to 01e if it's interesting
+
+puma_agg_pop <- 
+  pop_by_age %>% 
+  merge(geo_crosswalk[j = .(GEOID, PUMA = as.numeric(PUMA))] %>% unique(),
+        by = "GEOID") %>% 
+  as.data.table() %>% 
+  .[year == base_year,
+    j = .(n_pop = sum(age_0to5_count)),
+    by = PUMA] %>% 
+  arrange(PUMA)
+
+puma_agg_comp_pop <- 
+  puma_agg_comp %>% 
+  merge(puma_agg_pop,
+        by = "PUMA")
+
+plot_puma_pops <- 
+  ggplot(puma_agg_comp_pop,
+         aes(x = n_acs1,
+             y = n_pop,
+             group = PUMA)) +
+  geom_point() + 
+  geom_point(data = puma_agg_comp_pop %>% filter(PUMA == "02100"),
+             color = "red") + 
+  geom_abline() +
+  scale_x_continuous(limits = c(0, NA)) +
+  scale_y_continuous(limits = c(0, NA)) +
+  theme_minimal()
+
+
+ggplotly(plot_puma_pops, tooltip = "group")
+```
+
+```{r investigate the amount of noise in the ACS1 sample}
+# The counts of young children (age 0-5) are very low
+acs1_child[between(AGEP, 0, 5), .N, by = PUMA] %>% .[order(PUMA)] %>% ggplot(aes(x = N)) + geom_histogram()
+
+# Bootstrapping values for each PUMA
 ```
 

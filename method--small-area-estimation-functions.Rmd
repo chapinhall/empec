@@ -14,7 +14,7 @@ direct_est_tract <- function(data,          # Individual-level sample data used 
   # Use the `emdi::direct()` function to calculate PUMA-level stats and standard
   # errors from the sample data
   direct_est_puma <- 
-    direct(y = measure, 
+    emdi::direct(y = measure, 
            smp_data = data %>% select(one_of(measure, "PUMA", "PWGTP")), 
              # We subset the data here because the na.rm = TRUE argument in this
              # function call removes records with *any* missing values, 

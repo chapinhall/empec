@@ -13,19 +13,17 @@ print_documentation <- FALSE
 
 ```{r }
 # run scripts for necessary packages and objects as necessary
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
-
-## Details of ACS 1-Year Microdata Development
 
 ```{r read in acs1 data and documentation}
 my_pums <- 
   pums_variables %>% 
   filter(year   == {base_year},
-         survey == "acs1"
-  )
+         survey == "acs1") %>% 
+  select(var_code, var_label, level, val_min, val_max, val_label)
 
 acs1_save_file <- glue("{input_path}census_acs1_{base_year}.csv")
 if (!file.exists(acs1_save_file)) {
@@ -35,17 +33,14 @@ if (!file.exists(acs1_save_file)) {
 }
 ```
 
-
-```{r review acs documentation}
-# Codebook for full and interactive codebook can be viewed by running the `View(pums_variables)`
-# command. However, this cannot render within an .Rmd file, so it is here 
-# enclosed in an `if` that will not run when the document is knit
-if (FALSE) {
-  View(my_pums)
-}
+```{r ensure that ACS1 PUMA values are character to be consistent with other datasets}
+acs1[j = PUMA := str_pad(PUMA, width = 5, side = "left", pad = "0")]
 ```
 
-ACS 1-Year microdata are subset to households not living in group quarters, to `r my_state_abbr` records, and to year `r base_year`.
+
+### Sample Restrictions
+
+ACS 1-Year microdata for `r base_year` are downloaded from the [Census Application Program Interface (API)](https://www.census.gov/data/developers/data-sets/acs-1year.html) and subset to households not living in group quarters, and to `r my_state_abbr` records.
 
 ```{r subset microdata}
 # TYPE (Census) -- 1 - Housing unit, 2 - group quarters
@@ -63,11 +58,13 @@ if (exists("my_county")) {
 }
 ```
 
+### Calculation of Household-Level Measures
 
 ```{r view variables relevant to head-of-household coding, results = "asis", eval = developer_mode}
 if (print_documentation) {
-  View(my_pums %>% filter(var_code %in% c("RELSHIPP", "SCHL", "INDP", "RAC2P", "HISP")),
-       "YEAR & TYPE Doc")
+  my_pums %>% 
+    filter(var_code %in% c("RELSHIPP", "SCHL", "INDP", "RAC2P", "HISP")) %>% 
+    kable()
 }
 ```
 
@@ -77,6 +74,8 @@ acs1[by = .(YEAR, SERIALNO),
   summary()
 ```
 
+Although not currently used in this analysis, this codebase develops indicators pertaining to the head of household, including education, race/ethnicity, and industry of employment (if applicable). In other future specifications, these may be considered for inclusion in measures predicted by the SAE method and, in turn, used to capture macroeconomic trends in the "now"casting step.
+<!-- /*\ Note: this note about modeling is specific to the current implementation in Illinois, and may be of interest for modifying locally  -->
 
 ```{r prepare ACS 1-year microdata for head of household}
 # Note: for households that contain multiple families, this method may produce inaccurate results (i.e., head of household may be unrelated to child in multi-family households).
@@ -102,26 +101,24 @@ acs1_hoh <-
   dplyr::select(YEAR, SAMPLE, SERIALNO, hoh_educ, hoh_industry, hoh_industry_vulnerable, hoh_race, hoh_hispanic)
 ```
 
-
-### Prepare the Family-Level Records
-
-Although child records include family income information sufficient to establish eligibility for Head Start and Preschool For All, eligibility for the Child Care Assistance Program (CCAP) requires information on whether adults in the household are engaged in qualifying activities, either work or education.
-
-Note that this information is not strictly necessary to develop for the baseline sample, as the baseline must only establish "vulnerability" to become eligible. However, information about parent activities related to CCAP-eligibility may well be meaningful vulnerabilities.
-
 ```{r view variables relevant to constructing household-level measures, eval = developer_mode, results = "asis"}
 if (print_documentation) {
-  show_ipums_doc(acs_documentation, 
-               fields = c("RELSHIPP", #"RELATED", # Note: currently no info on detailed  relationship in Census data (versus our original source of IPUMS)
-                          "SCH", "ESR" #, "EMPSTATD"
-                          ))  
+  my_pums %>% 
+    filter(var_code %in% c("RELSHIPP", "SCH", "ESR")) %>%
+    kable()
 }
 ```
 
+An additional set of indicators is built using all information about household members to capture not just family income (which the ACS has in a field reported even for younger members of the household) but also presence and labor force status of adults in the household:
 
+* Presence of spouse is determined based on either an opposite- or same-sex spouse to the head of household
+* Qualification of head of household or spouse in work or school is determined by either:
+  - civilian employment either "at work" or "with a job but not at work"
+  - enrollment in public or private school or college
+
+<!-- /!\\ Note that the Chapin Hall research team is currently working on separating income and family relationships information for "subfamilies" that may be residing together with the primary family which the Head-of-Household that is the main respondent belongs to. -->
 
 ```{r prepare ACS 1-year microdata for families}
-
 # Key field values (Census)
 # ESR -- 0 - N/A (less than 16 yrs old), 1 - Civilian employed, at work, 2 - Civilian employed, with a job but not at work, 3 - Unemployed, 4 - Armed forces, at work, 5 - Armed forces, with a job but not at work, 6 - Not in labor force
 # SCH -- 0 - N/A (less than 3 yrs old), 1 - No, has not attended in the last 3 months, 2 - Yes, public school or public college, 3 - Yes, private school or college or home school
@@ -135,10 +132,12 @@ acs1_hh <-
 
   # /!\ Not built, but possibly of interest may be gender of households, and
   # separate examination of SCH and ESR
+```
 
+
+```{r examine build of household fields}
 # Allow examination of cases
 if (FALSE) {
-  # Directly examine build
   check <- 
     merge(acs1[j = .(YEAR, SERIALNO, RELSHIPP, SEX, AGEP, SCH, ESR)],
           acs1_hh[j = .(YEAR, SERIALNO, spouse_present, all_work_sch)],
@@ -157,11 +156,27 @@ if (FALSE) {
 
 ```{r view variables relevant to child coding, results = "asis", eval = developer_mode}
 if (print_documentation) {
-  show_ipums_doc(acs_documentation,
-                 c("AGEP", "POVPIP", "RAC2P", "HISP", "PWGTP", "YEAR", "SERIALNO"#, "FAMUNIT" # no variables for famunit 
-                   ))
+  show_vars <- c("AGEP", "POVPIP", "RAC2P", "HISP", "PWGTP", "YEAR") #, "FAMUNIT" # no variables for famunit 
+  my_pums %>% 
+    filter(var_code %in% show_vars) %>% 
+    kable()
 }
 ```
+
+Besides the indicators above, all other relevant characteristics are measured relative to children themselves (including family income which is reported in records for all members of the household). Development of these data involve:
+
+* Subsetting of children to ages 14 and below
+* Inclusion of all measures constructed for heads of household and the household overall
+* Age group of child bucketed into intervals of 0-2, 3-5, 6-8, 9-12, and 13-14 <!-- check on the bin_age function which establishes this -->
+* Race of child partitioned into "white alone", "Black/African-American alone", and "other"
+* Ethnicity of child partitioned into "Hispanic" and "non-Hispanic"
+* Family income partitioned into different schemes for use in different modeling specifications, and for alignment to values that CCDF income eligibility thresholds may take on:
+  - 0-50% FPL, 50-125%, 125-185%, 185-300%, 300-400%, 400%+ (useful in contexts where the CCDF income eligibility threshold is 185% FPL)
+  - 0-50% FPL, 50-100%, 100-200%, 200-300%, 300-400%, 400%+ (useful in contexts where the CCDF income eligibility threshold is 200% FPL)
+  - 0-75% FPL, 75-150%, 150-225%, 225-300%, 300-400%, 400%+ (useful in contexts where the CCDF income eligibility threshold is 225% FPL)
+  - 0-50% FPL, 50-100%, 100-150%, 150-200%, 200-250%, 250-300%, 300-400%, 400%+ (useful for flexibility despite buckets with relatively few households)
+  - 0-100% FPL, 100-200%, 200-300%, 300-400%, 400%+ (useful for simpler reference)
+* Combinations of partitions defined above to both represent share categories predicted in the SAE method, as well as direct calculation of CCDF eligibility rates in the baseline year
 
 ```{r prepare ACS 1-year microdata for children}
 acs1_child <- 
@@ -179,11 +194,11 @@ acs1_child <-
                        RAC2P == 2 ~ "black",
                        TRUE ~ "other_multiple"),
            child_hispanic = 1*(HISP != 1),
-           fam_incpov_ratio_cat_mix   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00)),
-           fam_incpov_ratio_cat_to185 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00)),
-           fam_incpov_ratio_cat_by50  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 3, by = 0.5)),
-           fam_incpov_ratio_cat_by75  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 3, by = 0.75)),
-           fam_incpov_ratio_cat_by100 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 3, by = 1.0)),
+           fam_incpov_ratio_cat_mix   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00, 4.00)),
+           fam_incpov_ratio_cat_to185 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00, 4.00)),
+           fam_incpov_ratio_cat_by50  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 0.5)),
+           fam_incpov_ratio_cat_by75  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.75, 1.50, 2.25, 3.00, 4.00)),
+           fam_incpov_ratio_cat_by100 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 1.0)),
            obs_weight = PWGTP)] %>% 
   .[j = `:=`(work_spouse_status = paste(ifelse(all_work_sch   == 1, "WorkElig",      "NotWorkElig"),
                                         ifelse(spouse_present == 1, "SpousePresent", "NoSpousePresent"),
@@ -199,19 +214,96 @@ acs1_child <-
                                            sep = "_"))]
 ```
 
-```{r examine frequencies, eval = developer_mode}
-plot_freq <- function(meas) {
-  ggplot(acs1_child,
-         aes_string(x = meas)) +
-    stat_count() + 
-    theme(axis.text.x = element_text(angle = 90))
-}
-plot_freq("fam_incpov_ratio_cat_by50")
-plot_freq("fam_incpov_ratio_cat_by100")
-plot_freq("work_spouse_status")
-plot_freq("work_incpov_status100")
+```{r check puma-level patterns in various eligibility status}
+elig_stats_puma <- 
+  acs1_child %>% 
+  .[between(AGEP, 0, 5),
+    j = .(pct_le50_elig  = meanNA(fam_incpov_ratio_cat_mix == "0%-50%"),
+          pct_le100_elig = meanNA(fam_incpov_ratio_cat_by100 == "0%-100%"),
+          # /*\ Note that choice of these cutpoints may need to tailored to 
+          # income threshold values that differ from 225%
+          pct_le225_elig = meanNA(fam_incpov_ratio_cat_by75 %in% c("0%-75%", "75%-150%", "150%-225%")),
+          pct_ccdf_elig  = meanNA(work_incpov_status75 %in% c("WorkElig_0%-75%", "WorkElig_75%-150%", "WorkElig_150%-225%")),
+          pct_work_elig_if_le225  = meanNA(all_work_sch[fam_incpov_ratio_cat_by75 %in% c("0%-75%", "75%-150%", "150%-225%")])),
+    by = PUMA] 
 ```
 
+```{r}
+ggplot(elig_stats_puma,
+       aes(x = pct_le100_elig,
+           y = pct_ccdf_elig)) +
+  geom_point() + 
+  scale_x_continuous(labels = percent) +
+  scale_y_continuous(labels = percent) +
+  labs(title = glue("Comparison of PUMA-level Poverty and {local_ccdf_name_short} Eligibility"),
+       subtitle = glue("Given the {local_ccdf_name_short} work requirement, the relative stability of this relationship may be surprising,\n",
+                       "since labor force attachment may be expected to be lower, on average, in higher poverty\n",
+                       "communities"),
+       x = "Poverty Rate",
+       y = glue("Rate of {local_ccdf_name_short} Eligibility")) +
+  theme_minimal()
+```
+
+
+```{r examine puma-level correspondence between income eligibility and work eligibility}
+
+workelig_and_incelig_by_puma <- 
+  acs1_child %>% 
+  .[between(AGEP, 0, 5),
+    j = .(pct_incelig = meanNA(fam_incpov_ratio_cat_by75 %in% c("0%-75%", "75%-150%", "150%-225%")),
+          pct_workelig = meanNA(all_work_sch),
+          n = .N),
+    by = .(PUMA)] #, age = ifelse(AGEP <= 5, "0to5", "6to12"))]
+
+ggplot(workelig_and_incelig_by_puma,
+       aes(x = pct_incelig, 
+           y = pct_workelig
+           #,color = age
+           )) +
+  geom_point() + 
+  geom_abline() +
+  geom_smooth() + 
+  scale_x_continuous(labels = percent,
+                     limits = c(0, NA)) +
+  scale_y_continuous(labels = percent,
+                     limits = c(0, NA)) +
+  #coord_fixed() +
+  labs(title = glue("PUMA-level Work vs Income-Eligibility for {local_ccdf_name_short} for Families of Children 0-5"),
+       # /*\ Note: check that the pattern and thus interpretation holds
+       subtitle = glue("The negative relationship leads to a stable overall {local_ccdf_name_short} eligiblity rate as PUMAs with lower\n",
+                       "incomes and lower labor market participation can end up with eligibility rates similar to PUMAs\n",
+                       "with relatively higher income and higher labor market participation"),
+       x = glue("Income Eligibility Rate"),
+       y = glue("% Work Eligibility Rate")) +
+  theme_minimal()
+```
+
+```{r examine layers of eligibility}
+elig_stats_puma_stack <-
+  elig_stats_puma %>% 
+  mutate(pct_ccdf_only = pct_ccdf_elig,
+         pct_le225_nonccdf = pct_le225_elig - pct_ccdf_elig) %>% 
+  pivot_longer(cols = -c(PUMA))
+
+elig_stats_puma_stack %>% 
+  filter(name %like% "pct_ccdf_elig|pct_le225_elig|pct_work_elig_if") %>%
+  group_by(PUMA) %>% 
+  mutate(ccdf_val = value[name == "pct_ccdf_elig"]) %>%  # pct_work_elig_if_le225
+  ungroup() %>% 
+  arrange(ccdf_val) %>% 
+  mutate(PUMA_order = match(PUMA, unique(PUMA))) %>% 
+  ggplot(aes(x = PUMA_order,
+             y = value,
+             color = name)) +
+  #geom_line() + 
+  geom_point(size = 2) + 
+  geom_smooth(se = FALSE) + 
+  scale_y_continuous(labels = percent) + 
+  labs(title = glue("PUMA-level Rates of {local_ccdf_name_short} Eligibility, With Work and Income Eligibility"),
+       subtitle = glue("{local_ccdf_name_short} eligibility can often be composed of countervailing income and work eligibility"),
+       x = glue("PUMAs sorted by % {local_ccdf_name_short} eligibility")) + 
+  theme_minimal()
+```
 
 
 ```{r verify that data sets only have one obs per child, eval = developer_mode}
@@ -228,7 +320,58 @@ rm(acs1, acs1_hoh)
 gc()
 ```
 
+```{r output basics to be able to compare with direct pulls, eval = developer_mode}
+# /*\ This diagnostic was motivated by a specific exercise in building comparisons
+# with by-hand pulls of ACS data from ipums.org. If of interest outside of the original
+# IL-based application, the income threshold may need modification.
+(puma_agg <- 
+   acs1_child[between(AGEP, 0, 5),
+              .(sample_n = .N,
+                n = sum(PWGTP),
+                  n_lt225fpl         =   comma(sum(PWGTP[fam_incpov_ratio <= 2.25])),
+                pct_lt225fpl         = percent(sum(PWGTP[fam_incpov_ratio <= 2.25]) / sum(PWGTP), accuracy = 0.01),
+                  n_lt225fpl_worksch =   comma(sum(PWGTP[fam_incpov_ratio <= 2.25 & all_work_sch == 1])),
+                pct_lt225fpl_worksch = percent(sum(PWGTP[fam_incpov_ratio <= 2.25 & all_work_sch == 1]) / sum(PWGTP), accuracy = 0.01)),
+              by = PUMA] %>% 
+   arrange(PUMA))
+
+if (FALSE) {
+  View(puma_agg)
+}
+```
+
+```{r calculate selected statistics at the PUMA level with standard errors to facilitate later checks}
+# Function to calculate poverty rates
+calc_acs1_puma_pov <- function(my_data, indices) {
+  my_data[indices,
+          j = .(pct_pov = meanNA(fam_incpov_ratio <= 1.00)),
+          by = .(child_agegroup_combo, PUMA)] %>% 
+    .[order(child_agegroup_combo, PUMA)] %>% 
+    pull(pct_pov)
+}
+
+acs1_child_mod <- 
+  acs1_child %>% 
+  .[j = child_agegroup_combo := 
+      case_when(child_agegroup %in% c("0to2", "3to5") ~ "0to5",
+                TRUE ~ as.character(child_agegroup)) %>% 
+      factor(levels = c(setdiff(levels(child_agegroup), 
+                                c("0to2", "3to5")),
+                        "0to5")) %>% 
+      fct_relevel("0to5")] %>% 
+  .[order(child_agegroup_combo, PUMA)]
+
+acs1_boot <- boot(acs1_child_mod, calc_acs1_puma_pov, R = 200)
+acs1_puma_stats <- 
+  cbind(acs1_boot$data[j = .(child_agegroup_combo, PUMA)] %>% unique(),
+        data.table(pct_pov    = acs1_boot$t0,
+                   pct_pov_check = apply(acs1_boot$t, 2, mean)),
+                   pct_pov_se = sqrt(apply(acs1_boot$t, 2, var)))
+```
+
+
 ```{r}
 save(acs1_child,
+     acs1_puma_stats,
      file = glue("{output_path}acs1_data_{my_output_tag}.Rda"))
 ```

@@ -1,8 +1,11 @@
 ---
 title: "Estimate Current, Local Counts of Children Eligible for Child Care Supports"
-author: "Nick Mader (nmader@chapinhall.org)"
+author: "Nick Mader (nmader@chapinhall.org) and Hyein Kang (hkang@chapinhall.org)"
 date: "`r format(Sys.Date(), '%m-%d-%Y')`"
 output: 
+  # word_document:
+  #   toc: true
+  #   toc_depth: 2
   html_document:
     toc: true
     toc_depth: 2
@@ -19,26 +22,30 @@ source("method--general-helper-functions.R")
 
 # Background
 
-A minimum requirement of assessing--and thereby addressing--gaps in childcare is a current knowledge, if not also forecast, of the number and locations of young children eligible for a range of public support programs. However, common data sources such as produced by the US Census Bureau lack information that is simultaneously (1) specific enough to capture household characteristics that establish eligibility for child care subsidies and supports; (2) recent enough to capture socioeconomic dynamics that influence that eligibility status; and (3) local enough to usefully judge variation in childcare accessibility across neighborhoods. While the on-going impact of the COVID-19 pandemic has significantly underscored the need for public systems to support childcare access and also complicated the assumption that lagged data were representative of current conditions, these challenges--and opportunity for their solution--are salient across all times and jurisdictions.
+<!-- /*\ Note that here--and throughout--there is an emphasis on the motivating application of this method of child care subsidies for young children. This may vary in your application--e.g. if perhaps for TANF or SNAP benefits for older individuals, or for counts of households rather than individuals. If so, consider a full review of text to adapt both that code and narrative. -->
+
+A minimum requirement of assessing--and thereby addressing--gaps in childcare is a current knowledge, if not also forecast, of the number and locations of young children eligible for a range of public support programs. However, common data sources such as produced by the US Census Bureau lack information that is simultaneously (1) specific enough to capture household characteristics that establish eligibility for child care subsidies and supports; (2) recent enough to capture socioeconomic dynamics that influence that eligibility status; and (3) local enough to usefully judge variation in childcare accessibility across neighborhoods. While the COVID-19 pandemic significantly underscored the need for public systems to support childcare access and complicated the assumption that lagged data were representative of current conditions, these challenges--and opportunity for their solution--are salient across all times and jurisdictions. It is critical to have an assessment of household eligibility for public support programs estimated for the same time that supplier capacity is measured, and the socioeconomic dynamics of household composition, labor force participation, wages and income, and inflation all represent an expectation that lagged data reports are not representative of current conditions.
 
 Chapin Hall's own work to develop these estimates--of counts of young children whose families are eligible for public childcare support programs, at small local geographies--arose from on-going work under contract with the Chicago Department of Family and Support Services (DFSS) in support of its Community Assessment (CA), and in partnership with the Child Care office of the Illinois Department of Human Services (IDHS) with funding from the federal Office of Planning Research and Evaluation (OPRE) under the Administration for Children and Families (ACF).
 
 Chapin Hall has previously developed and annually implemented methods for estimating eligible populations across Chicago Community Areas (CCA) in Chicago. Those methods used a combination of administrative data related to family income status, and publicly-available survey data collected by the US Census. These methods are no longer adequate because they rely on (1) data that have long lags in reporting; and (2) assumptions that recent trends in eligibility by neighborhood evolve in a stable fashion.
 
-This report describes a methodology by which multiple releases of US Census Bureau data are combined to produce "now"casts (i.e., forecasts, but of lagged data to produce an estimate of present-day conditions) of the count of children whose families meet a range of criteria of interest for eligibility for programs including [Head Start](https://www.acf.hhs.gov/ohs/about/head-start) and the [Child Care and Development Funds (CCDF)](https://www.acf.hhs.gov/archive/occ/faq/what-child-care-and-development-fund-ccdf), as well as additional criteria indicating additional priority among eligible families, at a geographically small--Census tract--level. This method also provides "margin of error" statistics to capture the precision of these estimates. Ultimately, these estimates represent an input into more policy user-friendly data tools such as Chapin Hall's [Early Learning Indicators](https://sguiltinan.shinyapps.io/eci_tract_version/) website.
+This report describes a methodology by which multiple releases of US Census Bureau data are combined to produce "now"casts (i.e., forecasts, but of lagged data to produce an estimate of present-day conditions) of the count of children whose families meet a range of criteria of interest for eligibility for programs including [Head Start](https://www.acf.hhs.gov/ohs/about/head-start) and the [Child Care and Development Funds (CCDF)](https://www.acf.hhs.gov/archive/occ/faq/what-child-care-and-development-fund-ccdf), as well as additional criteria indicating additional priority among eligible families, at a geographically small--Census tract--level. This method also provides "margin of error" statistics to capture the precision of these estimates. Ultimately, these estimates represent an input into more policy user-friendly data tools such as Chapin Hall's [Early Learning Indicators](https://chapinhall.shinyapps.io/eci_tract_version/) website.
 
 The statistical method works in two stages to:
 
 1. use **Small Area Estimation** methods to estimate a range of community characteristics related to childcare program eligibility at a small geographic level; and
 2. use those measures to build **"now"-cast** predictions of eligibility up to recent months.
 
-This project uses the [R programming language](https://www.r-project.org/about.html) as a free and open-source tool, and the programming code used to implement this method is maintained on GitHub.com at [this location](https://github.com/nsmader/estimating-support-eligible-population-counts). Because this method relies exclusively on US Census Bureau data, it is theoretically adaptable for use to any given jurisdiction in the United States. Indeed, an explicit goal of open source development is broad use by--and even collaborative contributions from--researchers and stakeholders in states beyond the original site of application of Illinois.
+<!-- /*\ Consider update or removing all of this text which is local to Chapin Hall and Illinois -->
+
+This project uses the [R programming language](https://www.r-project.org/about.html) as a free and open-source tool, and the programming code used to implement this method is maintained on GitHub.com at [this location](https://github.com/chapinhall/elpep). Because this method relies exclusively on US Census Bureau data, it is theoretically adaptable for use to any given jurisdiction in the United States. Indeed, an explicit goal of open source development is broad use by--and even collaborative contributions from--researchers and stakeholders in states beyond the original site of application of Illinois.
 
 In sections below, we describe the data used by this method and details of their development, the statistical theory utilized, and the results of each stage of work. We finish with lengthy discussion, including both developed ideas for practical use of these estimates, as well as limitations relevant for future development of this method.
 
 # Data
 
-While administrative data systems are increasingly used for purposes of applied research, <!-- return with citations -- perhaps to Raj Chetty's work, to this ACF link (https://www.acf.hhs.gov/opre/topic/administrative-data-research-and-improvement) or others... I seem to recall something like a Journal of Economic Perspectives article on the increasing number of publications using admin data --> their use in early childhood is limited. Unlike public school district data which, for school-aged children, capture a broad population of common focus for public policy, there are no administrative data systems that capture information about young children--here, considered age birth to five--and their families. While data from household tax returns data may be an exception--though highly restricted for access and reporting<!-- though perhaps we should check in with Bob about accessing -->--a number of US Census Bureau releases provide a range of detail, recency, and geographic specificity that can be useful and are highly accessible.
+While administrative data systems are increasingly used for purposes of applied research, <!-- return with citations -- perhaps to Raj Chetty's work, to this ACF link (https://www.acf.hhs.gov/opre/topic/administrative-data-research-and-improvement) or others... I seem to recall something like a Journal of Economic Perspectives article on the increasing number of publications using admin data --> their use in early childhood is limited. Unlike public school district data which, for school-aged children, capture a broad population of common focus for public policy, there are no administrative data systems that capture information about young children--here, considered age birth to five--and their families. While data from household tax returns data may be an exception--though highly restricted for access and reporting, and incomplete given that the lower-income families of arguably greatest policy interest are most likely to not file returns <!-- Add citations here-->--a number of US Census Bureau releases provide a range of detail, recency, and geographic specificity that can be useful and are highly accessible. 
 
 <!-- A method for estimating eligibility counts—for federal Head Start program and the state Child Care Assistance Program (CCAP), among others—is generally necessary because these figures are not directly available in any administrative or research data sets. In the wake of the coronavirus outbreak, the income and work status of households which is a primary determinant of program eligibility is highly dynamic, and previously-developed methods are not likely to be reliable either now, or as the economy and conditions continue to evolve. -->
 
@@ -47,11 +54,11 @@ While administrative data systems are increasingly used for purposes of applied 
 
 The [American Community Survey (ACS)](https://www.census.gov/programs-surveys/acs) is conducted annually by the U.S. Census Bureau on a range of topics ranging from household composition (ages and number of individuals in households); identities of gender, race, and ethnicity; school attendance/attainment; patterns of income and employment; and means and timing of commutes, among other measures. In 2019, over 125,000 individuals of all ages were surveyed in Illinois, with just over 40,000 individual surveyed in Cook County. 
 
-ACS data are released in different ways, which enable different types of use. ACS 1-Year (ACS1) data can be accessed as “microdata” (see e.g. [IPUMS-USA](https://usa.ipums.org/usa/) for information about these data, and to browse available measures), meaning that all responses for each household member are available. This makes it possible to examine patterns for specifically defined populations, such as either identify opportunity youth in given ages, or to identify counts of young children by household income-to-poverty ratios. 
+ACS data are released in different ways, which enable different types of use. ACS 1-Year (ACS1) data can be accessed as “microdata” (see e.g. [IPUMS-USA](https://usa.ipums.org/usa/) for information about these data, and to browse available measures), meaning that all responses for each household member are available. This makes it possible to examine patterns for specifically defined populations, such as either identify opportunity youth in given ages, or to identify counts of young children by household income-to-poverty ratios. <!-- Add reference to the Census API, which we now use for data sourcing -->
 
 However, because the ACS data are only a sample of the full population, they are released only at the Public Use Microdata Area (PUMA) geographic level. PUMAs are areas with populations of at least 65,000. There are, for example, 17 PUMAs within the City of Chicago, making them each the size of about four Chicago Community Areas, on average. Thus, while ACS1 data can be used to identify CCDF-eligible families, their number could only be directly estimated at the PUMA level. 
 
-The ACS 5-Year (ACS5) data represents an aggregation of 5-year spans of annual ACS survey data. While less specific in timing, this aggregation of survey responses allows for statistical validity at smaller levels of geography. ACS 5-Year data are available at the level of [Census Tracts](https://www.census.gov/programs-surveys/geography/about/glossary.html#:~:text=Census%20tracts%20generally%20have%20a,on%20the%20density%20of%20settlement.), each of which has a size of approximately 4,000 individuals. Chicago contains nearly 800 Census Tracts, or about 10 for each Chicago Community Area, on average. If desired, ACS 5-Year data could be downloaded at the zip code level. 
+The ACS 5-Year (ACS5) data represents an aggregation of 5-year spans of annual ACS survey data. While less specific in timing, this aggregation of survey responses allows for statistical validity at smaller levels of geography. ACS 5-Year data are available at the level of [Census Tracts](https://www.census.gov/programs-surveys/geography/about/glossary.html#:~:text=Census%20tracts%20generally%20have%20a,on%20the%20density%20of%20settlement.), each of which has a size of approximately 4,000 individuals. Chicago contains nearly 800 Census Tracts, or about 10 for each Chicago Community Area, on average. If desired, ACS 5-Year data could be downloaded at the level of zip code tabulation area (ZCTA). 
 
 The ACS 5-Year data are not released as microdata, but rather in a range of [pre-calculated tables](https://www.socialexplorer.com/data/ACS2020_5yr/metadata/?ds=ACS20_5yr). While there is a significant number of these tables--over 2,200--there are practical limitations to what is represented.
 
@@ -102,68 +109,71 @@ developer_mode <- FALSE
 
 ## Small Area Estimation
 
-Estimating select measures available at the PUMA level down to tract level. Let $s_{Gt}^c$ be the share of households in category $c\in \{ 1,...,C\}$, e.g. the % with income between 0-100% FPL, 100-200% FPL, etc.
+With some exceptions noted below, our first method reflects a largely canonical implementation of Small Area Estimation (SAE) to estimate community characteristics down to the Census tract level. See the Asian Development Bank's [Introduction to Small Area Estimation Techniques](https://www.adb.org/publications/small-area-estimation-guide-national-statistics-offices) for a clear exposition of motivations and techniques for SAE methods, with applications using the R programming language.
 
-Direct estimates are calculated by assuming PUMA-level population shares are, in expectation, representative of tract-level shares:
+Let $s_{Gt}^c$ be the share of young children in category $c\in \{ 1,...,C\}$, e.g. the % of young children with income between 0-100% of the Federal Poverty Line (FPL), 100-200% FPL, etc. Note that although eligibility of children for public childcare subsidies is typically determined by household status (e.g. presence, labor force participation, and income of parents), our analysis is at the level of children and, as applicable, makes use of person--rather than household--sampling weights. This is motivated by the final goal of assessing whether affordable childcare slots are sufficient for the number of children (rather than for the number of local families).
+
+"Direct" estimates are calculated by assuming PUMA-level population shares are, in expectation, representative of tract-level shares:
 
 $$E[s_{gt-1}^c]=s_{Gt-1}^c$$
 where $g$ is our small geography (tract), and $G$ is the big geography (PUMA).
 
-However, the share for the smaller geography would be noisier given the smaller population that it represents as a sampled measure. Thus, we assume
+<!-- /!\ NSM: Note that we previously made the following adjustment on the given rationale -- 
 
-$$\sigma_{gt-1}^{c,direct}=\Sigma_{Gt-1}^c\frac{n_{Gt-1}}{n_{gt-1}}$$
+  However, the share for the smaller geography would be noisier given the smaller population that it represents as a sampled measure. Thus, we assume
+  
+  $$\sigma_{gt-1}^{c,direct}=\Sigma_{Gt-1}^c\frac{n_{Gt-1}}{n_{gt-1}}$$
+  Where $n_{gt-1}$ is the number of young children in the given tract, and $n_{Gt-1}$ is the count in the corresponding PUMA. 
 
-<!-- /!\ NSM: Note that this above adjustment is no longer current. It's not maintained because the standard error is not a property of the PUMA, but of the survey sample of the PUMA. Making the adjustment to recognize the noise of the tracts is an artificial one, hoping that sampling variation approximates variation due to spatial heterogeneity. Not clear what the most principled way is to do that. Perhaps ACS5 data could usefully approximate the latter... -->
+We no longer maintain this because the standard error is not a property of the PUMA, but of the survey sample of the PUMA. Making the adjustment to recognize the noise of the tracts is an artificial one, hoping that sampling variation approximates variation due to spatial heterogeneity. It is unclear what the most principled way is to do that. Perhaps ACS5 data could usefully approximate the latter. The current expectation from the Chapin Hall development team is that the planned Generalized Method of Moments method to recognize the relationships between ACS1 and ACS5 year samples is the most coherent framework for relating the two sources. -->
 
-Where $n_{gt-1}$ is the number of young children in the given tract, and $n_{Gt-1}$ is the count in the corresponding PUMA. 
+Within the SAE method, "Model" estimates use PUMA-level data to draw inference using regression model:
 
-Within the SAE method, modeled estimates use PUMA-level data to draw inference using regression model:
+$$s_{Gt-1}^c=x_{gt-1}^\prime \beta + e_{Gt-1}$$
 
-$$s_{Gt-1}^c=x_{Gt-1}^\prime \beta + e_{Gt-1}$$
 where the tract-level estimate is obtained using $\hat{\beta}$ with tract-level values:
 
 $$\hat{s}_{gt-1}^{c,model}=x_{gt-1}^\prime \hat{\beta}$$
 
 with standard error of estimation of $\sigma_{gt-1}^{c,model}$.
 
+Note that the regression equation used above mixes an outcome measured at the larger geographic level $G$ and predictors measured at the smaller geographic level $g$. This is an adaptation of canonical SAE methods which would otherwise use a measure of $x_{Gt-1}$ for both parameter estimation and prediction. An outcome of $s_{gt-1}$ that would represent equivalent geographic basis is of course not available, and the use of $s_{Gt-1}$ as a substitute invites non-classical measurement error. We proceed with this method for now because it maintained estimation and prediction using the same ($x_{gt-1}$) measures, and utilizes the full distributional support (i.e. the total variation  of the $x$ measures across small geographies). In future updates, the Chapin Hall development team has identified Generalized Method of Moments (GMM) approach to account for spatial relationships between the ACS1 data (which captures $G$ measures) and ACS5 data (which captures $g$) as the most principled approach to capture these contrasts. See the [issue tracker of the open-sourced codebase](https://github.com/chapinhall/elpep/issues) for more detail.
+
 Within the SAE method, the blended estimates (Empirical Best Linear Unbiased Predictor; EBLUP) are a weighted average of the direct and model estimates:
 
-$$s_{gt-1}^{c*}=\lambda_{gt-1}*s_{Gt-1}^c + (1-\lambda_{gt-1})*\hat{s}_{gt-1}^{c,model}$$
+$$s_{gt-1}^{c*}=\lambda_{gt-1}s_{Gt-1}^c + (1-\lambda_{gt-1})\hat{s}_{gt-1}^{c,model}$$
+
 where
 
 $$\lambda_{gt-1} \equiv \frac{\sigma_{gt-1}^{2;c,model}}{\sigma_{gt-1}^{2;c,direct}+\sigma_{gt-1}^{2;c,model}}$$
-Because $k \equiv \sum_{c=1,…,C}s_{gt-1}^{c∗} =1$ is not guaranteed in the estimates, we obtain final estimates $s_{gt-1}^{c**}=s_{gt-1}^{c*}/k$ and $\sigma_{gt-1}^{c**}=\sigma_{gt-1}^{c*}/k$.
+
+Because $k \equiv \sum_{c=1,…,C}s_{gt-1}^{c∗} = 1$ is not guaranteed in the estimates, we obtain final estimates $s_{gt-1}^{c**}=s_{gt-1}^{c*}/k$ and $\sigma_{gt-1}^{c**}=\sigma_{gt-1}^{c*}/k$.
 
 ## Now-Casting Methods
 
-Want to predict counts of program eligibility status $p$: 
+Our ultimate goal is to predict counts of children who are eligible for program $p$: 
 
 $$n_{gt}^{p}=\pi_{gt}^{p}n_{gt}$$
-where $g$ is our "small" geography, $t$ is near-present time, and $\pi^p$ is the proportion of the count of all individuals $n$ that are eligible for $p$. In practice, $n$ is the count of young children and not households.
+where $g$ is our "small" geography, $t$ is near-present time, and $\pi^p$ is the proportion of the count of all young children $n$ that are eligible for $p$.
 
-No direct measurements of $\pi_{gt}^p$ are available, so we try to account for both community composition—using SAE results—and recent eligibility dynamics. Thus, we model binary $p$ eligibility status as
+No direct measurements of $\pi_{gt}^p$ are available, so we try to account for both community composition--using SAE results--and recent eligibility dynamics. Thus, we model binary $p$ eligibility status as
 
-$$y_{ht}^{p} = z_{ht-1}^\prime\tau_p + \nu_{ht}$$
-with observations from household $h$ and their observed characteristics $z_{ht-1}$. The parameters $\hat{\tau_p}$ can be estimated from analysis of individuals households in the CPS. However, in the applied exercise of "now"casting for each tract, only tract-level averages exist as analogs to $z$. Thus, in order to produce estimates of $\hat{\tau_p}$ that can be applied to $\bar{z}_{gt-1}$, which represent community-level averages, we estimate the above regression equation via a (weighted) linear probability model, using household sample weights from the CPS.
+$$y_{it}^{p} = z_{it-1}^\prime\tau_p + \nu_{it}$$
+with observations from individual child $i$ and their observed characteristics $z_{it-1}$ which reflect individual and household measures. The parameters $\hat{\tau_p}$ can be estimated from analysis of individuals households in the CPS. However, in the applied exercise of "now"casting for each tract, only tract-level averages exist as analogs to $z$. 
 
-$$\hat{\pi}^p_{gt}=E\Big[\sum_{h \in G}y_{ht}^p \Big]=\bar{z}_{gt-1}^\prime\hat{\tau_p}$$
+We assume the following structure of linear expectations with respect to individual eligibility measures $y^p$ to be able to form estimates of $\pi^p$ using community averages:
 
-<!-- /!\ NSM: there's some weighting we should be doing--but aren't in the current implementation of things--to make the z representative of households based on the number of children in each tract.  -->
+$$\hat{\pi}^p_{gt}=E\Big[\sum_{i \in \{i \colon f(i) \sim  f(g)\}} y_{it}^p | z_{it-1} \Big]=\bar{z}_{gt-1}^\prime\hat{\tau_p}$$
+Note that expectations of $\pi^p_{gt}$ are made "local" to $g$ by connecting the distribution of $z_{it-1}$ values to be the same among individuals as it is in geography $g$ (i.e. which is reflected in the index of summation). This is primarily a theoretical note than strategy in practice, where the index of summation simply captures the idea that we form predictions of $\pi^p_{gt}$ using $z_{gt-1}$ (i.e., the average $z$ measures for geography $g$).
 
+A more practical consequence of the need for the linear expectations form of $y^p_{it}$ in the regression above is that $\tau_p$ must be estimated using a linear probability model (LPM) rather than a logit or probit. We note our expectation that when sufficient data are available, the predictions of an LPM will be "regular", in the sense of not going below 0% or above 100%, and generally being consistent with predictions yielded from logit or probit estimation.
+<!-- Seek citation for this last observation on modeling -->
 
 In practice, we compose $\bar{z}_{gt-1}$ using both SAE estimates as well as ACS5 measures that can reasonable be assumed to be representative of "$t-1$" because they do not change rapidly and, in our expectation, are more accurately observed via ACS5 rather than estimated via SAE. Community measures such as income-to-poverty status, which we presume are highly dynamic given both macro and local economic factors, are sourced via SAE methods. Other measures that we believe are more persistent, such as adult educational attainment, are sourced directly from ACS5 data. <!-- Note, however, that migration can still affect that. -->
 
+# Estimation Results
 
-
-<!-- /!\ NSM: Need to confirm how weights are used, both technically here, and ensure that this is implemented properly in the code itself. -->
-
-# Small Area Estimation
-
-<!-- Note that 04a method for some reason isn't loading the methods in the 02 
- script as I'd expected. May well have to do with differing memory environments.
- Thus, we're now directly calling the 02 methods. -->
-<!-- /!\ We may consider consolidating and renaming the 02 script, as it is -->
-<!-- in a sense auxiliary rather than part of the main development pipeline -->
+## Small Area Estimation Results
 
 ```{r}
 rerun_sae <- FALSE
@@ -180,24 +190,22 @@ if (!file.exists(glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rd
 
 ```
 
-# Now-Casting to Capture Socioeconomic Trends in Eligibility
-
-<!-- Note that 04b method for some reason isn't loading the methods in the 03 
- script as I'd expected. May well have to do with differing memory environments.
- Thus, we're now directly calling the 02 methods. -->
-<!-- /!\ We may consider consolidating and renaming the 03 script, as it is -->
-<!-- in a sense auxiliary rather than part of the main development pipeline -->
+## Now-Casting Results
 
 
 ```{r child = c("method--nowcasting-functions.Rmd", "run--02b--run-and-validate-nowcasting.Rmd")}
 
 ```
 
-# Results
+# Post-Processing Estimates
+
+## Selecting and Examining a Preferred Specification
 
 ```{r child = "run--03a--postestimation-display-and-output.Rmd"}
 
 ```
+
+## Disaggregating and Reaggregating Estimates for Policy Application
 
 ```{r child = "run--03b--postestimation-disaggregate-estimates.Rmd"}
 
@@ -205,21 +213,26 @@ if (!file.exists(glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rd
 
 # Discussion
 
-Topics for further development in the future:
+Work on these methods is on-going, and the [open-source code repository for this project](https://github.com/chapinhall/elpep/) captures both the most up-to-date version of these methods as well as an [account of issues](https://github.com/chapinhall/elpep/issues/) that future development plans to address.
 
-1. **Extrapolation of national trends** Application of the (nation-wide) CPS analysis results in the now-casting reflects an assumption that local trends follow national ones. 
-1. **Selection of CPS Cohorts** At least with respect to times around the pandemic, there's a consequential question of which CPS cohort to include
-1. **Handling of atypical income sources** Handling of Economic Impact Payments and Unemployment Insurance benefits is consequential and needs to be reviewed with care. Some of this--especially the EIPs--are less of a concern if this method is reapplied in future periods.
+At the time of this writing, there are several important notes and caveats pertaining to the estimates that are produced:
+
+1. **Assumption of local socioeconomic trends following national trends** The now-casting method relies on the assumption that local socioeconomic trends follow those captured in the national Current Population Survey sample. While our statistical analysis of trends identifies patterns specific to detailed demographic predictors of individual communities, this approach will not capture important local trends such as the impact of an increasing minimum wage on household income, and thus eligibility rates. No strategy has yet been articulated to address this assumption. 
+1. **Potential misalignment of measures for determining program eligibility** State rules around program eligibility may have rules that are difficult or impossible to accurately reflect given the measures available in the data sources our method relies on. For example, certain types of income may be ruled out for determining eligibility, and may lead our estimates to lead to underestimates of eligibility, if they improperly include certain types of income that put some households above the income eligibility threshold. No strategy has yet been articulated to address this assumption, and the significance of this caveat may likely vary from application to application.
 1. **Assumptions about fertility** The current method implicitly assumes that fertility patterns produce no net impact on estimates. Specifically, the number of births to families in any given community equals the number of 4 year olds that age out of eligibility as of the now-cast period. However, with respect to at least the Dobbs Supreme Court Decision, it is possible that communities with higher prevalence of lower-income households--those that often, or by definition, are program-eligible--will have higher birth rates than age-out rates.
-1. **Assumptions about migration** The current method implicitly assumes that, if any migration occurs, that it has no effect on community composition of household characteristics or ages of children. This assumption is perhaps most likely to be problematic, given that eviction moratoria have lapsed, the economy is challenged, and residential patterns are changing relatively rapidly as the COVID-19 pandemic has worn on.
-1. **Tailoring the SAE method** At present, the SAE method uses canned functions (using R's `emdi` package) to implement Empirical Best Linear Unbiased Predictor (EBLUP) estimates of the statistical model in a linear mixed effects framework. But while `emdi` can account for measurement error in its run (see the measurement error method of Ybarra & Lohr (2008) available in `emdi::fh()`) the outcome itself is measured with error (which is canonical) and as a PUMA-level estimate is assumed to be applicable to all associated tracts, representing a smaller geography which have potentially high levels of spatial variation (e.g. at least within more densely-populated areas such as Chicago), which is not canonical. A potential remedy would be replacing the EBLUP portion of the model estimate with a bootstrapped model which accounts for sample variation of the PUMA-level outcome, which is then associated with all contained tracts, and the values of tract-level predictors are drawn given margin-of-error estimates from sampling. This would require attention to the fact that ACS5 predictors would have some known correlation, e.g. where calculations of share of households that are 0-100% of the FPL, 100-200% FPL, etc, would be subject to adding-up restrictions, specifically where the number of families (or children) in each category have sampling variation, and where the shares would be calculated with a denominator formed by the sum of those draws.
+1. **Assumptions about migration** The current method implicitly assumes that, if any migration occurs, that it has no net effect on community composition of household characteristics or ages of children, and that the total number of young children can be captured as part of the forecasting method implemented in the `run--01e--prep-pop-by-age-data.Rmd` script.
+1. **Tailoring the SAE method** At present, the SAE method uses canned functions (using R's `emdi` package) to implement Empirical Best Linear Unbiased Predictor (EBLUP) estimates of the statistical model in a linear mixed effects framework. But while `emdi` can account for measurement error in its run (see the measurement error method of Ybarra & Lohr (2008) available in `emdi::fh()`) the outcome itself is measured with error (which is canonical) and as a PUMA-level estimate is assumed to be applicable to all associated tracts, representing a smaller geography which have potentially high levels of spatial variation (e.g. at least within more densely-populated areas such as Chicago), which is not canonical. An [alternative Generalized Method of Moments approach has been articulated in broad terms](https://github.com/chapinhall/elpep/issues/7), that would capture the spatial relationship between ACS1 and ACS5 data sets and provide a framework for incorporating known sampling variation in each data source.
 
-# Appendix
+<!-- A potential remedy would be replacing the EBLUP portion of the model estimate with a bootstrapped model which accounts for sample variation of the PUMA-level outcome, which is then associated with all contained tracts, and the values of tract-level predictors are drawn given margin-of-error estimates from sampling. This would require attention to the fact that ACS5 predictors would have some known correlation, e.g. where calculations of share of households that are 0-100% of the FPL, 100-200% FPL, etc, would be subject to adding-up restrictions, specifically where the number of families (or children) in each category have sampling variation, and where the shares would be calculated with a denominator formed by the sum of those draws. -->
 
-<!-- Some items to include:
+<!-- # Appendix -->
+
+<!-- Some items that could be included:
 1. Comparison of sensitivities of SAE and now-casting
 2. Demonstration that using uniform draws of income within CPS reported income bands replicates the distribution of incomes identified in the ASEC
 3. Other exhibits that are currently generated in the data prep or analysis files, but which don't belong in the main draft.
+
+Note that, at present, many auxiliary diagnostics are produced for chunks that only run on the condition of `eval = developer_mode`. This means that, if developer mode is turned on, they will render in place (i.e. throughout the draft) that they are relevant.
 -->
 
 

@@ -57,7 +57,7 @@ output_path <- "<file path where all intermediate and final output will be saved
 census_key <- "xxx"
 
 # FRED API Key
-# The "FRED" is the Federal Reserve Economic Data service, maintained by the 
+# The "FRED" is the Federal Reserve Economic Data service, maintained by the
 # Federal Reserve Bank of St Louis (https://fred.stlouisfed.org/). Use of this
 # API key automates pulls of the Consumer Price Index, which allows for auto
 # adjustments of poverty thresholds to periods in which households are being
@@ -101,7 +101,7 @@ zcta_starts <- c("XX", "XX", "XX")
 
 # 2. Name of the field within the shapefile with the desired label for each geography
   my_aux_geo_field <- "<name of field in the shape file>"  
-  
+
 # 3. Descriptive label to give to the auxiliary field, e.g. "Community Area"
   my_aux_geo_desc <- "<plain language description to give to `my_aux_geo_field`>"
 
@@ -130,6 +130,11 @@ local_ccdf_thresh <- <numeric value for income-to-poverty line threashold for in
 use_only_sae_model_estimates <- TRUE
 
 ```
+
+Also note that, throughout the codebase, there are two marker that signal attention to users:
+
+* /!\\ -- this is used in comments that are primarily advisory, explaining a key assumption, decision, or opportunity for future reconsideration
+* /*\\ -- this is used to invite users to alter or add to the code. Examples include diagnostics where some local information can be provided, or titling or explanation of figures to describe the patterns seen in the user's own data. Efforts have been made to ensure that the code is structured to allow for multiple users to contribute to a common codebase (e.g. by using conditional statements that select the appropriate figure title based on the `my_output_tag` value relevant to the local context), but for cases where larger deviation is required (e.g. where the codebase is modified to focus on a different public program requiring different data development) we recommend "forking" this repository for parallel development.
 
 # Data Sources and their Uses
 

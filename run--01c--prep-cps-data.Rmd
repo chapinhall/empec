@@ -18,10 +18,6 @@ if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
-## Details of CPS Microdata Development
-
-The sample is restricted to families of head of householders. This is practically driven by the availability of family income as available only for those individuals who are related to the head of household.
-
 ```{r read in cps data and documentation}
 cps_documentation <- read_ipums_ddi(glue("{input_path}{cps_raw}.xml"))
 
@@ -36,6 +32,11 @@ if (print_documentation) {
                  fields = c("FAMINC", "ASECFLAG", "STATEFIP", "RELATE"))
 }
 ```
+
+Current Population Survey (CPS) microdata are manually downloaded from the [IPUMS CPS](https://cps.ipums.org/cps/) site from `r base_year` through the most recent available month, and 
+
+
+The sample is restricted to families of head of householders. This is practically driven by the availability of family income as available only for those individuals who are related to the head of household.
 
 Hawaii and Alaska are dropped, as they follow different federal poverty guidelines than other states, and are expected to have clearly distinct economic dynamics.
 
@@ -355,24 +356,28 @@ cps_pov <-
   .[j = `:=`(fam_incpov_ratio     = faminc_draw / fpl,
              fam_incpov_ratio_adj = faminc_adj  / fpl)] %>% 
   # Bin family income
-  .[j = `:=`(fam_incpov_ratio_cat_by50      = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = seq(0, 3, by = 0.50)),
-             fam_incpov_ratio_cat_by50_adj  = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = seq(0, 3, by = 0.50)),
-             fam_incpov_ratio_cat_by75      = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = seq(0, 3, by = 0.75)),
-             fam_incpov_ratio_cat_by75_adj  = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = seq(0, 3, by = 0.75)),
-             fam_incpov_ratio_cat_by100     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = seq(0, 3, by = 1.00)),
-             fam_incpov_ratio_cat_by100_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = seq(0, 3, by = 1.00)),
-             fam_incpov_ratio_cat_to185     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00)),
-             fam_incpov_ratio_cat_to185_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00)),
-             fam_incpov_ratio_cat_byMix     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.5, seq(1, 3, by = 1.0))),
-             fam_incpov_ratio_cat_byMix_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.5, seq(1, 3, by = 1.0))),
+  .[j = `:=`(fam_incpov_ratio_cat_byMix     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00, 4.00)),
+             fam_incpov_ratio_cat_byMix_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00, 4.00)),
+             fam_incpov_ratio_cat_to185     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00, 4.00)),
+             fam_incpov_ratio_cat_to185_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00, 4.00)),
+             fam_incpov_ratio_cat_by50      = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = seq(0, 4, by = 0.50)),
+             fam_incpov_ratio_cat_by50_adj  = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = seq(0, 4, by = 0.50)),
+             fam_incpov_ratio_cat_by75      = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.75, 1.50, 2.25, 3.00, 4.00)),
+             fam_incpov_ratio_cat_by75_adj  = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.75, 1.50, 2.25, 3.00, 4.00)),
+             fam_incpov_ratio_cat_by100     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = seq(0, 4, by = 1.00)),
+             fam_incpov_ratio_cat_by100_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = seq(0, 4, by = 1.00)),
              fam_incpov_ratio_le.5       = 1*(fam_incpov_ratio     <= 0.5),
              fam_incpov_ratio_le.5_adj   = 1*(fam_incpov_ratio_adj <= 0.5),
              fam_incpov_ratio_le1        = 1*(fam_incpov_ratio     <= 1.0),
              fam_incpov_ratio_le1_adj    = 1*(fam_incpov_ratio_adj <= 1.0),
+             fam_incpov_ratio_le1.85     = 1*(fam_incpov_ratio     <= 1.85),
+             fam_incpov_ratio_le1.85_adj = 1*(fam_incpov_ratio_adj <= 1.85),
              fam_incpov_ratio_le2        = 1*(fam_incpov_ratio     <= 2.0),
              fam_incpov_ratio_le2_adj    = 1*(fam_incpov_ratio_adj <= 2.0),
              fam_incpov_ratio_le2.25     = 1*(fam_incpov_ratio     <= 2.25),
-             fam_incpov_ratio_le2.25_adj = 1*(fam_incpov_ratio_adj <= 2.25))]
+             fam_incpov_ratio_le2.25_adj = 1*(fam_incpov_ratio_adj <= 2.25),
+             fam_incpov_ratio_le4.00     = 1*(fam_incpov_ratio     <= 4.0),
+             fam_incpov_ratio_le4.00_adj = 1*(fam_incpov_ratio_adj <= 4.0))]
 ```
 
 ```{r check the correspondence of adjusted and unadjusted FAMINC numbers, eval = developer_mode}
@@ -713,14 +718,18 @@ cps_post <-
                  YEAR, MONTH, HWTFINL, is_validation,
                  faminc_adj, fam_incpov_ratio,
                  hoh_empl_post = 1*(EMPSTAT == 10),
-                 deep_pov_post     = fam_incpov_ratio_le.5,
-                 hs_elig_post      = fam_incpov_ratio_le1,
-                 pfa_elig_post     = fam_incpov_ratio_le2,
-                 upk_elig_post     = fam_incpov_ratio_le2.25,
-                 deep_pov_post_adj = fam_incpov_ratio_le.5_adj,
-                 hs_elig_post_adj  = fam_incpov_ratio_le1_adj,
-                 pfa_elig_post_adj = fam_incpov_ratio_le2_adj,
-                 upk_elig_post_adj = fam_incpov_ratio_le2.25_adj,
+                 incpov_le50_post  = fam_incpov_ratio_le.5,
+                 incpov_le100_post = fam_incpov_ratio_le1,
+                 incpov_le185_post = fam_incpov_ratio_le1.85,
+                 incpov_le200_post = fam_incpov_ratio_le2,
+                 incpov_le225_post = fam_incpov_ratio_le2.25,
+                 incpov_le400_post = fam_incpov_ratio_le4.00,
+                 incpov_le50_post_adj  = fam_incpov_ratio_le.5_adj,
+                 incpov_le100_post_adj = fam_incpov_ratio_le1_adj,
+                 incpov_le185_post_adj = fam_incpov_ratio_le1.85_adj,
+                 incpov_le200_post_adj = fam_incpov_ratio_le2_adj,
+                 incpov_le225_post_adj = fam_incpov_ratio_le2.25_adj,
+                 incpov_le400_post_adj = fam_incpov_ratio_le4.00_adj,
                  ccdf_elig_tight_inc, ccdf_elig_tight_inc_adj,
                  ccdf_elig_loose_inc, ccdf_elig_loose_inc_adj)]
 dim(cps_post)

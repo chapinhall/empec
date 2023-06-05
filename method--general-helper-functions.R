@@ -101,7 +101,8 @@ bin_age <- function(a) {
             #between(a,  5,  5) ~ "5to5", 
             between(a,  6,  8) ~ "6to8", 
             between(a,  9, 12) ~ "9to12", 
-            between(a, 13, 14) ~ "13to14") 
+            between(a, 13, 14) ~ "13to14") %>% 
+    factor(levels = c("0to2", "3to5", "6to8", "9to12", "13to14"))
 }
 
 # Recode poverty decimal ------------------------------------------------------#
@@ -120,7 +121,8 @@ bin_incpov_ratio <- function(incpov_ratio, pov_breaks = seq(0, 3, by = 0.5)) {
   
   pov_cuts <- cut(incpov_ratio, 
                   breaks = pov_breaks_aug,
-                  labels = pov_labels)
+                  labels = pov_labels,
+                  include.lowest = TRUE)
   return(pov_cuts)
 }
 
@@ -401,32 +403,61 @@ label_vars <- function(var) {
                   "ed_hs"       = "Educ - HS",
                   "ed_somecoll" = "Educ - Some Coll",
                   "ed_coll"     = "Educ - Coll",
+                  
                   "share_0_50"    = "Inc-to-Pov: 0-50%",
-                  "share_50_100"  = "Inc-to-Pov: 50-100%",
+                  "share_0_75"    = "Inc-to-Pov: 0-75%",
                   "share_0_100"   = "Inc-to-Pov: 0-100%",
+                  "share_50_100"  = "Inc-to-Pov: 50-100%",
+                  "share_50_125"  = "Inc-to-Pov: 50-125%",
+                  "share_75_150"  = "Inc-to-Pov: 75-150%",
+                  "share_100_150" = "Inc-to-Pov: 100-150%",
                   "share_100_200" = "Inc-to-Pov: 100-200%",
+                  "share_125_185" = "Inc-to-Pov: 125-185%",
+                  "share_150_200" = "Inc-to-Pov: 150-200%",
+                  "share_150_225" = "Inc-to-Pov: 150-225%",
+                  "share_185_300" = "Inc-to-Pov: 185-300%",
+                  "share_200_250" = "Inc-to-Pov: 200-250%",
                   "share_200_300" = "Inc-to-Pov: 200-300%",
-                  "share_300"     = "Inc-to-Pov: 300%+",
+                  "share_225_300" = "Inc-to-Pov: 225-300%",
+                  "share_250_300" = "Inc-to-Pov: 250-300%",
+                  "share_300_400" = "Inc-to-Pov: 300-400%",
+                  "share_400"     = "Inc-to-Pov: 400%+",
                   "share_WorkElig_0_50"    = "HH Working, Inc-to-Pov: 0-50%",
                   "share_WorkElig_0_75"    = "HH Working, Inc-to-Pov: 0-75%",
-                  "share_WorkElig_50_100"  = "HH Working, Inc-to-Pov: 50-100%",
-                  "share_WorkElig_75_150"  = "HH Working, Inc-to-Pov: 75-150%",
                   "share_WorkElig_0_100"   = "HH Working, Inc-to-Pov: 0-100%",
+                  "share_WorkElig_50_100"  = "HH Working, Inc-to-Pov: 50-100%",
+                  "share_WorkElig_50_125"  = "HH Working, Inc-to-Pov: 50-125%",
+                  "share_WorkElig_75_150"  = "HH Working, Inc-to-Pov: 75-150%",
+                  "share_WorkElig_100_150" = "HH Working, Inc-to-Pov: 100-150%",
                   "share_WorkElig_100_200" = "HH Working, Inc-to-Pov: 100-200%",
+                  "share_WorkElig_125_185" = "HH Working, Inc-to-Pov: 125-185%",
+                  "share_WorkElig_150_200" = "HH Working, Inc-to-Pov: 150-200%",
                   "share_WorkElig_150_225" = "HH Working, Inc-to-Pov: 150-225%",
+                  "share_WorkElig_185_300" = "HH Working, Inc-to-Pov: 185-300%",
+                  "share_WorkElig_200_250" = "HH Working, Inc-to-Pov: 200-250%",
                   "share_WorkElig_200_300" = "HH Working, Inc-to-Pov: 200-300%",
                   "share_WorkElig_225_300" = "HH Working, Inc-to-Pov: 225-300%",
-                  "share_WorkElig_300"     = "HH Working, Inc-to-Pov: 300%+",
+                  "share_WorkElig_250_300" = "HH Working, Inc-to-Pov: 250-300%",
+                  "share_WorkElig_300_400" = "HH Working, Inc-to-Pov: 300-400%",
+                  "share_WorkElig_400"     = "HH Working, Inc-to-Pov: 400%+",
                   "share_NotWorkElig_0_50"    = "HH Not Working, Inc-to-Pov: 0-50%",
                   "share_NotWorkElig_0_75"    = "HH Not Working, Inc-to-Pov: 0-75%",
-                  "share_NotWorkElig_50_100"  = "HH Not Working, Inc-to-Pov: 50-100%",
-                  "share_NotWorkElig_75_150"  = "HH Not Working, Inc-to-Pov: 75-150%",
                   "share_NotWorkElig_0_100"   = "HH Not Working, Inc-to-Pov: 0-100%",
+                  "share_NotWorkElig_50_100"  = "HH Not Working, Inc-to-Pov: 50-100%",
+                  "share_NotWorkElig_50_125"  = "HH Not Working, Inc-to-Pov: 50-125%",
+                  "share_NotWorkElig_75_150"  = "HH Not Working, Inc-to-Pov: 75-150%",
+                  "share_NotWorkElig_100_150" = "HH Not Working, Inc-to-Pov: 100-150%",
                   "share_NotWorkElig_100_200" = "HH Not Working, Inc-to-Pov: 100-200%",
+                  "share_NotWorkElig_125_185" = "HH Not Working, Inc-to-Pov: 125-185%",
+                  "share_NotWorkElig_150_200" = "HH Not Working, Inc-to-Pov: 150-200%",
                   "share_NotWorkElig_150_225" = "HH Not Working, Inc-to-Pov: 150-225%",
+                  "share_NotWorkElig_185_300" = "HH Not Working, Inc-to-Pov: 185-300%",
+                  "share_NotWorkElig_200_250" = "HH Not Working, Inc-to-Pov: 200-250%",
                   "share_NotWorkElig_200_300" = "HH Not Working, Inc-to-Pov: 200-300%",
                   "share_NotWorkElig_225_300" = "HH Not Working, Inc-to-Pov: 225-300%",
-                  "share_NotWorkElig_300"     = "HH Not Working, Inc-to-Pov: 300%+",
+                  "share_NotWorkElig_250_300" = "HH Not Working, Inc-to-Pov: 250-300%",
+                  "share_NotWorkElig_300_400" = "HH Not Working, Inc-to-Pov: 300-400%",
+                  "share_NotWorkElig_400"     = "HH Not Working, Inc-to-Pov: 400%+",
                   
                   "share_NotWorkElig_SpousePresent"   = "HH Not Working, Spouse Present",
                   "share_WorkElig_SpousePresent"      = "HH Working, Spouse Present",
@@ -437,6 +468,7 @@ label_vars <- function(var) {
                   "incpov_r50to100_est"   = "Inc-to-Pov: 50-100%",
                   "incpov_r100to199_est"  = "Inc-to-Pov: 100-199%",
                   "incpov_r200to299_est"  = "Inc-to-Pov: 200-299%",
+                  
                   "f_lesshs_est"   = "Educ < HS, Female",
                   "m_lesshs_est"   = "Educ < HS, Male",
                   "f_hsgrad_est"   = "Educ - HS, Female",
@@ -445,9 +477,11 @@ label_vars <- function(var) {
                   "m_somecoll_est" = "Educ - Some Coll, Male",
                   "f_coll_est" = "Educ - Coll, Female",
                   "m_coll_est" = "Educ - Coll, Male",
+                  
                   "pctMale_noSp_est"   = "Household is Male-Headed Only",
                   "pctFemale_noSp_est" = "Household is Female-Headed only",
                   "pctMarried_est"     = "Household is Married Couple",
+                  
                   "employrate_m_a2534_est" = "Empl't Rate, Male Age 25-34",
                   "employrate_f_a2534_est" = "Empl't Rate, Female Age 25-34",
                   "employrate_m_est"       = "Empl't Rate, Male",
