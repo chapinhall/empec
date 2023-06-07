@@ -574,7 +574,7 @@ transition_pred_vars_toadd_pov <-
 
 transition_pred_vars_toadd_ccdf_elig_pov <- 
     str_subset(cn(cps_child_base_post),
-               "share_(Not)?WorkElig_(0_100|100_ccdf|ccdf_350|350_500|500)")
+               "share_(Not)?WorkElig_(0_100|100_|_350|350_500|500)")
   # the prior specification, which was not necessarily aligned with 
   # poverty
   # ccdf_spec_vars 
