@@ -77,17 +77,21 @@ show_acs1_cat_density("fam_incpov_ratio_cat_mix", "Income-to-Poverty with Detail
 Below, we see the size of the sample partitioned jointly by household work eligibility for CCDF, and income-to-poverty bands that are somewhat larger and chosen to align with the CCDF income threshold of `r local_ccdf_thresh`% of FPL. Although there is no requirement in either the SAE or nowcasting methods to have this alignment, this specification will allow for later direct comparison of SAE estimates of CCDF eligibility for the base year `r base_year` and the nowcast estimates.
 
 ```{r examine overall distribution of ACS1 sample with detail below poverty}
-# Here is the tailored
-if (local_ccdf_thresh == 185) {
-  show_acs1_cat_density("work_incpov_status185", 
+# Here is the density tailored to the local ccdf threshold
+
+show_acs1_cat_density("work_incpov_statushs", 
                       glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-} else if (local_ccdf_thresh == 200) {
-  show_acs1_cat_density("work_incpov_status100", 
-                      glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-} else if (local_ccdf_thresh == 225) {
-  show_acs1_cat_density("work_incpov_status75", 
-                      glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-}
+
+# if (local_ccdf_thresh == 185) {
+#   show_acs1_cat_density("work_incpov_status185", 
+#                       glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+# } else if (local_ccdf_thresh == 200) {
+#   show_acs1_cat_density("work_incpov_status100", 
+#                       glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+# } else if (local_ccdf_thresh == 225) {
+#   show_acs1_cat_density("work_incpov_status75", 
+#                       glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+# }
 ```
 
 The figures below explore the amount of variation in each category across PUMAs. We perform this check to examine the extent to which there are gaps--specifically, exact zeroes--of children in given categories.
@@ -122,19 +126,20 @@ show_acs1_cat_density_by_puma("fam_incpov_ratio_cat_mix", "Income-to-Poverty Rat
 # equal the corresponding PUMA-level counts, given how much sample variation there
 # presumably would be.
 
-if (local_ccdf_thresh == 185) {
-  show_acs1_cat_density_by_puma("work_incpov_status185", 
+show_acs1_cat_density_by_puma("work_incpov_statushs", 
                                 glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-} else if (local_ccdf_thresh == 200) {
-  show_acs1_cat_density_by_puma("work_incpov_status100", 
-                                glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-} else if (local_ccdf_thresh == 225) {
-  show_acs1_cat_density_by_puma("work_incpov_status75", 
-                                glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-}
+
+# if (local_ccdf_thresh == 185) {
+#   show_acs1_cat_density_by_puma("work_incpov_status185", 
+#                                 glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+# } else if (local_ccdf_thresh == 200) {
+#   show_acs1_cat_density_by_puma("work_incpov_status100", 
+#                                 glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+# } else if (local_ccdf_thresh == 225) {
+#   show_acs1_cat_density_by_puma("work_incpov_status75", 
+#                                 glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+# }
 ```
-
-
 
 ### Examine pattern contrasts between ACS1 and ACS5 measures
 
@@ -209,7 +214,15 @@ incpov_ranges_for_estimation <- c("0to50", "50to100", "100to199", "200to299")
 # c("WorkElig_0%-75%", "WorkElig_75%-150%", "WorkElig_150%-225%")` could be
 # added to make a direct comparison.
 
-work_incpov_spec_field <- 
+# Our current specification of `work_incpov_statushs` embeds this alignment 
+# by adding the income threshold directly, in addition to the 100% for Head Start
+
+work_incpov_spec_field <- "work_incpov_statushs"
+
+# Previously, we had custom breakpoints below `local_ccdf_thresh`. The new spec
+# above ensures alignment with Head Start.
+
+work_incpov_spec_field_alt <-
   case_when(local_ccdf_thresh == 185 ~ "work_incpov_status185",
             local_ccdf_thresh == 200 ~ "work_incpov_status100",
             local_ccdf_thresh == 225 ~ "work_incpov_status75",
@@ -387,7 +400,7 @@ if (rerun_sae) {
     sae_results_incpov_simple_612    <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child612_sae, sae_controls_simple_612)
     sae_results_incpov_ctrls2534_05  <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child05_sae,  sae_controls_added_2534_05)
     sae_results_incpov_ctrls2534_612 <- run_sae_combos_bycontrols(incpov_spec_field,      acs1_child612_sae, sae_controls_added_2534_612)
-    sae_results_ccdf_wk_sp_05        <- run_sae_combos_bycontrols("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534_05)
+    sae_results_ccdf_wk_sp_05        <- run_sae_combos_bycontrols(work_incpov_spec_field_alt,   acs1_child05_sae,  sae_controls_added_2534_05)
     sae_results_ccdf_wk_pov_05       <- run_sae_combos_bycontrols(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534_05)
     sae_results_ccdf_wk_pov_12       <- run_sae_combos_bycontrols(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534_612)
   }

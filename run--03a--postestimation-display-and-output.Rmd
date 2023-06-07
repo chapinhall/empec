@@ -107,25 +107,24 @@ nowcast_parallel_incpov_le400 <-
 nowcast_parallel_ccdf_elig <- 
   nowcast_parallel_setup %>% 
   filter(outcome_var == "ccdf_elig_tight_inc_adj",
-         str_detect(sae_spec, "ccdf_wk_pov"))
+         str_detect(sae_spec, "ccdf_wk_pov")) %>% 
+  mutate(base_share = share_WorkElig_0_100 + get(glue("share_WorkElig_100_{local_ccdf_thresh}")))
 
-# We are able to ensure alignment of the base_share values to CCDF eligibility
-# because the SAE target categories are explicitly chosen in the 02a script to
-# ensure this (via equivalent references to `local_ccdf_thresh` to set model
-# specification)
-if (local_ccdf_thresh == 185) {
-  nowcast_parallel_ccdf_elig <- 
-    nowcast_parallel_ccdf_elig %>% 
-    mutate(base_share = share_WorkElig_0_50 + share_WorkElig_50_125 + share_WorkElig_125_185)
-} else if (local_ccdf_thresh == 200) {
-  nowcast_parallel_ccdf_elig <- 
-    nowcast_parallel_ccdf_elig %>% 
-    mutate(base_share = share_WorkElig_0_100 + share_WorkElig_100_200)
-} else if (local_ccdf_thresh == 225) {
-  nowcast_parallel_ccdf_elig <- 
-    nowcast_parallel_ccdf_elig %>% 
-    mutate(base_share = share_WorkElig_0_75 + share_WorkElig_75_150 + share_WorkElig_150_225)
-}
+# This is the old scheme of custom breakpoints below the ccdf cutoff, which were
+# not necessarily aligned with head start eligibility (of income of 100)
+# if (local_ccdf_thresh == 185) {
+#   nowcast_parallel_ccdf_elig <- 
+#     nowcast_parallel_ccdf_elig %>% 
+#     mutate(base_share = share_WorkElig_0_50 + share_WorkElig_50_125 + share_WorkElig_125_185)
+# } else if (local_ccdf_thresh == 200) {
+#   nowcast_parallel_ccdf_elig <- 
+#     nowcast_parallel_ccdf_elig %>% 
+#     mutate(base_share = share_WorkElig_0_100 + share_WorkElig_100_200)
+# } else if (local_ccdf_thresh == 225) {
+#   nowcast_parallel_ccdf_elig <- 
+#     nowcast_parallel_ccdf_elig %>% 
+#     mutate(base_share = share_WorkElig_0_75 + share_WorkElig_75_150 + share_WorkElig_150_225)
+# }
 ```
 
 
