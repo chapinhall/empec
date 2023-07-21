@@ -1,19 +1,15 @@
 
-```{r run scripts for necessary packages and objects as necessary}
+```{r}
+# run scripts for necessary packages and objects as necessary
 if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
 ```{r load the data from the previous stage}
+# Load prepped data
 for (f in c("geo", "acs1", "cps", "acs5", "pop")) {
-  # Note: the cps data is national, and thus doesn't depend on locality or 
-  # sensitivity, thus it's neither saved nor loaded with a particular output tag
-  if (f == "cps") {
-    load(file = glue("{output_path}{f}_data.Rda"))
-  } else {
-    load(file = glue("{output_path}{f}_data_{my_output_tag}.Rda"))
-  }
+  load(file = glue("{output_path}{f}_data_{my_output_tag}.Rda"))
 }
 load(file = glue("{output_path}Now-cast counts at the tract level, pre-disaggregation - {my_output_tag}.Rda"))
 ```
