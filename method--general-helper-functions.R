@@ -303,7 +303,7 @@ calc_incpov_rat <- function(inc, famsize, year, month) {
   my_pov_thresholds <- get_pov_threshold(famsize, year, month)
   my_incpov_ratio <- inc / my_pov_thresholds
   
-  return(my_incpov_ratio)i
+  return(my_incpov_ratio)
 }
 
 draw_incpov_rat <- function(faminc, famsize, year, month, fixed_results = TRUE) {
@@ -377,91 +377,98 @@ build_fm <- function(lhs, rhs) {
 #------------------------------------------------------------------------------#
 
 label_outcome <- function(outcome_var) {
-  Switch(outcome_var,
-         "incpov_le50_post"      = "Income <50% FPL (unadj)",
-         "incpov_le100_post"     = "Income <100% FPL (unadj)",
-         "incpov_le200_post"     = "income <200% FPL (unadj)",
-         "incpov_le50_post_adj"  = "Income <50% FPL (adj)",
-         "incpov_le100_post_adj" = "Income <100% FPL (adj)",
-         "incpov_le200_post_adj" = "Income <200% FPL (adj)",
-         "hoh_empl_post"         = "HOH Employed in Post",
-         "ccdf_elig_tight_inc"     = "CCAP Elig 'tight' (unadj)",
-         "ccdf_elig_tight_inc_adj" = "CCAP Elig 'tight' (adj)",
-         "ccdf_elig_loose_inc"     = "CCAP Elig 'loose' (unadj)",
-         "ccdf_elig_loose_inc_adj" = "CCAP Elig 'loose' (adj)",
-         DEFAULT = "")
+  labels <- 
+    c("incpov_le50_post"      = "Income <50% FPL (unadj)",
+      "incpov_le100_post"     = "Income <100% FPL (unadj)",
+      "incpov_le200_post"     = "income <200% FPL (unadj)",
+      "incpov_le50_post_adj"  = "Income <50% FPL (adj)",
+      "incpov_le100_post_adj" = "Income <100% FPL (adj)",
+      "incpov_le200_post_adj" = "Income <200% FPL (adj)",
+      "hoh_empl_post"         = "HOH Employed in Post",
+      "ccdf_elig_tight_inc"     = "CCAP Elig 'tight' (unadj)",
+      "ccdf_elig_tight_inc_adj" = "CCAP Elig 'tight' (adj)",
+      "ccdf_elig_loose_inc"     = "CCAP Elig 'loose' (unadj)",
+      "ccdf_elig_loose_inc_adj" = "CCAP Elig 'loose' (adj)")
+  return(labels[outcome_var])
 }
 
-label_vars <- function(var) {
+# Implement a renaming function that is flexible to inputs
+# Not that the structure of this function means that it is not vectorized, and
+# so we use the `Vectorize()` function below to make it so.
+label_vars_prevec <- function(var) {
   
   bits <- str_split(var, "_") %>% unlist()
+  #print(bits)
   
   # Using `case_when()` because it is vectorized (i.e. it accepts vector input)
-  # Note: seemed that glue() wasn't working cleanly
   
   case_when(
     ### Recode "share" variables
     str_detect(var, "^share") ~
+      
       case_when(
         # If interaction of work eligibility and income
-        str_detect(var, "Elig.+\\d$") ~ 
+        str_detect(var, "Elig.+\\d$") ~
           paste0("HH ",
                  ifelse(bits[2]=="WorkElig", "Working, ", "Not Working, "),
                  paste0("Inc-to-Pov: ", bits[3], "-", bits[4], "%")),
         # Interaction of work eligibility and spouse presence
-        str_detect(var, "Elig.+Spouse") ~ 
+        str_detect(var, "Elig.+Spouse") ~
           paste0("HH ",
                  ifelse(bits[2]=="WorkElig", "Working, ", "Not Working, "),
                  ifelse(str_detect(var, "NoSpouse"), "No ", ""), "Spouse Present"),
         # Only income
-        TRUE ~ paste0("Inc-to-Pov: ",
-                      bits[2], "-", bits[3], "%")
+        TRUE ~ paste0("Inc-to-Pov: ", bits[2], 
+                      ifelse(is.na(bits[3]), "+%",
+                             paste0("-", bits[3], "%")))
       ),
     
     ### Recode education vars
     str_detect(var, "^ed_") ~
+      
       paste0("Educ - ",
-             Switch(bits[2],
-                    "hs"       = "HS",
-                    "somecoll" = "Some Coll",
-                    "coll"     = "Coll",
-                    DEFAULT = "")),
+             c("hs"       = "HS",
+               "somecoll" = "Some Coll",
+               "coll"     = "Coll")[bits[2]]),
     
     ### Recode income to poverty
     str_detect(var, "^incpov_r") ~ 
       paste0("Inc-to-Pov: ",
-             str_replace(bits[2], "r(\\d+)to(\\d+)", "\\1-\\2%")),
-    
+             ifelse(str_detect(bits[2], "to"),
+                    str_replace(bits[2], "r(\\d+)to(\\d+)", "\\1-\\2%"),
+                    str_replace(bits[2], "r(\\d+)", "\\1\\+%"))),
     
     ### Recode educational attainment by gender
     str_detect(var, "^(f|m)_.+est$") ~
+      
       paste0("Educ ",
-             Switch(bits[2],
-                    "lesshs"   = "< HS,",
-                    "hsgrad"   = "- HS,",
-                    "somecoll" = "- Some Coll,",
-                    "coll"     = "Coll,"),
-             Switch(bits[1],
-                    "f" = " Female",
-                    "m" = " Male")),
+             c("lesshs"   = "< HS,",
+               "hsgrad"   = "- HS,",
+               "somecoll" = "- Some Coll,",
+               "coll"     = "Coll,")[bits[2]],
+             c("f" = " Female",
+               "m" = " Male")[bits[1]]),
     
     ### Recode labor force statistics
     str_detect(var, "^(employ|lfrate)") ~
-      paste0(Switch(bits[1],
-                    "employrate" = "Empl't Rate",
-                    "lfrate"     = "LF Part Rate"),
+      
+      paste0(c("employrate" = "Empl't Rate",
+               "lfrate"     = "LF Part Rate")[bits[1]],
              ",",
-             Switch(bits[2],
-                    "f" = " Female",
-                    "m" = " Male"),
-             Switch(bits[3],
-                    "est" = "",
-                    "a2534" = " Age 25-34")),
+             c("f" = " Female",
+               "m" = " Male")[bits[2]],
+             c("est" = "",
+               "a2534" = " Age 25-34")[bits[3]]),
     
     ### Handle other cases directly
     TRUE ~ 
       case_when(var == "pctMale_noSp_est"   ~ "Household is Male-Headed Only",
                 var == "pctFemale_noSp_est" ~ "Household is Female-Headed only",
                 var == "pctMarried_est"     ~ "Household is Married Couple")
+    
     )
 }
+
+# Vectorize the previous function
+label_vars <- Vectorize(label_vars_prevec)
+
