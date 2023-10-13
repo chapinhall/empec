@@ -159,22 +159,22 @@ draws <- runif(10, 0, 4)
 cbind(draws, cut(draws, breaks = c(seq(0, 10, by = 0.5))) %>% as.character() %>% fct_relabel(recode_intervals) %>% as.character())
 
 faminc_bounds <- tribble(~faminc, ~faminc_lb, ~faminc_ub,
-                         100,      0,   4999,
-                         210,   5000,   7499,
-                         300,   7500,   9999,
-                         430,  10000,  12499,
-                         470,  12500,  14999,
-                         500,  15000,  19999,
-                         600,  20000,  24999,
-                         710,  25000,  29999,
-                         720,  30000,  34999,
-                         730,  35000,  39999,
-                         740,  40000,  49999,
-                         820,  50000,  59999,
-                         830,  60000,  74999,
-                         841,  75000,  99999,
-                         842, 100000, 149999,
-                         843, 150000, 150000,
+                         1,       0,   4999,
+                         2,    5000,   7499,
+                         3,    7500,   9999,
+                         4,   10000,  12499,
+                         5,   12500,  14999,
+                         6,   15000,  19999,
+                         7,   20000,  24999,
+                         8,   25000,  29999,
+                         9,   30000,  34999,
+                         10,  35000,  39999,
+                         11,  40000,  49999,
+                         12,  50000,  59999,
+                         13,  60000,  74999,
+                         14,  75000,  99999,
+                         15, 100000, 149999,
+                         16, 150000, 150000,
                          )
 
 # Calculate income-to-pov ratios based on federal poverty line estimates ------#
@@ -285,7 +285,7 @@ if (FALSE) {
 }
 
 draw_inc <- function(faminc, fixed_results = TRUE) {
-  # This function randomly draws income from FAMINC categories
+  # This function randomly draws income from `hefaminc` categories
   
   if (fixed_results) set.seed(60637)
   

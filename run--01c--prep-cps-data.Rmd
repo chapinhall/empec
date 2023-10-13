@@ -18,23 +18,7 @@ if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
-```{r read in cps data and documentation}
-cps_documentation <- read_ipums_ddi(glue("{input_path}{cps_raw}.xml"))
-
-if (FALSE) {
-  ipums_view(cps_documentation)
-}
-```
-
-```{r view variables relevant to subsetting years for cps, results = "asis", eval = developer_mode}
-if (print_documentation) {
-  show_ipums_doc(cps_documentation, 
-                 fields = c("FAMINC", "ASECFLAG", "STATEFIP", "RELATE"))
-}
-```
-
-Current Population Survey (CPS) microdata are manually downloaded from the [IPUMS CPS](https://cps.ipums.org/cps/) site from `r base_year` through the most recent available month, and 
-
+Current Population Survey (CPS) microdata are downloaded from the [Census Application Program Interface (API)](https://www.census.gov/data/developers/data-sets/census-microdata-api/cps/basic.html) and (https://www.census.gov/data/developers/data-sets/census-microdata-api.CPS_ASEC.html) from `r base_year` through the most recent available month.
 
 The sample is restricted to families of head of householders. This is practically driven by the availability of family income as available only for those individuals who are related to the head of household.
 
@@ -43,16 +27,15 @@ Hawaii and Alaska are dropped, as they follow different federal poverty guidelin
 <!-- Note that subsetting to match households with both pre and post measures only occurs later, at the point that the method calculates transition ratios. We perform this match--and implicit subsetting--at that stage because a range of choices is may be reasonable and we save the application of discretion for that later stage. -->
 
 ```{r read and subset cps microdata}
-cps <- fread(file = glue("{input_path}{cps_raw}.csv.gz"))
+cps <- fread(file = glue("{input_path}cpsbm.csv"))
 cps_sub <- 
   cps %>% 
-  .[CPSID != 0 &                           # This rules out ASEC over-sample households (see documentation on `CPSID`)
-    (ASECFLAG == 2 | is.na(ASECFLAG))  &   # This excludes March ASEC sample 
+  .[#cpsid != 0 &                           # This rules out ASEC over-sample households (see documentation on `CPSID`)
+    #(ASECFLAG == 2 | is.na(ASECFLAG))  &   # This excludes March ASEC sample 
                                            # Using both ASEC and monthly causes some issues -- e.g., generate WTFINL == NA for March ASEC; double counts individuals for March
                                            # See https://cps.ipums.org/cps/cps_linking_documentation.shtml
-    (!STATEFIP %in% c(2, 15))          &   # This excludes HI and AK
-     between(RELATE, 101, 1001)] %>%        # This subsets to only related members of the family
-  dplyr::select(-COUNTY, -OCC, -CLASSWKR, -FAMID) # dropping variables not currently used.
+    (!gestfips %in% c(2, 15))          &   # This excludes HI and AK
+    between(perrp, 1, 8)] # This subsets to only related members of the family
 
 rm(cps)
 gc()
@@ -69,10 +52,15 @@ gc()
 ```{r develop CPS timing flags}
 cps_timing <-
   cps_sub %>%
-  .[j = `:=`(baseline_year  = as.numeric(substr(as.character(CPSID), 1, 4)), 
-             baseline_month = as.numeric(substr(as.character(CPSID), 5, 6)))] %>%
-  .[j = `:=`(months_since_base = (YEAR - baseline_year)*12 + (MONTH - baseline_month))]
-cps_timing[j = table(months_since_base)] # Values should be 0-3, 12-15 (CPS samples are interviewed for 4 consecutive months, not interviewed for the next 8 months, and then interviewed again for the next 4 months). There are some cases of 9-11 for months_since_base, but small enough to ignore. 
+  .[j = `:=`(baseline_year  = as.numeric(substr(start_time, 1, 4)), 
+             baseline_month = as.numeric(substr(start_time, 5, 6)))] %>%
+  .[j = `:=`(months_since_base = (hryear4 - baseline_year)*12 + (hrmonth - baseline_month))]
+cps_timing[j = table(months_since_base)] # Values should be 0-3, 12-15 (CPS samples are interviewed for 4 consecutive months, not interviewed for the next 8 months, and then interviewed again for the next 4 months). /!\ Using CPS from IPUMS, there were cases -- though very small -- that had values of 9-11, which may be due to an error constructing `CPSID` in IPUMS. This issue is fixed using CPS from the Census.
+
+if (FALSE) {
+  cps_timing <- cps_timing %>%
+    mutate(months_since_base = if_else(hrmis <= 4, hrmis - 1, hrmis + 8 - 1))
+}
 
 cps_timing[j = `:=`(is_baseline = months_since_base == 0,
                     # /!\ This selects a single post-period survey. Notably, it's the first time in which
@@ -81,15 +69,15 @@ cps_timing[j = `:=`(is_baseline = months_since_base == 0,
                     # this is okay, if we want to standardized by e.g. months_since_base == 12 or 15, or
                     # if we want the baseline to be max(months_since_base) - 12.
                     is_post     = months_since_base == max(months_since_base) & months_since_base >= 12,
-                    YEAR_MONTH  = paste(YEAR, str_pad(MONTH, side = "left", width = 2, pad = "0"), sep = "-"),
+                    year_month  = paste(hryear4, str_pad(hrmonth, side = "left", width = 2, pad = "0"), sep = "-"),
                     # build an indicator for whether the data are around great 
                     # recession -- surrounding 2007-2009 -- vs COVID, surrounding
                     # 2019 and after
-                    is_validation = YEAR < 2015),
-           by = CPSID]
+                    is_validation = hryear4 < 2015),
+           by = cpsid]
 
 cps_timing_sub <- 
-  cps_timing[is_baseline == TRUE | is_post == TRUE] #subset to baseline or post data only
+  cps_timing[is_baseline == TRUE | is_post == TRUE] #subset to baseline or post data only #/!\ As a result, we end up having different #obs using the CPS from the Census.
 
 rm(cps_sub)
 gc()
@@ -98,17 +86,18 @@ gc()
 ```{r examine how many cases have--or lack--baseline income data, eval = developer_mode}
 # Examine which, and how many, household do not have baseline data.
 cps_timing_sub[j = .(has_baseline = max(is_baseline),
-                     has_month0   = max(months_since_base == 0)),
-               by = CPSID] %>% 
+                     has_month0   = max(months_since_base == 0),
+                     start_time   = start_time), #/!\ The code doesn't run (error at line 95) before adding this term -- perhaps sth to do with [j = .()]?
+               by = cpsid] %>% 
   .[j = .(pct_has_baseline = mean(has_baseline),
           pct_has_month0   = mean(has_month0)),
-    by = .(YEAR_MONTH = substr(as.character(CPSID), 1, 6))] %>% 
-  .[order(YEAR_MONTH)] %>% 
-  pivot_longer(cols = -YEAR_MONTH) %>%
-  ggplot(aes(x = YEAR_MONTH,
+    by = .(year_month = as.character(start_time))] %>% 
+  .[order(year_month)] %>% 
+  pivot_longer(cols = -year_month) %>%
+  ggplot(aes(x = year_month,
              y = value,
              color = name,
-             label = YEAR_MONTH)) +
+             label = year_month)) +
   geom_point() +
   geom_text(hjust = 1.1,
             angle = 90,
@@ -126,13 +115,13 @@ cps_timing_sub[j = .(has_baseline = max(is_baseline),
 # Examine available periods, by classification as baseline and post-period.
 
 cps_timing_sub[j = .(n = comma(.N)),
-               by = .(is_baseline, is_post, is_validation, YEAR)] %>% 
-  .[order(YEAR, is_baseline, is_post, is_validation)]
+               by = .(is_baseline, is_post, is_validation, hryear4)] %>% 
+  .[order(hryear4, is_baseline, is_post, is_validation)]
 ```
 
 ```{r check on year-month distribution for non-validation, eval = developer_mode}
 cps_timing_sub[is_validation == FALSE,
-               j = table(YEAR_MONTH, is_baseline)]
+               j = table(year_month, is_baseline)]
 ```
 
 <!-- ### Develop household composition flags -->
@@ -141,16 +130,16 @@ Develop key family measured necessary to determine both poverty status and eligi
 
 ```{r consider how to treat individuals with separated status with respect to likely filing status, eval = developer_mode}
 # For individuals with separated status, examine the relationship to householder
-cps_timing_sub[MARST == 3, table(RELATE)]
+cps_timing_sub[prmarsta == 6, table(perrp)]
 ```
 
-<!-- These codes are consistent with being the householder themselves (RELATE == 101), which is by far the most common, or otherwise the child, parent, grandchild, or "other" relative. In short, because this implies that the head of household has no spouse present for whom FAMINC would ostensibly represent a combined income, we treat them as would-be single filers. -->
+<!-- These codes are consistent with being the householder themselves (perrp == 1 | perrp == 2), which is by far the most common, or otherwise the child, parent, grandchild, or "other" relative. In short, because this implies that the head of household has no spouse present for whom `hefaminc` would ostensibly represent a combined income, we treat them as would-be single filers if they had no dependent and HOH filers if they had a dependent. -->
 
 ```{r develop family information relevant to calculating adjusted income and poverty status}
 # Assigning filing status
-## Single - Anyone with MARST == 3, 4, 5, 6, and no qualifying person
-## MFJ - Anyone with MARST == 1, 2
-## HOH - Anyone with MARST == 3, 4, 5, 6 with a qualifying person
+## Single - Anyone with prmarsta == 4, 5, 6, 7, and no qualifying child
+## MFJ - Anyone with prmarsta == 1, 2, 3
+## HOH - Anyone with prmarsta == 4, 5, 6, 7 with qualifying children
 
 # Note on qualifying person: 
 ## A qualifying person includes but not limited to a qualifying child
@@ -164,24 +153,24 @@ cps_timing_sub[MARST == 3, table(RELATE)]
 ## Source: (https://www.irs.gov/pub/irs-soi/20in13ms.xls)
 cps_family <- 
   cps_timing_sub %>% 
-  .[j = `:=`(fam_size = .N, 
-             fam_wgt = sum(WTFINL),
-             has_schage_kid_base_flag = 1*(between(AGE, 6, 17)) %>% max(),
-             n_own_kids = sum(1*RELATE %in% c(301, 303)),                           # 301 - child of head of household, 303 is step-child
-             n_kids_le16 = sum(AGE <= 16),                                          # this counts number of kids living in the household regardless of relationship to the head
-             n_kids_le13 = sum(AGE <= 13),
-             n_kids_le5  = sum(AGE <=  5),
-             n_kids_0to2 = sum(between(AGE, 0, 2)),
-             n_kids_3to5 = sum(between(AGE, 3, 5)),
-             n_own_kids_le5  = sum(AGE <=  5 & RELATE %in% c(301, 303)),
-             n_own_kids_le16 = sum(AGE <= 16 & RELATE %in% c(301, 303)),
-             n_qual_kids = sum((AGE < 19 & RELATE %in% c(301, 303)) | (between(AGE, 19, 23) & RELATE %in% c(301, 303) & SCHLCOLL %in% c(1,3))), # this is number of qualifying kids
-             spouse_present = max(RELATE %in% 201:203)),
-             by = .(YEAR, MONTH, YEAR_MONTH, CPSID)] %>% 
-  .[j = `:=`(single_filer_flag = RELATE == 101 & MARST %in% 2:6 & n_qual_kids == 0, # this is head who is unmarried (single, separated, divorced or widowed) with no qualifying kids
-             joint_filer_flag  = RELATE == 101 & MARST == 1,                        # assumed MFJ if married, not considering the case of married, living separately and filing MFS
-             hoh_filer_flag    = RELATE == 101 & MARST %in% 2:6 & n_qual_kids > 0), # this is head who is unmarried (single, separated, divorced or widowed) with qualifying kids
-    by = .(YEAR, MONTH, YEAR_MONTH, CPSID)] %>% 
+  .[j = `:=`(fam_size                 = .N,
+             fam_wgt                  = sum(pwsswgt),
+             has_schage_kid_base_flag = 1*(between(prtage, 6, 17)) %>% max(),
+             n_own_kids               = sum(perrp == 4 & prtage <= 23),                          # child of head and age under 24
+             n_kids_le16              = sum(prtage <= 16),                                       # this counts number of kids living in the household regardless of relationship to the head
+             n_kids_le13              = sum(prtage <= 13),
+             n_kids_le5               = sum(prtage <=  5),
+             n_kids_0to2              = sum(between(prtage, 0, 2)),
+             n_kids_3to5              = sum(between(prtage, 3, 5)),
+             n_own_kids_le5           = sum(prtage <=  5 & perrp == 4),
+             n_own_kids_le16          = sum(prtage <= 16 & perrp == 4),
+             n_qual_kids              = sum((prtage < 19 & perrp == 4) | (between(prtage, 19, 23) & perrp == 4 & peschenr == 1)), # this is number of qualifying kids
+             spouse_present           = max(perrp == 3)),
+             by = .(hryear4, hrmonth, cpsid)] %>% 
+  .[j = `:=`(single_filer_flag = perrp %in% 1:2 & prmarsta %in% 4:7 & n_qual_kids == 0, # this is head who is unmarried (single, separated, divorced or widowed) with no qualifying kids
+             joint_filer_flag  = perrp %in% 1:2 & prmarsta %in% 1:3,                        # assumed MFJ if married, not considering the case of married, living separately and filing MFS
+             hoh_filer_flag    = perrp %in% 1:2 & prmarsta %in% 4:7 & n_qual_kids > 0), # this is head who is unmarried (single, separated, divorced or widowed) with qualifying kids
+             by = .(hryear4, hrmonth, cpsid)] %>% 
   .[j = `:=`(has_schage_kid_base = factor(has_schage_kid_base_flag,
                                           levels = 0:1, 
                                           labels = c("No Sch-Age Kid, Base",
@@ -191,14 +180,14 @@ cps_family <-
                                           labels = c("No Young Kids, Base",
                                                      "1+ Young Kids, Base")))] %>% 
   .[j = `:=`(single_filer_flag = max(single_filer_flag),
-             joint_filer_flag = max( joint_filer_flag),
-             hoh_filer_flag = max(   hoh_filer_flag)),
-    by = .(YEAR, MONTH, YEAR_MONTH, CPSID)] %>%
+             joint_filer_flag  = max( joint_filer_flag),
+             hoh_filer_flag    = max(   hoh_filer_flag)),
+             by = .(hryear4, hrmonth, cpsid)] %>%
   .[j = filing_status := 
       case_when(single_filer_flag == 1 ~ "single", 
-                joint_filer_flag == 1 ~ "joint",  
-                hoh_filer_flag == 1 ~ "hoh", 
-                TRUE ~ "other")]
+                joint_filer_flag  == 1 ~ "joint",  
+                hoh_filer_flag    == 1 ~ "hoh", 
+                TRUE                   ~ "other")]
 
 ```
 
@@ -208,8 +197,8 @@ cps_family <-
 # Confirm number of head for each household (should be one)
 cps_family_test <- 
   cps_family %>%
-  .[j = `:=`(n_hoh = sum(1*RELATE == 101)),
-    by = .(YEAR, MONTH, YEAR_MONTH, CPSID)]
+  .[j = `:=`(n_hoh = sum(1*(perrp %in% 1:2))),
+    by = .(hryear4, hrmonth, year_month, cpsid)]
 
 table(cps_family_test$n_hoh, useNA = "always")
 
@@ -233,7 +222,7 @@ The second round of federal stimulus was signed on March 27, 2020 and [provided 
 
 * \$600 for single adults, and \$1,200 for married 
 * \$600 for each child 16 or younger (/!\\ note that, per the current source, it is ambiguous whether this is the same or different than the previous threshold)
-* A 5% reduction in these benefits for every dollar earned over \$75,000 for individual, \$112,500 for heads of household, and $150,000 for married joint filers /!\\ Note that the source only directly describes the benefit for individuals as reducing according to this schedule
+* A 5% reduction in these benefits for every dollar earned over \$75,000 for individual, \$112,500 for heads of household, and \$150,000 for married joint filers /!\\ Note that the source only directly describes the benefit for individuals as reducing according to this schedule
 
 Timing of payment for the second Economic Impact Payment was more tightly controlled than in the first round, and was set for payment on December 30th, 2020. We assume that this income was received as of January 2021.
 
@@ -253,20 +242,20 @@ These payments were based on adjusted gross income (AGI) from 2019, or AGI from 
 
 
 ```{r determine would-be economic impact payments}
-cps_family[j = faminc_draw := draw_inc(FAMINC)]
+cps_family[j = faminc_draw := draw_inc(hefaminc)]
 
 cps_base_income <- 
-  cps_family[months_since_base == 0 & RELATE == 101,
-             .(CPSID, faminc_draw0 = faminc_draw)]
+  cps_family[months_since_base == 0 & perrp %in% 1:2,
+             .(cpsid, faminc_draw0 = faminc_draw)]
 cps_pov <- 
   cps_family %>% 
   merge(cps_base_income,
-        by = "CPSID",
+        by = "cpsid",
         all.x = TRUE) %>% 
 
   # Adjust estimates of family income by economic impact payments
   # /!\ Note that we assume that only own children (bio or step) are dependents though
-  # it may be worth more care determining alignment with FAMINC which is for the 
+  # it may be worth more care determining alignment with hefaminc which is for the 
   # "householder's family".
   .[j = `:=`(eip1_est = 
                case_when(filing_status == "single" ~ pmax(0, 1200 + n_own_kids_le16*500 - pmax(0, 0.05*(faminc_draw0 -  75000))),
@@ -286,9 +275,9 @@ cps_pov <-
                          filing_status == "joint"  & faminc_draw0 < 150000                 ~ 1400*(1 + n_qual_kids),
                          filing_status == "joint"  & between(faminc_draw0, 150000, 160000) ~ pmax(0, (10000-(faminc_draw0-150000))/10000*1400*fam_size),
                          filing_status == "joint"  & faminc_draw0 > 160000                 ~ 0),
-             eip1_receipt = between((YEAR - 2020)*12 + (MONTH - 5), 0, 11),
-             eip2_receipt = between((YEAR - 2021)*12 + (MONTH - 1), 0, 11),
-             eip3_receipt = between((YEAR - 2021)*12 + (MONTH - 4), 0, 11))]
+             eip1_receipt = between((hryear4 - 2020)*12 + (hrmonth - 5), 0, 11),
+             eip2_receipt = between((hryear4 - 2021)*12 + (hrmonth - 1), 0, 11),
+             eip3_receipt = between((hryear4 - 2021)*12 + (hrmonth - 4), 0, 11))]
 ```
 
 ```{r check the assignment of eip receipts by filing status, eval = developer_mode}
@@ -315,11 +304,11 @@ gc(cps_pov_test)
 ```
 
 ```{r check the schedule of eip receipts, eval = developer_mode}
-cps_pov[YEAR >= 2020, 
+cps_pov[hryear4 >= 2020, 
         .(`Received EIP #1` = max(eip1_receipt), 
           `Received EIP #2` = max(eip2_receipt), 
           `Received EIP #3` = max(eip3_receipt)), 
-        by = .(YEAR, MONTH)] %>% 
+        by = .(hryear4, hrmonth)] %>% 
   kable()
 ```
 
@@ -328,7 +317,7 @@ cps_pov[YEAR >= 2020,
 # relevant lookup tables. If not, make the appropriate updates in the 
 # `method--general-helper-functions.R` script
 cps_fam_sizes <- table(cps_pov$fam_size) %>% prop.table()
-cps_faminc_vals <- sort(unique(cps_pov$FAMINC))
+cps_faminc_vals <- sort(unique(cps_pov$hefamic))
   # We don't have values for 996, 997, or 999 coded, but these are "refused",
   # "don't know", and "blank" ... thus, they're not codeable
 
@@ -341,16 +330,16 @@ cps_pov <-
   
   # Remove economic impact payment information to get adjusted family income
   # relevant for program eligibility
-  .[j = faminc_draw := draw_inc(FAMINC)] %>% 
+  .[j = faminc_draw := draw_inc(hefaminc)] %>%                              #draw family income randomlly
   .[j = faminc_adj_unbounded := faminc_draw - eip1_receipt*eip1_est -
                                               eip2_receipt*eip2_est -
-                                              eip3_receipt*eip3_est] %>% 
+                                              eip3_receipt*eip3_est] %>%    #adjusted family income considering eip
   
   .[j = faminc_adj := pmax(0, faminc_adj_unbounded)] %>% 
   
   # Develop ratios
   merge(fpl_by_month,
-        by.x = c("fam_size", "YEAR", "MONTH"),
+        by.x = c("fam_size", "hryear4", "hrmonth"),
         by.y = c("fpl_fam_size", "fpl_year", "fpl_month"),
         all.x = TRUE) %>% 
   .[j = `:=`(fam_incpov_ratio     = faminc_draw / fpl,
@@ -380,9 +369,9 @@ cps_pov <-
              fam_incpov_ratio_le4.00_adj = 1*(fam_incpov_ratio_adj <= 4.0))]
 ```
 
-```{r check the correspondence of adjusted and unadjusted FAMINC numbers, eval = developer_mode}
+```{r check the correspondence of adjusted and unadjusted hefaminc numbers, eval = developer_mode}
 income_adj_plot <- 
-  ggplot(cps_pov[YEAR == 2020 & MONTH == 9],
+  ggplot(cps_pov[hryear4 == 2020 & hrmonth == 9],
          aes(x = faminc_draw,
              y = faminc_draw - faminc_adj,
              color = factor(n_kids_le16))) +
@@ -392,7 +381,7 @@ income_adj_plot <-
 ggplotly(income_adj_plot)
 ```
 
-<!-- It seems that there is a non-trivial number of households with higher income that are receiving Economic Impact Payments. Note--this is because `FAMINC` is reported categorically with top-coding at \$150,000, which is nearby the relevant cutoff for EIP payments for many families. Thus, some families who qualify for EIP payments based on lagged income may have current income that is above $150k, but which cannot be determined. -->
+<!-- It seems that there is a non-trivial number of households with higher income that are receiving Economic Impact Payments. Note--this is because `hefaminc` is reported categorically with top-coding at \$150,000, which is nearby the relevant cutoff for EIP payments for many families. Thus, some families who qualify for EIP payments based on lagged income may have current income that is above $150k, but which cannot be determined. -->
 
 <!-- The plot function above is noting missing values. Investigating those, it seems that there are missing values in the adjusted measure. -->
 
@@ -400,7 +389,7 @@ ggplotly(income_adj_plot)
 # Check on missing values
 cps_pov[, .(income_is_NA     = sum(is.na(faminc_draw)) %>% comma(),
             adj_income_is_NA = sum(is.na(faminc_adj_unbounded)) %>% comma()),
-        by = YEAR]
+        by = hryear4]
 ```
 
 <!-- It appears that these are occurring largely as a result of missing baseline income data via the `faminc_draw0` construction. /!\\ This needs to be investigated, as all households should have this information. Some of the subsetting may be responsible. That may be the initial `cps_sub` restriction to lower incomes, which rules out households with higher income at baseline, or perhaps due to restrictions of time. -->
@@ -413,7 +402,7 @@ cps_pov[is.na(faminc_adj),
 <!-- Check the correspondence between adjusted and unadjusted poverty bins. -->
 
 ```{r check on correspondence of poverty measures, eval = developer_mode}
-cps_pov[YEAR == 2020, 
+cps_pov[hryear4 == 2020, 
         table(fam_incpov_ratio_cat_by100,
               fam_incpov_ratio_cat_by100_adj)]
 ```
@@ -421,9 +410,11 @@ cps_pov[YEAR == 2020,
 A remaining support available to households during the pandemic is Unemployment Insurance intended to buoy household income during the economic crash. While eligibility for child care programs excludes consideration of the EIPs, it does consider UI benefits as income. Below, we compare our adjusted income measure to that of income plus UI benefits from the CPS's Annual Social and Economic Supplement (ASEC).
 
  <!-- /!\ Note: look for confirmation/documentation of UI income related to eligibility -->
+ <!-- /!\ Note: no longer using ASEC; consider deleting the chunks below -- chunk 20-22 -->
 
 ```{r check on the correspondence of adjust basic-monthly income with ASEC wage plus UI, eval = developer_mode}
-comp_sub <- 
+if (FALSE) {
+  comp_sub <- 
   copy(cps_pov) %>% 
   .[ASECFLAG == 1 & YEAR %in% 2020:2021 & MONTH == 3 & INCWAGE != 99999999 & INCUNEMP != 999999 & AGE >= 15] %>% 
   .[j = `:=`(all_inc  = sumNA(INCTOT),
@@ -451,6 +442,8 @@ ggplot(comp_sub[faminc_adj < 150000],
   geom_smooth() +
   geom_abline(intercept = 0,
               slope = 1)
+}
+
 ```
 
 <!-- From the above, it appears that our adjusted measure is below the calculation of household total wages plus unemployment insurance benefits. Note that we examine only smoothed lines rather than the data, because of the size of outliers. That fact motivates a next examination of smoothed medians rather than means. -->
@@ -468,6 +461,7 @@ predict.rollmed <- function(mod, newdata, ...) {
   setNames(mod$f(newdata$x), newdata$x)
 }
 
+if (FALSE) {
 ggplot(comp_sub[faminc_draw < 150000],
        aes(x = faminc_adj,
            y = inc_plus_ui,
@@ -490,6 +484,7 @@ ggplot(comp_sub[faminc_draw < 150000],
        y = "Summed Wage and UI (ASEC)") +
   myTheme +
   theme(legend.position = "bottom")
+}
 ```
 
 <!-- For completeness, we also compare total family income for the basic monthly and ASEC data. Here, the summed "total income" measure in the ASEC is clearly above that for FAMINC, even at lower incomes where divide/investment/rent etc sources of income are less likely. Checking on definitions: -->
@@ -503,6 +498,7 @@ ggplot(comp_sub[faminc_draw < 150000],
 <!-- We do not believe that there is a specific takeaway for our current exercise as the above comparison of adjusted income to wage and UI benefits roughly correspond, at least at lower incomes. With that said, there would be value to better understand these comparisons to understand how it may be valuable to further adjust our measure of income from the monthly data. -->
 
 ```{r examine correspondence of total income, eval = developer_mode}
+if (FALSE) {
 ggplot(comp_sub[faminc_draw < 150000],
        aes(x = faminc_draw,
            y = all_inc,
@@ -524,17 +520,8 @@ ggplot(comp_sub[faminc_draw < 150000],
        y = "Summed Total Income (ASEC)") +
   myTheme +
   theme(legend.position = "bottom")
-
+}
 ```
-
-We subset down to only the records for the monthly records.
-
-```{r}
-cps_pov_monthly <- 
-  cps_pov[is.na(ASECFLAG) | ASECFLAG == 2] %>% # ASECFLAG == 2 corresponds to the basic monthly files in march
-  dplyr::select(-matches("INCTOT|INCWAGE|INCUNEMP|POVERTY|ASECFLAG"))
-```
-
 
 ### Build CCDF Eligibility Flags
 
@@ -543,46 +530,83 @@ Develop flags for eligibility of child care subsidies through the federal Child 
 * live in the state, 
 * are employed and/or attending an eligible educational activity
 * have children younger than 13 that need care during the adult work or school hours, or children with documented special needs up to age 19
-* have family income below [allowable limits](https://www.dhs.state.il.us/page.aspx?item=118832), representing income below 225% of the federal poverty line for initial eligibility, and below 275% of FPL for 12-month redetermination
+* have family income below [allowable limits](https://www.dhs.state.il.us/page.aspx?item=118832), representing income below 225% of the federal poverty line for initial eligibility, and below 275% of FPL for 12-month redetermination as of 7/1/22
 
 The [Child Care Assitance Program Policy Manual](https://www.dhs.state.il.us/page.aspx?item=9877) has detail around eligibility, including exempt and non-exempt income.
 
 ```{r develop flags for CCDF/CCAP eligibility}
-# Note -- relevant EMPSTAT classifications include
-# - 10 employed/atwork
+# /!\hk: come back here to determine definition of employed
+# Note -- relevant employment status (pemlr) classifications include
+# - 1 employed/atwork
 # - 12 has job, not at work (potentially?)
 # - 32 Not in Labor Force (NILF) unable to work (potentially relevant?)
 # - 34 NILF, other -- from description, this includes "other activities attending school or keeping house"
   # ... we may seek corroboration from the education supplement to discriminate between NILF discouraged/keeping house, and NILF attending school/training
 
+
+#  1 "Employed-At Work"
+#  2 "Employed-Absent"
+#  3 "Unemployed-On Layoff"
+#  4 "Unemployed-Looking"
+#  5 "Retired-Not In Labor Force"
+#  6 "Disabled-Not In Labor Force"
+#  7 "Other-Not In Labor Force"
+
+
 # In the Education supplement--generally assessed in October, though not in October 21 for some reason (at least in IPUMS records)
 
 cps_ccdf_subset <- 
-  cps_family[RELATE %in% c(101, 201:203) & # subsets to head of household and spouse
+  cps_family[perrp %in% 1:3 & # subsets to head of household and spouse
                n_kids_le13 >= 1]
+
+# premphrs (reason not at work/hours at work)
+# -1      Not in Universe
+#	 0	    UNEMPLOYED AND NILF
+#	 1	    W/JOB, NOT AT WORK-ILLNESS
+#	 2	    W/JOB, NOT AT WORK-VACATION
+#	 3	    W/JOB, NOT AT WORK-WEATHER AFFECTED JOB
+#	 4	    W/JOB, NOT AT WORK-LABOR DISPUTE
+#	 5	    W/JOB, NOT AT WORK-CHILD CARE PROBLEMS
+#	 6	    W/JOB, NOT AT WORK-FAM/PERS OBLIGATION
+#	 7	    W/JOB, NOT AT WORK-MATERNITY/PATERNITY
+#	 8	    W/JOB, NOT AT WORK-SCHOOL/TRAINING
+#	 9	    W/JOB, NOT AT WORK-CIVIC/MILITARY DUTY
+#	 10	    W/JOB, NOT AT WORK-DOES NOT WORK IN BUS
+#	 11	    W/JOB, NOT AT WORK-OTHER
+#	 12-22	AT WORK
+						
+table(cps_ccdf_subset$premphrs, cps_ccdf_subset$pemlr)
 
 cps_ccdf_flags <- 
   cps_ccdf_subset %>% 
-  .[j = .(ccdf_elig_tight = min(EMPSTAT == 10), # This requires all parents to be working for _tight == 1
-          ccdf_elig_loose = min(EMPSTAT %in% c(10, 12, 34))), # This requires parents to be working, having a job though not at work, or "other" NILF which could be education or training, or housework
-    by = .(YEAR, MONTH, YEAR_MONTH, CPSID)]
+  .[j = .(ccdf_elig_tight = min(pemlr == 1),                           # This requires all parents to be working for _tight == 1
+          ccdf_elig_loose = min(pemlr %in% c(1, 2) | peschenr == 1)),  # This requires parents to be either working, having a job but not at work last week, or enrolled in school part-time or full-time
+    by = .(hryear4, hrmonth, year_month, cpsid)]
 
 # Examine conditions
 if (FALSE) {
   cps_ccdf_check <- 
-    merge(cps_ccdf_subset[j = .(YEAR_MONTH, CPSID, RELATE, EMPSTAT)], 
+    merge(cps_ccdf_subset[j = .(year_month, cpsid, perrp, pemlr, premphrs, peschenr)], 
           cps_ccdf_flags, 
-          by = c("YEAR_MONTH", "CPSID"))
+          by = c("year_month", "cpsid"))
 
   View(cps_ccdf_check)
   
-  # What's the frequency of other relevant status, e.g. 1 -- armed forces
-  cps_ccdf_check[, table(EMPSTAT) %>% prop.table() %>% round(2)]
+  # What's the frequency of other relevant status
+  # -1  Not in Universe
+  #  1	EMPLOYED-AT WORK
+  #  2	EMPLOYED-ABSENT
+  #  3	UNEMPLOYED-ON LAYOFF
+  #  4	UNEMPLOYED-LOOKING
+  #  5	NOT IN LABOR FORCE-RETIRED
+  #  6	NOT IN LABOR FORCE-DISABLED
+  #  7	NOT IN LABOR FORCE-OTHER
+  cps_ccdf_check[, table(pemlr) %>% prop.table() %>% round(2)]
 }
 ```
 
 ```{r quick memory cleanup}
-rm(cps_pov, cps_timing)
+rm(cps_timing)
 gc()
 ```
 
@@ -590,9 +614,9 @@ gc()
 ```{r merge ccdf family measures into income}
 # Calculate CCDF/CCAP eligibility
 cps_elig <- 
-  cps_pov_monthly %>% 
+  cps_pov %>% 
   merge(cps_ccdf_flags,
-        by = c("YEAR", "MONTH", "YEAR_MONTH", "CPSID"),
+        by = c("hryear4", "hrmonth", "year_month", "cpsid"),
         all.x = TRUE) %>% 
   .[j = `:=`(ccdf_elig_tight_inc     = ccdf_elig_tight * (fam_incpov_ratio     <= local_ccdf_thresh/100),
              ccdf_elig_tight_inc_adj = ccdf_elig_tight * (fam_incpov_ratio_adj <= local_ccdf_thresh/100),
@@ -623,21 +647,21 @@ Relevant measures at baseline, when households first enter the CPS:
 ```{r develop baseline vulnerability characteristics -- cps head of household}
 cps_hoh <- 
   cps_elig %>%
-  .[RELATE == 101] %>%
-  .[j =  `:=`(hoh_gender = case_when(SEX == 1 ~ "male", 
-                                     SEX == 2 ~ "female"),
-              hoh_race = case_when(RACE == 100 ~ "white",
-                                   RACE == 200 ~ "black", 
+  .[perrp %in% 1:2] %>%
+  .[j =  `:=`(hoh_gender = case_when(pesex == 1 ~ "male", 
+                                     pesex == 2 ~ "female"),
+              hoh_race = case_when(ptdtrace == 1 ~ "white",
+                                   ptdtrace == 2 ~ "black", 
                                    TRUE ~ "other_multiple"),
-              hoh_hispanic  = 1 - 1*(HISPAN == 0),
-              hoh_industry  = bin_industry(IND),
-              hoh_empl      = 1*(EMPSTAT == 10),
-              hoh_educ      = case_when(between(EDUC,   2,  71) ~ "less_hs", 
-                                        EDUC == 73              ~ "hs", 
-                                        between(EDUC,  80,  92) ~ "somecoll", 
-                                        EDUC == 111             ~ "coll",
-                                        between(EDUC, 123, 125) ~ "collplus", 
-                                        TRUE ~ ""))] %>% 
+              hoh_hispanic  = 1 - 1*(pehspnon == 2),
+              hoh_industry  = bin_industry(peio1icd),
+              hoh_empl      = 1*(pemlr == 1),
+              hoh_educ      = case_when(between(peeduca, 31, 38) ~ "less_hs", 
+                                        peeduca == 39            ~ "hs", 
+                                        between(peeduca, 40, 42) ~ "somecoll", 
+                                        peeduca == 43            ~ "coll",
+                                        between(peeduca, 44, 46) ~ "collplus", 
+                                        TRUE                     ~ ""))] %>% 
   .[j = `:=`(hoh_industry_vulnerable = ifelse(hoh_industry == "NA", 
                                               "NA", 
                                               str_detect(hoh_industry, "educhealth|food")),
@@ -645,7 +669,7 @@ cps_hoh <-
                                 levels = 0:1, 
                                 labels = c("HOH Not Employed",
                                            "HOH Employed")))] %>% 
-  dplyr::select(CPSID, months_since_base, hoh_gender, hoh_educ, hoh_race, hoh_hispanic, hoh_industry, hoh_industry_vulnerable, hoh_empl)
+  dplyr::select(cpsid, months_since_base, hoh_gender, hoh_educ, hoh_race, hoh_hispanic, hoh_industry, hoh_industry_vulnerable, hoh_empl)
 
 cps_base_hoh <- cps_hoh[months_since_base ==  0] %>% dplyr::select(-months_since_base)
 cps_post_hoh <- cps_hoh[months_since_base == 15] %>% dplyr::select(-months_since_base)
@@ -658,6 +682,7 @@ cps_base_hoh <- unique(cps_base_hoh)
 cps_post_hoh <- unique(cps_post_hoh)
 # /!\ Not sure why these `unique()` operations matter, but they do. Perhaps some upstream merge.
 dim(cps_base_hoh); dim(cps_post_hoh)
+# /!\ dimension seems a bit off compared to CPS-IPUMS -- something to do with months_since_base in CPS-IPUMS?
 ```
 
 
@@ -668,11 +693,12 @@ dim(cps_base_hoh); dim(cps_post_hoh)
 
 # /!\ We should obtain weights that are as of baseline. Here and in the 
 # calculations below we are only pulling final weights.
+
 cps_child_base <- 
-  cps_elig[is_baseline == TRUE & between(AGE, 0, 14)] %>% 
-  .[j = .(CPSID, CPSIDP, WTFINL, HWTFINL, 
-          YEAR, MONTH, YEAR_MONTH, AGE, is_validation, METRO, 
-          child_agegroup = bin_age(AGE),
+  cps_elig[is_baseline == TRUE & between(prtage, 0, local_kid_age_thres+1)] %>%   #add 1 to the threshold to give more flexibility
+  .[j = .(cpsid, cpsidp, pwsswgt, hwhhwgt, 
+          hryear4, hrmonth, year_month, prtage, is_validation, metro, 
+          child_agegroup = bin_age(prtage),
           has_schage_kid_base,
           n_kids_le5,
           spouse_present,
@@ -687,12 +713,12 @@ cps_child_base <-
           fam_incpov_ratio_cat_by100, fam_incpov_ratio_cat_by100_adj,
           fam_incpov_ratio_cat_to185, fam_incpov_ratio_cat_to185_adj)] %>% 
   merge(cps_base_hoh,
-        by = "CPSID",
+        by = "cpsid",
         all.x = TRUE)
 ```
 
 ```{r confirm child-level base has multiple children per household}
-cps_child_base[j = .(n = .N), by = CPSID] %>% 
+cps_child_base[j = .(n = .N), by = cpsid] %>% 
     .[, table(n)]
 ```
 
@@ -713,11 +739,11 @@ Relevant measures:
 # This prevents a many-to-many merge to the cps_child_base which is at the 
 # child-level.
 cps_post <-
-  cps_elig[is_post == TRUE & RELATE == 101 & months_since_base == 15,
-           j = .(CPSID,
-                 YEAR, MONTH, HWTFINL, is_validation,
+  cps_elig[is_post == TRUE & perrp %in% 1:2 & months_since_base == 15,
+           j = .(cpsid,
+                 hryear4, hrmonth, hwhhwgt, is_validation,
                  faminc_adj, fam_incpov_ratio,
-                 hoh_empl_post = 1*(EMPSTAT == 10),
+                 hoh_empl_post = 1*(pemlr == 1),                         #/!\hk: come back here to determine work eligibility
                  incpov_le50_post  = fam_incpov_ratio_le.5,
                  incpov_le100_post = fam_incpov_ratio_le1,
                  incpov_le185_post = fam_incpov_ratio_le1.85,
@@ -746,13 +772,13 @@ gc()
 Check the correspondence between `cps_post` and `cps_base`.
 
 ```{r check that post IDs are found in base, eval = developer_mode}
-cps_child_base[YEAR == 2019 & MONTH == 1, 
-               .(pct_base_in_post        = mean(CPSID %in% cps_post$CPSID)
-                 # pct_post_in_pov         = mean(CPSID %in% cps_pov$CPSID), 
-                 # pct_post_in_pov_monthly = mean(CPSID %in% cps_pov_monthly$CPSID), 
-                 # pct_base_in_raw         = mean(CPSID %in% cps$CPSID)
+cps_child_base[hryear4 == 2019 & hrmonth == 1, 
+               .(pct_base_in_post        = mean(cpsid %in% cps_post$cpsid)
+                 # pct_post_in_pov         = mean(cpsid %in% cps_pov$cpsid), 
+                 # pct_post_in_pov_monthly = mean(cpsid %in% cps_pov_monthly$cpsid), 
+                 # pct_base_in_raw         = mean(cpsid %in% cps$cpsid)
                  ), 
-               by = .(YEAR, MONTH)]
+               by = .(hryear4, hrmonth)]
 ```
 
 
@@ -762,14 +788,14 @@ cps_child_base[YEAR == 2019 & MONTH == 1,
 
 ```{r develop a data set with pre-post comparisons for heads of household}
 cps_hoh_pre_post <- 
-  merge(cps_elig[RELATE == 101 & faminc_draw < 150000 & months_since_base == 0] %>% unique(), # & YEAR_MONTH == "2019-06"],
-        cps_elig[RELATE == 101 & faminc_draw < 150000 & months_since_base == 15] %>% unique(),# & YEAR_MONTH == "2020-09"],
-        by = "CPSIDP",
+  merge(cps_elig[perrp %in% 1:2 & faminc_draw < 150000 & months_since_base ==  0] %>% unique(), # & year_month == "2019-06"],
+        cps_elig[perrp %in% 1:2 & faminc_draw < 150000 & months_since_base == 15] %>% unique(), # & year_month == "2020-09"],
+        by = "cpsidp",
         #all = TRUE,
         suffixes = c("_b", "_p")) %>% 
-  dplyr::select(-months_since_base_b, -months_since_base_p) %>% 
-  merge(cps_base_hoh, by.x = "CPSID_b", by.y = "CPSID", all.x = TRUE) %>% 
-  merge(cps_post_hoh, by.x = "CPSID_b", by.y = "CPSID", all.x = TRUE, suffixes = c("_b", "_p"))
+  #dplyr::select(-months_since_base_b, -months_since_base_p) %>% 
+  merge(cps_base_hoh, by.x = "cpsid_b", by.y = "cpsid", all.x = TRUE) %>% 
+  merge(cps_post_hoh, by.x = "cpsid_b", by.y = "cpsid", all.x = TRUE, suffixes = c("_b", "_p"))
 
 cps_hoh_pre_post[j = `:=`(stayed_unemp = !hoh_empl_b & !hoh_empl_p,
                           stayed_emp   =  hoh_empl_b &  hoh_empl_p,
@@ -788,7 +814,7 @@ save(cps_hoh_pre_post,
 
 
 ```{r compare head of household incomes at pre and post, eval = developer_mode}
-ggplot(cps_hoh_pre_post[YEAR_b == 2019],
+ggplot(cps_hoh_pre_post[hryear4_b == 2019],
        aes(faminc_draw_b,
            faminc_draw_p)) +
   geom_point(alpha = 0.2) + 
@@ -797,13 +823,13 @@ ggplot(cps_hoh_pre_post[YEAR_b == 2019],
   geom_smooth(color = "red")
 ```
 
-```{r examine income dynamics by race and presence of young children, eval = developer_mode}
-ggplot(cps_hoh_pre_post[j = is_black := ifelse(RACE_b == 200, "black HOH", "non-black HOH")],
+```{r examine income dynamics by race and presence of young children, eval = developer_mode, fig.height = 6}
+ggplot(cps_hoh_pre_post[j = is_black := ifelse(ptdtrace_b == 2, "black HOH", "non-black HOH")],
        aes(faminc_draw_b,
            faminc_draw_p,
            color = has_young_kids_base_b)) +
   # geom_point(alpha = 0.1) + 
-  facet_grid(paste0("Base: ", YEAR_b) ~ is_black) +
+  facet_grid(paste0("Base: ", hryear4_b) ~ is_black) +
   geom_45(color = "blue", 
           linewidth = 1) +
   geom_smooth(se = FALSE) +
@@ -812,7 +838,7 @@ ggplot(cps_hoh_pre_post[j = is_black := ifelse(RACE_b == 200, "black HOH", "non-
   scale_x_continuous(label = comma) +
   scale_y_continuous(label = comma) +
   labs(title = "Changes in Family Income Between Baseline and Post",
-       subtitle = "Family income is random draws from within the FAMINC intervals",
+       subtitle = "Family income is random draws from within the `hefaminc` intervals",
        x = "Family income at base",
        y = "Family income at post") +
   theme_minimal()
@@ -820,13 +846,13 @@ ggplot(cps_hoh_pre_post[j = is_black := ifelse(RACE_b == 200, "black HOH", "non-
 
 <!-- An interesting piece of evidence here is that lower-educated households had very challenging trajectory around the 2008 financial crisis, but not at the time of the COVID-19 pandemic. That is consistent with our sense of complicated economic opportunity, where essential and gig economy work may have been sustained or expanding. -->
 
-```{r examine income dynamics by education, eval = developer_mode}
-ggplot(cps_hoh_pre_post[j = ed_lt12 := ifelse(EDUC_b < 70, "Lt HS Ed", "HS Ed or more")],
+```{r examine income dynamics by education, eval = developer_mode, fig.height = 6}
+ggplot(cps_hoh_pre_post[j = ed_lt12 := ifelse(peeduca_b < 39, "Less than HS", "HS or more")],
        aes(faminc_draw_b,
            faminc_draw_p,
            color = has_young_kids_base_b)) +
   # geom_point(alpha = 0.1) + 
-  facet_grid(paste0("Base: ", YEAR_b) ~ ed_lt12) +
+  facet_grid(paste0("Base: ", hryear4_b) ~ ed_lt12) +
   geom_45(color = "blue", 
           linewidth = 1) +
   geom_smooth(se = FALSE) +
@@ -835,7 +861,7 @@ ggplot(cps_hoh_pre_post[j = ed_lt12 := ifelse(EDUC_b < 70, "Lt HS Ed", "HS Ed or
   scale_x_continuous(label = comma) +
   scale_y_continuous(label = comma) +
   labs(title = "Changes in Family Income Between Baseline and Post",
-       subtitle = "Family income is random draws from within the FAMINC intervals",
+       subtitle = "Family income is random draws from within the `hefaminc` intervals",
        x = "Family income at base",
        y = "Family income at post") +
   theme_minimal()
@@ -845,7 +871,7 @@ ggplot(cps_hoh_pre_post[j = ed_lt12 := ifelse(EDUC_b < 70, "Lt HS Ed", "HS Ed or
 cps_trans <- 
   merge(cps_child_base,
         cps_post,
-        by = c("CPSID"),
+        by = c("cpsid"),
         suffixes = c("_b", "_p"),
         all.x = TRUE)
 ```
@@ -871,7 +897,7 @@ ggplot(cps_trans,
 <!-- Takeaway -- seems like there's something upstream that is an issue. -->
 
 ```{r compare incomes with a baseline year of 2019, eval = developer_mode}
-ggplot(cps_trans[YEAR_b == 2019],
+ggplot(cps_trans[hryear4_b == 2019],
        aes(x = faminc_adj_b,
            y = faminc_adj_p)) +
   geom_point() + 
@@ -879,7 +905,7 @@ ggplot(cps_trans[YEAR_b == 2019],
           linewidth = 1) +
   geom_smooth(color = "red")
 
-ggplot(cps_trans[YEAR_b == 2019],
+ggplot(cps_trans[hryear4_b == 2019],
        aes(x = fam_incpov_ratio_b,
            y = fam_incpov_ratio_p)) +
   geom_point() + 
@@ -899,14 +925,14 @@ cps_trans_low_high <-
 <!-- Relatively even across base years. -->
 
 ```{r are these associated with particular years, eval = developer_mode}
-cps_trans_low_high[, table(YEAR_b)]
+cps_trans_low_high[, table(hryear4_b)]
 ```
 
 ```{r function for examining family circumstances, eval = developer_mode}
 examine_case <- function(n) {
-  cps[CPSID == cps_trans_low_high[YEAR_b == 2019]$CPSID %>% .[n],
-    .(YEAR, MONTH, CPSIDP, PERNUM, RELATE, AGE, SEX, LABFORCE, EMPSTAT, INCTOT, FAMINC)] %>% 
-  .[order(CPSIDP)]  %>% 
+  cps[cpsid == cps_trans_low_high[hryear4_b == 2019]$cpsid %>% .[n],
+    .(hryear4, hrmonth, cpsid, cpsidp, pulineno, perrp, prtage, pesex, prempnot, pemlr, hefaminc)] %>% 
+  .[order(cpsidp)]  %>% 
     View()
 }
 ```
@@ -941,18 +967,18 @@ examine_case(40)
 <!-- Also--it's critical to merge families first and then subset. We want to start with families in post that are eligible, and match them to themselves in base. Some children may not have been born in pre. -->
 
 ```{r are we only getting children, eval = developer_mode}
-cps_trans[, summary(AGE)]
+cps_trans[, summary(prtage)]
 ```
 
 <!-- Perhaps surprisingly, there's often a single child under 5. About 32% of households have more than 1. That sounds unreasonable. -->
 
 ```{r how many individuals per CPSID, eval = developer_mode}
 n_distinct_ids <- 
-  cps_trans[, .(n_in_cpsid = n_distinct(CPSIDP)),
-            by = CPSID]
+  cps_trans[, .(n_in_cpsid = n_distinct(cpsidp)),             #n_in_cpsid: # of distinct kids under {age_thres} within each household
+            by = cpsid]
 summary(n_distinct_ids)
 
-n_distinct_ids[, .(pct_gt1_child05 = mean(n_in_cpsid > 1))]
+n_distinct_ids[, .(pct_gt1_child05 = mean(n_in_cpsid > 1))]   #/!\hk: cps_trans subsets data to kids under 14. This calculates percent of households that have more than 1 kid under 14, not under 6?
 ```
 
 ```{r, eval = developer_mode}

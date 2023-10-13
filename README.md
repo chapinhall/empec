@@ -30,6 +30,10 @@ base_year <- 2021
 # `run--01c--prep-cps-data.Rmd`. Include the file name but not the file extension.
 cps_raw  <- "cps_000XX" # this is the name given to the IPUMS data extract of Current Population Survey data
 
+# Set most recent year and month for the pull of CPS data 
+mostrecentyear <- 2023
+mostrecentmonth <- 6
+
 ### Set Paths -----------------------------------------------------------------
 
 # Below, provide file paths that are places for the code to respectively save
@@ -151,9 +155,7 @@ ACS 5-Year data (ACS5) are aggregated across five consecutive years of ACS surve
 
 CPS collects information about each member of surveyed households on a monthly basis, providing recent information, only 1-2 months lagged. However, CPS does not provide information at a geographically granular level. CPS is used to build statistical relationships between household socioeconomic status baseline year and CCAP eligibility as of its most recent available data, which is applied to estimate Census-tract level CCAP eligibility as of the most recent month of CPS data.
 
-The CPS data were downloaded interactively from the [IPUMS CPS](https://cps.ipums.org/cps/) (originally "Integrated Public Use Microdata Series") website. Annual Supplementary Economic Characteristics (ASEC) data and Basic Monthly Data were pulled for 2019 and all months forward for the current exercise, and for both 2007-2009 for the sake of validating our method using data from throughout the Great Recession.
-
-Before making selections of variables, it is necessary within Sample Selections to select the "Cross Sectional" option. This makes it possible to download the Basic Monthly Files which have a more complex longitudinal structure than the Annual Social and Economic Supplement (ASEC) sample. See [this article](https://www.census.gov/topics/population/foreign-born/guidance/cps-guidance/cps-vs-asec.html) for a comparison of the general CPS versus ASEC samples. This selection must be made before selecting variables. Otherwise the existing selections will be lost.
+Basic Monthly Data were pulled for 2019 and all months forward for the current exercise, and for 2007-2009 for the sake of validating our method using data from throughout the Great Recession.
 
 The following fields were pulled:
 
@@ -171,8 +173,6 @@ The following fields were pulled:
 * PERSON (included under "ANNUAL SOCIAL & ECONOMIC SUPPLEMENT (ASEC)")	
 	- INCOME: INCTOT, INCWAGE, INCUNEMP
 	- POVERTY: POVERTY
-
-Be sure to download the DDI file which has documentation of fields in this pull. To do so, click on the "DDI" link, and right-click to "Save As" this file to the "input/" subfolder within the repository.
 
 ## Poverty Guidelines data
 
@@ -192,6 +192,7 @@ Code files in this repository include:
 
 These files can be run manually, but are generally set up to be run automatically by the `run` scripts below that require their output.
 
+* `pull--cps.R` -- automatically pulls CPS basic monthly using the Census API
 * `pull--acs1-microdata.R` -- automatically pulls ACS1 microdata using the Census API
 * `pull--acs5-general-data.R` -- pulls and processes many ACS5 tables of interest, used in the Small Area Estimation method
 * `pull--acs5-data-on-poverty-by-race.R` -- a select subset of ACS5 data with information about poverty-by-race data, using in postprocessing steps to provide estimated racial breakdowns of eligibility counts. In the future, this can incorporated into the `pull--acs5-general-data.R` script.

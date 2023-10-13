@@ -1,10 +1,12 @@
 .Rdata
 .Rhistory
 settings--profile.R
+Notes_for_cps
 
 # Eliminate tracking of cached files produced during runs of the manuscript
 run--00--main-doc_cache/
 run--00--main-doc_files/
+
 # Also eliminate tracking of rendered reports that are specific to a given user's run of the method
 *.html
-
+*.png
