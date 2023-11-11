@@ -38,16 +38,14 @@ if ("my_county" %in% objects()) {
 
 ```{r prepare ACS 5-year crosswalk data}
 geo_crosswalk_puma <-
-  fread("https://www2.census.gov/geo/docs/maps-data/data/rel/2010_Census_Tract_to_2010_PUMA.txt") %>% 
+  fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/2020_Census_Tract_to_2020_PUMA.txt") %>% 
+    
     # for reference, this is the 2020 tract-to-PUMA crosswalk. While ACS5 data
     # from 2020 is available and uses this, the ACS1 data pull from 2021 uses
     # 2010 PUMA definitions. Temporarily, we are planning to continue to work on
     # a 2010 basis by pulling ACS5 data from 2019
-    # "https://www2.census.gov/geo/docs/maps-data/data/rel2020/2020_Census_Tract_to_2020_PUMA.txt"
-    # This Users Guide for the 2021 ACS 1-year release notes, on page 12, that
-    # "PUMAs are expected to be updated using the Census 2020 data for data year 
-    # 2022."
-    #   https://www2.census.gov/programs-surveys/acs/tech_docs/pums/2021ACS_PUMS_User_Guide.pdf
+    # 2010 crosswalk
+    # "https://www2.census.gov/geo/docs/maps-data/data/rel/2010_Census_Tract_to_2010_PUMA.txt"
   .[STATEFP == my_state_fip] %>% 
   # /!\ Am not aware of the significance of the FIP versus CE suffix. It's an 
   # assumption that there's no consequence to dropping the distinction
@@ -62,14 +60,17 @@ geo_crosswalk_puma <-
          GEOID = paste0(STATEFIP, COUNTYFIP, TRACTFIP))
 
 geo_crosswalk_zcta <-
-  fread("https://www2.census.gov/geo/docs/maps-data/data/rel/zcta_tract_rel_10.txt") %>%
-  .[STATE == my_state_fip] %>% 
-  .[j = GEOID := as.character(GEOID)]
-  # Will be able to update this for 2020 at: https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/
+  fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_tract20_natl.txt") %>%
+  #.[STATE == my_state_fip] %>% 
+  .[j = GEOID_TRACT_20 := as.character(GEOID_TRACT_20)] %>%
+  .[grepl("^(60|61|62)", GEOID_ZCTA5_20)] %>%
+  .[grep("^17", GEOID_TRACT_20)]
+  # Source: https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.2020.html#zcta
+  # Note that distinct numbers of GEOID changed from 2010
 
 geo_crosswalk <-
   merge(geo_crosswalk_puma,
-        geo_crosswalk_zcta %>% dplyr::select(GEOID, ZCTA = ZCTA5),
+        geo_crosswalk_zcta %>% dplyr::select(GEOID = GEOID_TRACT_20, ZCTA = GEOID_ZCTA5_20),
         by = "GEOID",
         all.x = TRUE) %>% 
   data.table()
@@ -90,7 +91,7 @@ if (exists("my_county_fip")) {
 # than map all other more up-to-date data sources to that, we are choosing to wait
 # for the release of 2022 ACS1 data, anticipated for September 14, 2023:
 #   https://www.census.gov/programs-surveys/acs/news/data-releases/2022/release.html#:~:text=The%202022%20American%20Community%20Survey%20%28ACS%29%201-year%20estimates,and%20places%20with%20populations%20of%2065%2C000%20or%20more.
-tiger_year <- 2019
+tiger_year <- {base_year}
 
 # Set up input to tigris functions for pulling by county
 # Note that because the "else" value is NULL, the ifelse() has a problem
@@ -99,9 +100,9 @@ if (exists("my_county_fip")) county_val <- my_county_fip else county_val <- NULL
 # Note that cb = TRUE requests a lower-res file, which is fine for mapping we want to do
 
 tractShp  <-   tracts(state = my_state_fip, cb = TRUE, year = tiger_year, county = county_val)
-pumaShp   <-    pumas(state = my_state_fip, cb = TRUE, year = tiger_year) 
+pumaShp   <-    pumas(state = my_state_fip, cb = TRUE, year = tiger_year)                           #/!\Error: Cartographic boundary PUMAs are not yet available for years after 2019. Use the argument `year = 2019` instead to request your data.
 countyShp <- counties(state = my_state_fip, cb = TRUE, year = tiger_year)
-zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_starts)
+zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_starts)                      #/!\Error: The Census Bureau has not yet released the CB ZCTA file for 2022. Please use the argument `year = 2020` or `cb = FALSE` instead.
   # Note: we pull zctas differently--with "starts_with" rather than state because
   # the zctas() function can only return by state for years 2000 and 2010 
 ```

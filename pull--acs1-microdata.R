@@ -38,7 +38,7 @@ pull_vars <-
 if (FALSE) {
   my_pums <- 
     pums_variables %>% 
-    filter(year == 2019, # {base_year},
+    filter(year == base_year,
            survey == "acs1"
     )
   View(my_pums)

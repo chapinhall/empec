@@ -119,7 +119,7 @@ local_ccdf_thresh <- <numeric value for income-to-poverty line threashold for in
 ### Set Other Run Parameters ---------------------------------------------------
 
 # Use only "model" estimates from the Small Area Estimation method, rather than
-# the blended estimates from the Fay-Herriott method?
+# the blended estimates from the Fay-Herriott method
 # Users should consider setting this option to `TRUE` based on diagnostics
 # examining `share_model` vs `share_direct` estimates, to judge whether
 # "model" estimates are often skewed away from direct estimates within PUMAs
