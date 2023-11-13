@@ -71,12 +71,12 @@ apis %>% filter(grepl("acs5", name)) %>% with(table(vintage))
 
 # Pull metadata for ACS 1-year and 5-year tables
 
-acs1_years <- 2019:2019
+acs1_years <- {base_year}:{base_year}
 acs1_tables <- c("B01001", "B09001", "B17024", "B17026", 
                  "B03002", "B08006", "B08013", "B10051", "B23001", "C15002", 
 					       paste0("B17001", c("", LETTERS[1:9])),
                  "B17012", "B01003", "B10063", "B08303")
-acs5_years <- 2019:2019
+acs5_years <- 2021:2021
 acs5_tables <-  c("B01001", "B09001", "B17024", "B17026",
                   "B03002", "B08006", "B08013", "B10051", "B23001", "C15002", 
                   paste0("B17001", c("", LETTERS[1:9])),
@@ -772,9 +772,9 @@ if (update_acs_pulls) {
   } # End of loop across acs1 and acs5 data
   save(list = tableList,
        file = glue("{input_path}acs_tables.Rda"))
+} else {
+  load(glue("{input_path}acs_tables.Rda"))
 }
-
-load(glue("{input_path}acs_tables.Rda"))
 
 # -----------------------------------------------------------------------------#
 # Produce new variables for ACS data set ---------------------------------------
@@ -850,7 +850,7 @@ for (r in age_list) {
                                       eval(parse(text=denom)),
                                       eval(parse(text=num_se)), 
                                       eval(parse(text=denom_se))),
-      !!newvar_count := eval(parse(text=denom)))
+      !!newvar_count := eval(parse(text=num)))                                  #/!\hk: updated potential typo
 }
 
 acs_age <-
@@ -1012,7 +1012,7 @@ for (r in c("r0to50", "r50to74", "r75to99", "r100to124", "r125to149", "r150to174
                                       eval(parse(text=denom)),
                                       eval(parse(text=num_moe))/1.645, 
                                       eval(parse(text=denom_moe))/1.645),
-      !!newvar_count := eval(parse(text=denom)))
+      !!newvar_count := eval(parse(text=num)))                                  #/!\hk: updated potential typo
 }
 
 # Prepare family count variable.
@@ -1065,6 +1065,10 @@ acs_incpov <-
 
 exclude_vars <- names(acs_incpov) %in% c("source", "endyear", "geo", "geo_val", "NAME")
 summary(acs_incpov[!exclude_vars])
+
+# Check NA's
+acs_incpov %>% filter(is.na(acs_incpov$incpov_r0to50_est)) %>% select(geo_val) %>% unique()
+# NA's for 9 geo_val (17031381700, 17097863005, 17097863006, 17031980000, 17197980000, 17201980000, 17031980100, 17031990000, 17097990000)
 
 # ------------------------------------ #
 # Travel time from home to work
@@ -1182,9 +1186,9 @@ acs_emp <-
     employrate_m_est   = emp_m_est/lf_m_est,
     employrate_m_se    = se_proportion(emp_m_est, lf_m_est, emp_m_se, lf_m_se),
     employrate_m_count = lf_m_est,
-    lfrate_m_est   = ifelse(pop_m_est!=0, lf_m_est/pop_m_est, NA),
-    lfrate_m_se    = se_proportion(lf_m_est, pop_m_est, lf_m_se, pop_m_se),
-    lfrate_m_count = pop_m_est
+    lfrate_m_est       = ifelse(pop_m_est!=0, lf_m_est/pop_m_est, NA),
+    lfrate_m_se        = se_proportion(lf_m_est, pop_m_est, lf_m_se, pop_m_se),
+    lfrate_m_count     = pop_m_est
   ) %>%
   dplyr::select(-pop_f_est, -pop_f_se, -lf_f_est, -lf_f_se, -emp_f_est, -emp_f_se, 
          -pop_m_est, -pop_m_se, -lf_m_est, -lf_m_se, -emp_m_est, -emp_m_se )
@@ -1221,9 +1225,9 @@ acs_emp_age25to34 <-
     employrate_m_a2534_est   = emp_m_a2534_est/lf_m_a2534_est,
     employrate_m_a2534_se    = se_proportion(emp_m_a2534_est, lf_m_a2534_est, emp_m_a2534_se, lf_m_a2534_se),
     employrate_m_a2534_count = lf_m_a2534_est,
-    lfrate_m_a2534_est   = ifelse(pop_m_a2534_est!=0, lf_m_a2534_est/pop_m_a2534_est, NA),
-    lfrate_m_a2534_se    = se_proportion(lf_m_a2534_est, pop_m_a2534_est, lf_m_a2534_se, pop_m_a2534_se),
-    lfrate_m_a2534_count = pop_m_a2534_est
+    lfrate_m_a2534_est       = ifelse(pop_m_a2534_est!=0, lf_m_a2534_est/pop_m_a2534_est, NA),
+    lfrate_m_a2534_se        = se_proportion(lf_m_a2534_est, pop_m_a2534_est, lf_m_a2534_se, pop_m_a2534_se),
+    lfrate_m_a2534_count     = pop_m_a2534_est
   ) %>%
   dplyr::select(-pop_f_a2534_est, -pop_f_a2534_se, -lf_f_a2534_est, -lf_f_a2534_se, -emp_f_a2534_est, -emp_f_a2534_se, 
          -pop_m_a2534_est, -pop_m_a2534_se, -lf_m_a2534_est, -lf_m_a2534_se, -emp_m_a2534_est, -emp_m_a2534_se )
@@ -1245,6 +1249,11 @@ summary(acs_emp[!exclude_vars])
   ## /!\ There are also cases with 0 labor force counts that need to be investigated
   
   filter(acs_emp, (lfrate_f_count == 0 | lfrate_m_count == 0)) %>% as.data.frame()
+
+# Check NA's
+  acs_emp %>% ungroup() %>% filter(is.na(acs_emp$employrate_f_est) | is.na(acs_emp$employrate_m_est)) %>% select(geo_val) %>% unique()
+  # NA's for 8 geo_val (17031381700, 17097863006, 17031980000, 17197980000, 17201980000, 17031980100, 17031990000, 17097990000)
+  # Similar tracts to missing counts in `acs_incpov`
 
 # ------------------------------------ #
 # Education level by gender (by race/ethnicity)
@@ -1402,7 +1411,7 @@ for (gender_value in c("Female", "Male")) {
                                               eval(parse(text=denom)),
                                               eval(parse(text=num_moe))/1.645, 
                                               eval(parse(text=denom_moe))/1.645),
-              !!newvar_count := eval(parse(text=denom))
+              !!newvar_count := eval(parse(text=num))                           #/!\hk: updated potential typo
               )
   
   }
@@ -1498,13 +1507,13 @@ for (r in c("amind", "as", "bl", "mult", "oth", "pacisl", "wh")){
                                          eval(parse(text=denom)),
                                          eval(parse(text=num_moe))/1.645, 
                                          eval(parse(text=denom_moe))/1.645),
-            !!newvar_count := eval(parse(text=denom)),
+            !!newvar_count := eval(parse(text=num)),                            #/!\hk: updated potential typo
             !!newvar_nonh    := eval(parse(text=num_nonh))/eval(parse(text=denom)),
             !!newvar_nonh_se := se_proportion(eval(parse(text=num_nonh)), 
                                               eval(parse(text=denom)),
                                               eval(parse(text=num_nonh_moe))/1.645, 
                                               eval(parse(text=denom_moe))/1.645),
-            !!newvar_nonh_count := eval(parse(text=denom)))
+            !!newvar_nonh_count := eval(parse(text=num)))                       #/!\hk: updated potential typo
 }
   
 acs_raceeth <-
