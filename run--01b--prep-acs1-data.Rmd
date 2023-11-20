@@ -31,6 +31,15 @@ if (!file.exists(acs1_save_file)) {
 } else {
   acs1 <- fread(file = acs1_save_file)
 }
+
+if (!"my_state_fip" %in% objects()) {
+  my_state_fip <- 
+  fips_codes %>% 
+  filter(state == my_state_abbr) %>% 
+  pull(state_code) %>% 
+  unique()
+}
+
 ```
 
 ```{r ensure that ACS1 PUMA values are character to be consistent with other datasets}
@@ -361,7 +370,7 @@ acs1_child_mod <-
       fct_relevel("0to5")] %>% 
   .[order(child_agegroup_combo, PUMA)]
 
-acs1_boot <- boot(acs1_child_mod, calc_acs1_puma_pov, R = 200)
+acs1_boot <- boot(acs1_child_mod, calc_acs1_puma_pov, R = 50)                   #/!\ doesn't run with initial R value 200
 acs1_puma_stats <- 
   cbind(acs1_boot$data[j = .(child_agegroup_combo, PUMA)] %>% unique(),
         data.table(pct_pov    = acs1_boot$t0,

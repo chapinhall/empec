@@ -113,8 +113,8 @@ add_agg_level <- function(ests, agg_level) {
       geo_merge_data <- 
         geo_crosswalk_zcta %>% 
         transmute(GEOID = GEOID, 
-                  ZCTA = ZCTA5, 
-                  geo_part = TRPOPPCT/100)
+                  ZCTA  = ZCTA, 
+                  geo_part = TRPOPPCT/100)                                      #/!\hk: TRPOPPCT not available in 2020 ZCTA relationship file
     } else if (agg_level == "aux_geo_label") {
       geo_merge_data <- 
         geo_crosswalk_aux %>% 
@@ -171,7 +171,7 @@ nowcast_agg_zip   <- agg_tracts_up(nowcast_elig_counts_final, "ZCTA")
 nowcast_agg_cty   <- agg_tracts_up(nowcast_elig_counts_final, "County")
 
 if (exists("my_aux_geo")) {
-  nowcast_agg_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  
+  nowcast_agg_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  #/!\Warning: Detected an unexpected many-to-many relationship between `x` and `y`.
 }
 ```
 
@@ -294,6 +294,28 @@ if (exists("my_aux_geo")) {
                    sheet_name = my_aux_geo_desc, 
                    add = TRUE,
                    out_label = local_ccdf_name_short)
+}
+```
+
+```{r write various levels of geographic aggregation out to file for le50, le100, le200}
+if (exists("my_aux_geo")) {
+  write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "le50"),
+                   agg_level = "aux_geo_label",
+                   sheet_name = my_aux_geo_desc, 
+                   add = TRUE,
+                   out_label = "Pov_below_50")
+  
+  write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "le100"),
+                   agg_level = "aux_geo_label",
+                   sheet_name = my_aux_geo_desc, 
+                   add = TRUE,
+                   out_label = "Pov_below_100")
+  
+  write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "le200"),
+                   agg_level = "aux_geo_label",
+                   sheet_name = my_aux_geo_desc, 
+                   add = TRUE,
+                   out_label = "Pov_below_200")
 }
 ```
 

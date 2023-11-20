@@ -156,8 +156,8 @@ ggplot() +
   scale_x_continuous(labels = percent) + 
   labs(title = "Comparing Distributions of Poverty Rates for Children Under 6",
        subtitle = glue("<span style='color:blue'>PUMA-level ACS1-year Data for {base_year}</span><br>",
-                       "<span style='color:red'>Tract-level ACS5-year Data for 2015-2019</span><br>",
-                       "<span style='color:orange'>PUMA-level ACS5-year Data for 2015-2019</span>"),
+                       "<span style='color:red'>Tract-level ACS5-year Data for {acs5_year-4}-{acs5_year}</span><br>",
+                       "<span style='color:orange'>PUMA-level ACS5-year Data for {acs5_year-4}-{acs5_year}</span>"),
        # 
        # 
        # subtitle = glue("ACS1 data reflects PUMA-level values for {base_year}\n",
@@ -1054,6 +1054,7 @@ map_sae_components(my_dt, "sae_pov_model_05", "", val_limits = limits_05, save_l
 # Build 
 (puma_agg_sae <- 
   sae_results_ccdf_wk_pov_05$sae_out %>% 
+   as.data.table() %>%
   .[j = PUMA := as.numeric(PUMA)] %>% 
   .[str_detect(vc_value, "^WorkElig_(0%|75%|150%).+"),
     .(n_p = sum(n_pt),

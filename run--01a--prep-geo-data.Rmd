@@ -57,20 +57,25 @@ geo_crosswalk_puma <-
          TRACTFIP  = str_pad(TRACTFIP,  width = 6, side = "left", pad = "0"),
          COUNTYFIP = str_pad(COUNTYFIP, width = 3, side = "left", pad = "0"),
          PUMA      = str_pad(PUMA,      width = 5, side = "left", pad = "0"),
-         GEOID = paste0(STATEFIP, COUNTYFIP, TRACTFIP))
+         GEOID     = paste0(STATEFIP, COUNTYFIP, TRACTFIP))
 
 geo_crosswalk_zcta <-
   fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_tract20_natl.txt") %>%
   #.[STATE == my_state_fip] %>% 
   .[j = GEOID_TRACT_20 := as.character(GEOID_TRACT_20)] %>%
   .[grepl("^(60|61|62)", GEOID_ZCTA5_20)] %>%
-  .[grep("^17", GEOID_TRACT_20)]
+  .[grep("^17", GEOID_TRACT_20)] %>%
+  rename(GEOID = GEOID_TRACT_20,
+         ZCTA  = GEOID_ZCTA5_20)
   # Source: https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.2020.html#zcta
   # Note that distinct numbers of GEOID changed from 2010
+  # Issue with no-TRPOPPCT-in-2020 (The Percentage of Total Population of the Census Tract represented by the record)
+  # 2010: https://www.census.gov/programs-surveys/geography/technical-documentation/records-layout/2010-zcta-record-layout.html
+  # 2020: https://www.census.gov/programs-surveys/geography/technical-documentation/records-layout/2020-zcta-record-layout.html
 
 geo_crosswalk <-
   merge(geo_crosswalk_puma,
-        geo_crosswalk_zcta %>% dplyr::select(GEOID = GEOID_TRACT_20, ZCTA = GEOID_ZCTA5_20),
+        geo_crosswalk_zcta %>% dplyr::select(GEOID, ZCTA),
         by = "GEOID",
         all.x = TRUE) %>% 
   data.table()
@@ -107,6 +112,32 @@ zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_starts)  
   # the zctas() function can only return by state for years 2000 and 2010 
 ```
 
+```{r gets puma and zcta shapefile from Census website}
+for (geo in c("puma20", "zcta520")) {
+  census_suffix <- switch(geo, "puma" = "puma20", "zcta" = "zcta520")
+  census_path   <- switch(geo, 
+                          "puma"   = glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/PUMA/"),
+                          "zcta"   = glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/ZCTA520/"))
+  if (geo == "puma20") {
+    download_filename <- glue("state_{my_state_fip}_{census_suffix}.zip")
+    download.file(url      = glue("{census_path}tl_{tiger_year}_{my_state_fip}_{census_suffix}.zip"),
+                  destfile = glue("{input_path}{download_filename}.zip"))
+    unzip(glue("{input_path}tl_{tiger_year}_{my_state_fip}_{geo}.zip"),
+          exdir = str_replace(input_path, "\\/$", ""))
+  } else if (geo == "zcta520") {
+    download_filename <- glue("us_{census_suffix}")
+    download.file(url      = glue("{census_path}tl_{tiger_year}_us_{census_suffix}.zip"),
+                  destfile = glue("{input_path}{download_filename}.zip"))
+    unzip(glue("{input_path}tl_{tiger_year}_us_{geo}.zip"),
+          exdir = str_replace(input_path, "\\/$", ""))
+    }
+}  
+
+pumaShp <- st_read(glue("{input_path}tl_{tiger_year}_{my_state_fip}_puma20.shp"))
+zctaShp <- st_read(glue("{input_path}tl_{tiger_year}_us_zcta520.shp"))
+
+```
+
 ```{r rename certain fields in shapefiles to agree with those in the crosswalks}
 tractShp <- 
   tractShp %>%
@@ -116,18 +147,20 @@ tractShp <-
 
 pumaShp <- 
   pumaShp %>%
-  rename(STATEFIP  = STATEFP10,
-         PUMA      = PUMACE10)
+  rename(STATEFIP  = STATEFP20,
+         PUMA      = PUMACE20,
+         GEOID     = GEOID20)
 
 countyShp <-
   countyShp %>% 
-  rename(COUNTYFIP = COUNTYFP,
-         STATEFIP  = STATEFP,
+  rename(STATEFIP  = STATEFP,
+         COUNTYFIP = COUNTYFP,
          County    = NAME)
 
 zctaShp <-
   zctaShp %>% 
-  rename(ZCTA = ZCTA5CE10)
+  rename(ZCTA      = ZCTA5CE20,
+         GEOID     = GEOID20)
 ```
 
 
@@ -227,7 +260,7 @@ leaflet_base_map <-
               fillOpacity = 0.0) %>%
   addPolygons(group = "PUMAs",
               data = pumaShp,
-              popup = ~GEOID10,
+              popup = ~GEOID,
               color = "red",
               weight = 3.0, 
               fillOpacity = 0.0)

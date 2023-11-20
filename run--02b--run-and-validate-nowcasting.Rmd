@@ -939,7 +939,7 @@ plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" &
   labs(title = case_when(my_output_tag == "IL" ~ "For Head Start, Sensitivities Seem Reasonably Consistent, Except for Simplest Spec",
                          TRUE ~ ""),
        x = "Full Income/Poverty Controls, with Employment Adjustment",
-       y = "Comparison Share EStimate")
+       y = "Comparison Share Estimate")
 ```
 
 ```{r compare SAE specifications for CCAP prediction}
