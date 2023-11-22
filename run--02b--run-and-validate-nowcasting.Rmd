@@ -8,8 +8,8 @@ pubic audiences are suppressed or moved to code chunks that can optionally be
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 if (!"calc_cps_transitions" %in% objects()) source_rmd("method--nowcasting-functions.Rmd", echo = FALSE)
 ```
@@ -721,9 +721,9 @@ for (cps_recency in c("most_recent", "allbase")) {
       }
     
       for (outcome_var in outcome_vars) {
-        
-        # print(glue("Running CPS recency {cps_recency}, CPS geo subsample {cps_geo_subsample}, ",
-        #            "sae_spec {sae_spec}, outcome variable {outcome_var}"))
+
+        print(glue("Running CPS recency {cps_recency}, CPS geo subsample {cps_geo_subsample}, ",
+                   "sae_spec {sae_spec}, outcome variable {outcome_var}"))
         count_est_output <- 
           estimate_transition_counts(sae_spec_name   = glue("sae_results_{sae_spec}"),
                                      share_calc_var  = ifelse(use_only_sae_model_estimates,

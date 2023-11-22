@@ -129,7 +129,7 @@ We no longer maintain this because the standard error is not a property of the P
 
 Within the SAE method, "Model" estimates use PUMA-level data to draw inference using regression model:
 
-$$s_{Gt-1}^c=x_{gt-1}^\prime \beta + e_{Gt-1}$$
+$$s_{Gt-1}^c=x_{gt-1}^\prime \beta + \epsilon_{Gt-1}$$
 
 where the tract-level estimate is obtained using $\hat{\beta}$ with tract-level values:
 
@@ -176,7 +176,7 @@ In practice, we compose $\bar{z}_{gt-1}$ using both SAE estimates as well as ACS
 ## Small Area Estimation Results
 
 ```{r}
-rerun_sae <- FALSE
+rerun_sae <- TRUE
 if (!file.exists(glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rda"))) {
   cat(glue("The Small Area Estimates have not yet been generated for this report.\n",
            "You must run the `run--02a` script--and any necessary 'upstream' scripts ",
@@ -205,11 +205,11 @@ if (!file.exists(glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rd
 
 ```
 
-## Disaggregating and Reaggregating Estimates for Policy Application
+<!-- ## Disaggregating and Reaggregating Estimates for Policy Application -->
 
-```{r child = "run--03b--postestimation-disaggregate-estimates.Rmd"}
+<!-- ```{r child = "run--03b--postestimation-disaggregate-estimates.Rmd"} -->
 
-```
+<!-- ``` -->
 
 # Discussion
 
