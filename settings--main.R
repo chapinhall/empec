@@ -6,10 +6,10 @@
 packages.list <- 
   c("knitr", "ggplot2", "Rcpp", "Hmisc", "VGAM", "stringr", "glmnet", "censusapi",
     "plotly", "crosstalk", "DT", "kableExtra", "sae", "emdi", "glue", "forcats", 
-    "zoo", "moments", "rgdal", "leaflet", "RColorBrewer", "ggalluvial", "tigris",
+    "zoo", "moments", "leaflet", "RColorBrewer", "ggalluvial", "tigris",
     "extrafont", "remotes", "broom", "sf", "lwgeom", "foreach", "doParallel",
     "xlsx", "tidycensus", "fredr", "ipumsr", "tsibble", "forecast", "fable", 
-    "boot", "ggtext", "data.table", "tidyr", "dplyr", "scales")
+    "boot", "ggtext", "data.table", "tidyr", "dplyr", "scales", "R.utils")
 
 for (p in packages.list) {
   if (!p %in% installed.packages()[, "Package"]) install.packages(p)
