@@ -63,8 +63,8 @@ geo_crosswalk_zcta <-
   fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_tract20_natl.txt") %>%
   #.[STATE == my_state_fip] %>% 
   .[j = GEOID_TRACT_20 := as.character(GEOID_TRACT_20)] %>%
-  .[grepl("^(60|61|62)", GEOID_ZCTA5_20)] %>%
-  .[grep("^17", GEOID_TRACT_20)] %>%
+  .[str_detect(GEOID_ZCTA5_20, glue("^({paste(zcta_starts, collapse = '|')})"))] %>%
+  .[str_detect(GEOID_TRACT_20, glue("^{my_state_fip}"))] %>%
   rename(GEOID = GEOID_TRACT_20,
          ZCTA  = GEOID_ZCTA5_20)
   # Source: https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.2020.html#zcta
@@ -104,10 +104,10 @@ if (exists("my_county_fip")) county_val <- my_county_fip else county_val <- NULL
 
 # Note that cb = TRUE requests a lower-res file, which is fine for mapping we want to do
 
-tractShp  <-   tracts(state = my_state_fip, cb = TRUE, year = tiger_year, county = county_val)
-pumaShp   <-    pumas(state = my_state_fip, cb = TRUE, year = tiger_year)                           #/!\Error: Cartographic boundary PUMAs are not yet available for years after 2019. Use the argument `year = 2019` instead to request your data.
-countyShp <- counties(state = my_state_fip, cb = TRUE, year = tiger_year)
-zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_starts)                      #/!\Error: The Census Bureau has not yet released the CB ZCTA file for 2022. Please use the argument `year = 2020` or `cb = FALSE` instead.
+try(tractShp  <-   tracts(state = my_state_fip, cb = TRUE, year = tiger_year, county = county_val), silent = T)
+try(pumaShp   <-    pumas(state = my_state_fip, cb = TRUE, year = tiger_year), silent = T)
+try(countyShp <- counties(state = my_state_fip, cb = TRUE, year = tiger_year), silent = T)
+try(zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_starts), silent = T)
   # Note: we pull zctas differently--with "starts_with" rather than state because
   # the zctas() function can only return by state for years 2000 and 2010 
 ```
@@ -116,26 +116,24 @@ zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_starts)  
 for (geo in c("puma20", "zcta520")) {
   census_suffix <- switch(geo, "puma" = "puma20", "zcta" = "zcta520")
   census_path   <- switch(geo, 
-                          "puma"   = glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/PUMA/"),
-                          "zcta"   = glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/ZCTA520/"))
-  if (geo == "puma20") {
-    download_filename <- glue("state_{my_state_fip}_{census_suffix}.zip")
-    download.file(url      = glue("{census_path}tl_{tiger_year}_{my_state_fip}_{census_suffix}.zip"),
+                          "puma20"   = glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/PUMA/"),
+                          "zcta520"   = glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/ZCTA520/"))
+  if (geo == "puma20" && !exists("pumaShp")) {
+    download_filename <- glue("state_{my_state_fip}_puma20.zip")
+    download.file(url      = glue("{census_path}tl_{tiger_year}_{my_state_fip}_puma20.zip"),
                   destfile = glue("{input_path}{download_filename}.zip"))
     unzip(glue("{input_path}tl_{tiger_year}_{my_state_fip}_{geo}.zip"),
           exdir = str_replace(input_path, "\\/$", ""))
-  } else if (geo == "zcta520") {
-    download_filename <- glue("us_{census_suffix}")
-    download.file(url      = glue("{census_path}tl_{tiger_year}_us_{census_suffix}.zip"),
+    pumaShp <- st_read(glue("{input_path}tl_{tiger_year}_{my_state_fip}_puma20.shp"))
+  } else if (geo == "zcta520" && !exists("zctaShpShp")) {
+    download_filename <- glue("us_zcta520")
+    download.file(url      = glue("{census_path}tl_{tiger_year}_us_zcta520.zip"),
                   destfile = glue("{input_path}{download_filename}.zip"))
-    unzip(glue("{input_path}tl_{tiger_year}_us_{geo}.zip"),
+    unzip(glue("{input_path}tl_{tiger_year}_us_zcta520.zip"),
           exdir = str_replace(input_path, "\\/$", ""))
-    }
+    zctaShp <- st_read(glue("{input_path}tl_{tiger_year}_us_zcta520.shp"))
+  }
 }  
-
-pumaShp <- st_read(glue("{input_path}tl_{tiger_year}_{my_state_fip}_puma20.shp"))
-zctaShp <- st_read(glue("{input_path}tl_{tiger_year}_us_zcta520.shp"))
-
 ```
 
 ```{r rename certain fields in shapefiles to agree with those in the crosswalks}
