@@ -164,8 +164,8 @@ pop_by_age_long <-
   pop_by_age %>% 
   pivot_longer(cols = matches("age_.+_count")) %>% 
   mutate(age = str_replace(name, "_count", ""),
-         pd = case_when(year == base_year - 1 ~ "base",
-                        year == base_year     ~ "nowcast")) %>% 
+         pd = case_when(year == base_year     ~ "base",
+                        year == base_year + 1 ~ "nowcast")) %>% 
   rename(pop_count = value) %>%
   # /!\ Here again is where we need to bring in a proper standard error for
   # population count estimates

@@ -814,45 +814,46 @@ save(pop_by_age,
 ```{r temporarily use dfss pop est}
 pop_0017_2010_2023_tract <- read.csv("H:/DFSS Community Assessment/Population_Poverty/Population estimates 2022-2023/tract_age_estimates/pop_0017_2010_2023_tract.csv")
 
-ests_with_forecast_wide_2 <- pop_0017_2010_2023_tract %>%
+ests_with_forecast_wide_2 <- 
+  pop_0017_2010_2023_tract %>%
   mutate(GEOID = TRACT20) %>%
   select(-TRACT20, -TRACTCE20, -cca, -cca_name, -race, -agegroup) %>%
   select(GEOID, age, everything()) %>%
   arrange(GEOID, age)
 
-ests_with_forecast_wide_2 <- ests_with_forecast_wide_2 %>%
-  group_by(age, GEOID) %>%
-  summarise(est2010 = sum(est2010),
-            est2011 = sum(est2011),
-            est2012 = sum(est2012),
-            est2013 = sum(est2013),
-            est2014 = sum(est2014),
-            est2015 = sum(est2015),
-            est2016 = sum(est2016),
-            est2017 = sum(est2017),
-            est2018 = sum(est2018),
-            est2019 = sum(est2019),
-            est2020 = sum(est2020),
-            est2021 = sum(est2021),
-            est2022 = sum(est2022))
-
-pop_by_age_2 <- ests_with_forecast_wide_2 %>% 
+ests_with_forecast_long <- 
+  ests_with_forecast_wide_2 %>%
+  pivot_longer(cols = starts_with("est")) %>% 
   mutate(GEOID = as.character(GEOID),
+         year = str_extract(name, "\\d+") %>% as.numeric(),
          age = case_when(age %in% 0:2   ~ "age_0to2_count",
                          age %in% 3:5   ~ "age_3to5_count",
                          age %in% 6:12  ~ "age_6to12_count",
                          age %in% 13:17 ~ "age_13to17_count")) %>% 
-  pivot_longer(cols = starts_with("est")) %>% 
-  group_by(GEOID, name, age) %>% 
-  summarize(value = sum(value)) %>% 
+  group_by(age, GEOID, year) %>%
+  summarise(value = sum(value))
+
+pop_by_age_2 <- 
+  ests_with_forecast_long %>% 
   pivot_wider(names_from  = "age",
               values_from = "value") %>% 
-  mutate(age_0to5_count = age_0to2_count + age_3to5_count,
-         year = str_extract(name, "\\d+") %>% as.numeric()) %>% 
-  ungroup() %>% 
-  select(-name)
+  mutate(age_0to5_count = age_0to2_count + age_3to5_count) %>% 
+  ungroup()
+
+# Duplicate year 2022 and add it to the current data as year 2023
+# This is done--temporarily--given the concern around using volatile recent
+# trends as a basis for forecasting further ahead
+pop_by_age_2_toadd <- 
+  pop_by_age_2 %>% 
+  filter(year == 2022) %>% 
+  mutate(year = 2023)
+
+pop_by_age_2 <- 
+  bind_rows(pop_by_age_2,
+            pop_by_age_2_toadd)
 
 ```
+
 
 ```{r compare population estimates of 2022 as of May 2022 and new update with dfss}
 comp_pop <- 
