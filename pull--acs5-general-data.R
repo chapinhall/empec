@@ -850,7 +850,7 @@ for (r in age_list) {
                                       eval(parse(text=denom)),
                                       eval(parse(text=num_se)), 
                                       eval(parse(text=denom_se))),
-      !!newvar_count := eval(parse(text=num)))                                  #/!\hk: updated potential typo
+      !!newvar_count := eval(parse(text=denom)))
 }
 
 acs_age <-
@@ -880,12 +880,13 @@ acs_childpop <-
   # /!\ Note that these field names do not follow conventions. At present,
   # "_count" denotes denominators (while "_est" is the rate of num/denom). 
   mutate(age_3to5_count  = age_3to4_count + age_5to5_count,
-         age_3to5_se     = sqrt(age_3to4_se^2 + age_5to5_se^2),
-         age_0to5_count  = age_lt3_count + age_3to5_count,
-         age_0to5_se     = sqrt(age_lt3_se^2 + age_3to5_se^2),
+         age_0to5_count  = age_lt3_count  + age_3to5_count,
          age_6to12_count = age_6to8_count + age_9to11_count + age_12to14_count*(1/3),
-         age_6to12_se    = sqrt(age_6to8_se^2 + age_9to11_se^2 + (age_12to14_se*(1/3))^2),
          age_6to13_count = age_6to8_count + age_9to11_count + age_12to14_count*(2/3),
+         
+         age_3to5_se     = sqrt(age_3to4_se^2 + age_5to5_se^2),
+         age_0to5_se     = sqrt(age_lt3_se^2 + age_3to5_se^2),
+         age_6to12_se    = sqrt(age_6to8_se^2 + age_9to11_se^2 + (age_12to14_se*(1/3))^2),
          age_6to13_se    = sqrt(age_6to8_se^2 + age_9to11_se^2 + (age_12to14_se*(2/3))^2))
 
 # Check summary statistics.
@@ -1012,7 +1013,7 @@ for (r in c("r0to50", "r50to74", "r75to99", "r100to124", "r125to149", "r150to174
                                       eval(parse(text=denom)),
                                       eval(parse(text=num_moe))/1.645, 
                                       eval(parse(text=denom_moe))/1.645),
-      !!newvar_count := eval(parse(text=num)))                                  #/!\hk: updated potential typo
+      !!newvar_count := eval(parse(text=denom)))
 }
 
 # Prepare family count variable.
@@ -1067,7 +1068,10 @@ exclude_vars <- names(acs_incpov) %in% c("source", "endyear", "geo", "geo_val", 
 summary(acs_incpov[!exclude_vars])
 
 # Check NA's
-acs_incpov %>% filter(is.na(acs_incpov$incpov_r0to50_est)) %>% select(geo_val) %>% unique()
+acs_incpov %>% 
+  filter(is.na(acs_incpov$incpov_r0to50_est)) %>% 
+  select(geo_val) %>% 
+  unique()
 # NA's for 9 geo_val (17031381700, 17097863005, 17097863006, 17031980000, 17197980000, 17201980000, 17031980100, 17031990000, 17097990000)
 
 # ------------------------------------ #
@@ -1251,7 +1255,11 @@ summary(acs_emp[!exclude_vars])
   filter(acs_emp, (lfrate_f_count == 0 | lfrate_m_count == 0)) %>% as.data.frame()
 
 # Check NA's
-  acs_emp %>% ungroup() %>% filter(is.na(acs_emp$employrate_f_est) | is.na(acs_emp$employrate_m_est)) %>% select(geo_val) %>% unique()
+acs_emp %>% 
+  ungroup() %>% 
+  filter(is.na(employrate_f_est) | is.na(employrate_m_est)) %>% 
+  select(geo_val) %>% 
+  unique()
   # NA's for 8 geo_val (17031381700, 17097863006, 17031980000, 17197980000, 17201980000, 17031980100, 17031990000, 17097990000)
   # Similar tracts to missing counts in `acs_incpov`
 
@@ -1411,7 +1419,7 @@ for (gender_value in c("Female", "Male")) {
                                               eval(parse(text=denom)),
                                               eval(parse(text=num_moe))/1.645, 
                                               eval(parse(text=denom_moe))/1.645),
-              !!newvar_count := eval(parse(text=num))                           #/!\hk: updated potential typo
+              !!newvar_count := eval(parse(text=denom))
               )
   
   }
@@ -1507,13 +1515,13 @@ for (r in c("amind", "as", "bl", "mult", "oth", "pacisl", "wh")){
                                          eval(parse(text=denom)),
                                          eval(parse(text=num_moe))/1.645, 
                                          eval(parse(text=denom_moe))/1.645),
-            !!newvar_count := eval(parse(text=num)),                            #/!\hk: updated potential typo
+            !!newvar_count := eval(parse(text=denom)),
             !!newvar_nonh    := eval(parse(text=num_nonh))/eval(parse(text=denom)),
             !!newvar_nonh_se := se_proportion(eval(parse(text=num_nonh)), 
                                               eval(parse(text=denom)),
                                               eval(parse(text=num_nonh_moe))/1.645, 
                                               eval(parse(text=denom_moe))/1.645),
-            !!newvar_nonh_count := eval(parse(text=num)))                       #/!\hk: updated potential typo
+            !!newvar_nonh_count := eval(parse(text=denom)))
 }
   
 acs_raceeth <-
@@ -1645,4 +1653,4 @@ acs_final5 <-
 
 save(acs_final5, 
      file = glue("{output_path}acs5_variables.Rda"))
-write.csv(acs_final5, glue("{output_path}acs5_variables.csv"))
+write.csv(acs_final5, glue("{output_path}acs5_variables_{my_output_tag}.csv"))
