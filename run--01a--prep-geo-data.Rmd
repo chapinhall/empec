@@ -85,18 +85,10 @@ if (exists("my_county_fip")) {
 }
 ```
 
-<!-- ### Pull Shapefiles if Necessary ----------------------------------------->
-
 ```{r auto pull of tract and puma shapefiles}
 
 # Declare which vintage of Census TIGER shapefiles should be pulled
-# /!\ As noted above, we choose a "pre-2020" vintage of TIGER shape files to 
-# align our estimates to Census 2010 geographies. This is ultimately driven by the
-# fact that the 2021 ACS1 data are released for census 2010 geographies, and rather
-# than map all other more up-to-date data sources to that, we are choosing to wait
-# for the release of 2022 ACS1 data, anticipated for September 14, 2023:
-#   https://www.census.gov/programs-surveys/acs/news/data-releases/2022/release.html#:~:text=The%202022%20American%20Community%20Survey%20%28ACS%29%201-year%20estimates,and%20places%20with%20populations%20of%2065%2C000%20or%20more.
-tiger_year <- {base_year}
+tiger_year <- base_year
 
 # Set up input to tigris functions for pulling by county
 # Note that because the "else" value is NULL, the ifelse() has a problem
@@ -112,7 +104,7 @@ try(zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_start
   # the zctas() function can only return by state for years 2000 and 2010 
 ```
 
-```{r gets puma and zcta shapefile from Census website}
+```{r pull puma and zcta shapefiles from Census website if not available from the tigris package pulls above}
 for (geo in c("puma20", "zcta520")) {
   census_suffix <- switch(geo, "puma" = "puma20", "zcta" = "zcta520")
   census_path   <- switch(geo, 
