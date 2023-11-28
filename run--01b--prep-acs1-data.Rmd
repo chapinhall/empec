@@ -1,4 +1,3 @@
-
 <!-- This .Rmd file is set up to run either independently by checking for 
 the presence of necessary objects in the global environment and running 
 related scripts if not, or also as a child to the "main-doc". For that latter
@@ -31,15 +30,6 @@ if (!file.exists(acs1_save_file)) {
 } else {
   acs1 <- fread(file = acs1_save_file)
 }
-
-if (!"my_state_fip" %in% objects()) {
-  my_state_fip <- 
-    fips_codes %>% 
-    filter(state == my_state_abbr) %>% 
-    pull(state_code) %>% 
-    unique()
-}
-
 ```
 
 ```{r ensure that ACS1 PUMA values are character to be consistent with other datasets}
@@ -203,11 +193,12 @@ acs1_child <-
                        RAC2P == 2 ~ "black",
                        TRUE ~ "other_multiple"),
            child_hispanic = 1*(HISP != 1),
-           fam_incpov_ratio_cat_mix   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00, 4.00)),
-           fam_incpov_ratio_cat_to185 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00, 4.00)),
-           fam_incpov_ratio_cat_by50  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 0.5)),
-           fam_incpov_ratio_cat_by75  = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.75, 1.50, 2.25, 3.00, 4.00)),
-           fam_incpov_ratio_cat_by100 = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 1.0)),
+           fam_incpov_ratio_cat_mix     = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00, 4.00)),
+           fam_incpov_ratio_cat_hs_ccdf = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 1.00, local_ccdf_thresh/100, 3.50, 5.00)),
+           fam_incpov_ratio_cat_to185   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00, 4.00)),
+           fam_incpov_ratio_cat_by50    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 0.5)),
+           fam_incpov_ratio_cat_by75    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.75, 1.50, 2.25, 3.00, 4.00)),
+           fam_incpov_ratio_cat_by100   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 1.0)),
            obs_weight = PWGTP)] %>% 
   .[j = `:=`(work_spouse_status = paste(ifelse(all_work_sch   == 1, "WorkElig",      "NotWorkElig"),
                                         ifelse(spouse_present == 1, "SpousePresent", "NoSpousePresent"),
@@ -220,6 +211,9 @@ acs1_child <-
                                         sep = "_"),
              work_incpov_status75  = paste(ifelse(all_work_sch == 1, "WorkElig", "NotWorkElig"),
                                            fam_incpov_ratio_cat_by75,
+                                           sep = "_"),
+             work_incpov_statushs  = paste(ifelse(all_work_sch == 1, "WorkElig", "NotWorkElig"),
+                                           fam_incpov_ratio_cat_hs_ccdf,
                                            sep = "_"))]
 ```
 
@@ -351,7 +345,6 @@ if (FALSE) {
 
 ```{r calculate selected statistics at the PUMA level with standard errors to facilitate later checks}
 # Function to calculate poverty rates
-
 acs1_child_mod <- 
   acs1_child %>% 
   .[j = child_agegroup_combo := 

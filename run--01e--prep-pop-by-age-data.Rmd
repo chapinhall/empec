@@ -26,7 +26,6 @@ Sys.getenv("census_api_key")
 #Change to most recently available ACS data
 acs5_year <- {acs5_year}
 acs1_year <- base_year
-
 ```
 
 ```{r identify relevant fips codes for population pulls}
