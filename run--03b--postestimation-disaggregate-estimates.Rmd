@@ -1,7 +1,7 @@
 
 ```{r run scripts for necessary packages and objects as necessary}
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
@@ -113,8 +113,8 @@ add_agg_level <- function(ests, agg_level) {
       geo_merge_data <- 
         geo_crosswalk_zcta %>% 
         transmute(GEOID = GEOID, 
-                  ZCTA  = ZCTA, 
-                  geo_part = TRPOPPCT/100)                                      #/!\hk: TRPOPPCT not available in 2020 ZCTA relationship file
+                  ZCTA = ZCTA,
+                  geo_part = TRLANDPCT)
     } else if (agg_level == "aux_geo_label") {
       geo_merge_data <- 
         geo_crosswalk_aux %>% 
@@ -139,7 +139,6 @@ add_agg_level <- function(ests, agg_level) {
       left_join(geo_merge_data,
                 by = "GEOID") %>% 
       data.table()
-    
   }
   
   if (!"geo_part" %in% colnames(ests)) {

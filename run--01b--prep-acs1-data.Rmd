@@ -34,10 +34,10 @@ if (!file.exists(acs1_save_file)) {
 
 if (!"my_state_fip" %in% objects()) {
   my_state_fip <- 
-  fips_codes %>% 
-  filter(state == my_state_abbr) %>% 
-  pull(state_code) %>% 
-  unique()
+    fips_codes %>% 
+    filter(state == my_state_abbr) %>% 
+    pull(state_code) %>% 
+    unique()
 }
 
 ```
@@ -351,13 +351,6 @@ if (FALSE) {
 
 ```{r calculate selected statistics at the PUMA level with standard errors to facilitate later checks}
 # Function to calculate poverty rates
-calc_acs1_puma_pov <- function(my_data, indices) {
-  my_data[indices,
-          j = .(pct_pov = meanNA(fam_incpov_ratio <= 1.00)),
-          by = .(child_agegroup_combo, PUMA)] %>% 
-    .[order(child_agegroup_combo, PUMA)] %>% 
-    pull(pct_pov)
-}
 
 acs1_child_mod <- 
   acs1_child %>% 
@@ -370,12 +363,24 @@ acs1_child_mod <-
       fct_relevel("0to5")] %>% 
   .[order(child_agegroup_combo, PUMA)]
 
-acs1_boot <- boot(acs1_child_mod, calc_acs1_puma_pov, R = 50)                   #/!\ doesn't run with initial R value 200
+calc_acs1_puma_pov <- function(my_data, indices) {
+  # Perform stratified bootstrap sampling of the data, with age and PUMA
+  my_data_boot <- 
+    my_data[j = .SD[sample(.N, .N, replace = TRUE)],
+            by = .(child_agegroup_combo, PUMA)]
+  
+  my_data_boot[j = .(pct_pov = sum(PWGTP[fam_incpov_ratio <= 1.00]) / sum(PWGTP)),
+               by = .(child_agegroup_combo, PUMA)] %>% 
+    .[order(child_agegroup_combo, PUMA)] %>% 
+    pull(pct_pov)
+}
+
+acs1_boot <- boot::boot(acs1_child_mod, calc_acs1_puma_pov, R = 200)
 acs1_puma_stats <- 
   cbind(acs1_boot$data[j = .(child_agegroup_combo, PUMA)] %>% unique(),
-        data.table(pct_pov    = acs1_boot$t0,
+        data.table(pct_pov       = acs1_boot$t0,
                    pct_pov_check = apply(acs1_boot$t, 2, mean)),
-                   pct_pov_se = sqrt(apply(acs1_boot$t, 2, var)))
+                   pct_pov_se    = sqrt(apply(acs1_boot$t, 2, var)))
 ```
 
 

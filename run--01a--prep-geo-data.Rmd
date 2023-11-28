@@ -63,15 +63,15 @@ geo_crosswalk_zcta <-
   fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_tract20_natl.txt") %>%
   #.[STATE == my_state_fip] %>% 
   .[j = GEOID_TRACT_20 := as.character(GEOID_TRACT_20)] %>%
-  .[grepl("^(60|61|62)", GEOID_ZCTA5_20)] %>%
-  .[grep("^17", GEOID_TRACT_20)] %>%
+  .[str_detect(GEOID_ZCTA5_20, glue("^({paste(zcta_starts, collapse = '|')})"))] %>%
+  .[str_detect(GEOID_TRACT_20, glue("^{my_state_fip}"))] %>%
   rename(GEOID = GEOID_TRACT_20,
-         ZCTA  = GEOID_ZCTA5_20)
+         ZCTA  = GEOID_ZCTA5_20) %>% 
+  .[j = TRLANDPCT := AREALAND_PART / sum(AREALAND_PART),
+    by = GEOID]
+    # See next chunk for defense/exploration of this approach for building a field
+    # to apportion tract counts to ZCTAs
   # Source: https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.2020.html#zcta
-  # Note that distinct numbers of GEOID changed from 2010
-  # Issue with no-TRPOPPCT-in-2020 (The Percentage of Total Population of the Census Tract represented by the record)
-  # 2010: https://www.census.gov/programs-surveys/geography/technical-documentation/records-layout/2010-zcta-record-layout.html
-  # 2020: https://www.census.gov/programs-surveys/geography/technical-documentation/records-layout/2020-zcta-record-layout.html
 
 geo_crosswalk <-
   merge(geo_crosswalk_puma,
@@ -85,18 +85,55 @@ if (exists("my_county_fip")) {
 }
 ```
 
-<!-- ### Pull Shapefiles if Necessary ----------------------------------------->
+```{r compare 2010 and 2020 fields in zcta-to-tract crosswalk, eval = developer_mode}
+# In the 2010 ZCTA-to-tract crosswalk, the TRPOPPCT field represented apportionment
+# of population across ZCTA-to-tract overlaps -- "The Percentage of Total Population 
+# of the 2010 Census Tract represented by the record." -- per the 2010 record 
+# layout documentation:
+#   https://www.census.gov/programs-surveys/geography/technical-documentation/records-layout/2010-zcta-record-layout.html
+
+# There is no equivalent in the 2020 file:
+#  https://www.census.gov/programs-surveys/geography/technical-documentation/records-layout/2020-zcta-record-layout.html
+# However, there exists the `AREALAND_PART` which is the portion of the tract within
+# the indicated ZCTA. This is analogous to the `TRAREALANDPCT` field in 2010.
+
+# In this chunk, we look within the 2010 data to examine the correspondence between
+# apportionment via population percentage (which is most desirable) vs via land
+# percentage (which is the best available in 2020)
+geo_crosswalk_zcta_2010 <- 
+  fread("https://www2.census.gov/geo/docs/maps-data/data/rel/zcta_tract_rel_10.txt") %>%
+  .[STATE == my_state_fip] %>% 
+  .[j = GEOID := as.character(GEOID)] %>% 
+  .[j = `:=`(pop_pct  = TRPOPPCT      / 100,
+             land_pct = TRAREALANDPCT / 100)]
+
+geo_crosswalk_zcta_2010 %>% 
+  # Remove fully-contained tracts
+  .[between(pop_pct, 0.05, 0.95)] %>% 
+  ggplot(aes(x = pop_pct,
+             y = land_pct)) +
+  geom_45() +
+  geom_point(alpha = 0.3) +
+  geom_smooth(color = "blue")
+  # Bottom line -- there's a significant amount of scatter, but the trend
+  # follows the 45 relatively closely. However, seems that small overlap areas can
+  # overstated by land and larger overlap areas populations understated.
+  # Note: because this is with respect to % portions of ZCTAs rather than overall
+  # numbers, this is not equivalent to a story of overal low or high density,
+  # but rather relatively lower or higher density within the given ZCTA.
+
+geo_crosswalk_zcta_2010 %>% 
+  # Remove fully-contained tracts
+  .[between(pop_pct, 0.05, 0.95)] %>% 
+  .[j = cor(pop_pct, land_pct)]
+  # Correlation is 0.8, after trimming away extremes with respect to population pct  
+```
+
 
 ```{r auto pull of tract and puma shapefiles}
 
 # Declare which vintage of Census TIGER shapefiles should be pulled
-# /!\ As noted above, we choose a "pre-2020" vintage of TIGER shape files to 
-# align our estimates to Census 2010 geographies. This is ultimately driven by the
-# fact that the 2021 ACS1 data are released for census 2010 geographies, and rather
-# than map all other more up-to-date data sources to that, we are choosing to wait
-# for the release of 2022 ACS1 data, anticipated for September 14, 2023:
-#   https://www.census.gov/programs-surveys/acs/news/data-releases/2022/release.html#:~:text=The%202022%20American%20Community%20Survey%20%28ACS%29%201-year%20estimates,and%20places%20with%20populations%20of%2065%2C000%20or%20more.
-tiger_year <- {base_year}
+tiger_year <- base_year
 
 # Set up input to tigris functions for pulling by county
 # Note that because the "else" value is NULL, the ifelse() has a problem
@@ -104,38 +141,36 @@ if (exists("my_county_fip")) county_val <- my_county_fip else county_val <- NULL
 
 # Note that cb = TRUE requests a lower-res file, which is fine for mapping we want to do
 
-tractShp  <-   tracts(state = my_state_fip, cb = TRUE, year = tiger_year, county = county_val)
-pumaShp   <-    pumas(state = my_state_fip, cb = TRUE, year = tiger_year)                           #/!\Error: Cartographic boundary PUMAs are not yet available for years after 2019. Use the argument `year = 2019` instead to request your data.
-countyShp <- counties(state = my_state_fip, cb = TRUE, year = tiger_year)
-zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_starts)                      #/!\Error: The Census Bureau has not yet released the CB ZCTA file for 2022. Please use the argument `year = 2020` or `cb = FALSE` instead.
+try(tractShp  <-   tracts(state = my_state_fip, cb = TRUE, year = tiger_year, county = county_val), silent = T)
+try(pumaShp   <-    pumas(state = my_state_fip, cb = TRUE, year = tiger_year), silent = T)
+try(countyShp <- counties(state = my_state_fip, cb = TRUE, year = tiger_year), silent = T)
+try(zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_starts), silent = T)
   # Note: we pull zctas differently--with "starts_with" rather than state because
   # the zctas() function can only return by state for years 2000 and 2010 
 ```
 
-```{r gets puma and zcta shapefile from Census website}
+```{r pull puma and zcta shapefiles from Census website if not available from the tigris package pulls above}
 for (geo in c("puma20", "zcta520")) {
   census_suffix <- switch(geo, "puma" = "puma20", "zcta" = "zcta520")
   census_path   <- switch(geo, 
-                          "puma"   = glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/PUMA/"),
-                          "zcta"   = glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/ZCTA520/"))
-  if (geo == "puma20") {
-    download_filename <- glue("state_{my_state_fip}_{census_suffix}.zip")
-    download.file(url      = glue("{census_path}tl_{tiger_year}_{my_state_fip}_{census_suffix}.zip"),
+                          "puma20"   = glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/PUMA/"),
+                          "zcta520"   = glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/ZCTA520/"))
+  if (geo == "puma20" && !exists("pumaShp")) {
+    download_filename <- glue("state_{my_state_fip}_puma20.zip")
+    download.file(url      = glue("{census_path}tl_{tiger_year}_{my_state_fip}_puma20.zip"),
                   destfile = glue("{input_path}{download_filename}.zip"))
     unzip(glue("{input_path}tl_{tiger_year}_{my_state_fip}_{geo}.zip"),
           exdir = str_replace(input_path, "\\/$", ""))
-  } else if (geo == "zcta520") {
-    download_filename <- glue("us_{census_suffix}")
-    download.file(url      = glue("{census_path}tl_{tiger_year}_us_{census_suffix}.zip"),
+    pumaShp <- st_read(glue("{input_path}tl_{tiger_year}_{my_state_fip}_puma20.shp"))
+  } else if (geo == "zcta520" && !exists("zctaShpShp")) {
+    download_filename <- glue("us_zcta520")
+    download.file(url      = glue("{census_path}tl_{tiger_year}_us_zcta520.zip"),
                   destfile = glue("{input_path}{download_filename}.zip"))
-    unzip(glue("{input_path}tl_{tiger_year}_us_{geo}.zip"),
+    unzip(glue("{input_path}tl_{tiger_year}_us_zcta520.zip"),
           exdir = str_replace(input_path, "\\/$", ""))
-    }
+    zctaShp <- st_read(glue("{input_path}tl_{tiger_year}_us_zcta520.shp"))
+  }
 }  
-
-pumaShp <- st_read(glue("{input_path}tl_{tiger_year}_{my_state_fip}_puma20.shp"))
-zctaShp <- st_read(glue("{input_path}tl_{tiger_year}_us_zcta520.shp"))
-
 ```
 
 ```{r rename certain fields in shapefiles to agree with those in the crosswalks}
