@@ -68,10 +68,6 @@ geo_crosswalk_zcta <-
   rename(GEOID = GEOID_TRACT_20,
          ZCTA  = GEOID_ZCTA5_20)
   # Source: https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.2020.html#zcta
-  # Note that distinct numbers of GEOID changed from 2010
-  # Issue with no-TRPOPPCT-in-2020 (The Percentage of Total Population of the Census Tract represented by the record)
-  # 2010: https://www.census.gov/programs-surveys/geography/technical-documentation/records-layout/2010-zcta-record-layout.html
-  # 2020: https://www.census.gov/programs-surveys/geography/technical-documentation/records-layout/2020-zcta-record-layout.html
 
 geo_crosswalk <-
   merge(geo_crosswalk_puma,
@@ -84,6 +80,51 @@ if (exists("my_county_fip")) {
   geo_crosswalk <- geo_crosswalk[COUNTYFIP == my_county_fip]
 }
 ```
+
+```{r compare 2010 and 2020 fields in zcta-to-tract crosswalk, eval = developer_mode}
+# In the 2010 ZCTA-to-tract crosswalk, the TRPOPPCT field represented apportionment
+# of population across ZCTA-to-tract overlaps -- "The Percentage of Total Population 
+# of the 2010 Census Tract represented by the record." -- per the 2010 record 
+# layout documentation:
+#   https://www.census.gov/programs-surveys/geography/technical-documentation/records-layout/2010-zcta-record-layout.html
+
+# There is no equivalent in the 2020 file:
+#  https://www.census.gov/programs-surveys/geography/technical-documentation/records-layout/2020-zcta-record-layout.html
+# However, there exists the `AREALAND_PART` which is the portion of the tract within
+# the indicated ZCTA. This is analogous to the `TRAREALANDPCT` field in 2010.
+
+# In this chunk, we look within the 2010 data to examine the correspondence between
+# apportionment via population percentage (which is most desirable) vs via land
+# percentage (which is the best available in 2020)
+geo_crosswalk_zcta_2010 <- 
+  fread("https://www2.census.gov/geo/docs/maps-data/data/rel/zcta_tract_rel_10.txt") %>%
+  .[STATE == my_state_fip] %>% 
+  .[j = GEOID := as.character(GEOID)] %>% 
+  .[j = .(pop_pct  = TRPOPPCT      / 100,
+          land_pct = TRAREALANDPCT / 100)]
+
+geo_crosswalk_zcta_2010 %>% 
+  # Remove fully-contained tracts
+  .[between(pop_pct, 0.05, 0.95)] %>% 
+  ggplot(aes(x = pop_pct,
+             y = land_pct)) +
+  geom_45() +
+  geom_point(alpha = 0.3) +
+  geom_smooth(color = "blue")
+  # Bottom line -- there's a significant amount of scatter, but the trend
+  # follows the 45 relatively closely. However, seems that small overlap areas can
+  # overstated by land and larger overlap areas populations understated.
+  # Note: because this is with respect to % portions of ZCTAs rather than overall
+  # numbers, this is not equivalent to a story of overal low or high density,
+  # but rather relatively lower or higher density within the given ZCTA.
+
+geo_crosswalk_zcta_2010 %>% 
+  # Remove fully-contained tracts
+  .[between(pop_pct, 0.05, 0.95)] %>% 
+  .[j = cor(pop_pct, land_pct)]
+  # Correlation is 0.8, after trimming away extremes with respect to population pct  
+```
+
 
 ```{r auto pull of tract and puma shapefiles}
 
