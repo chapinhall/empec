@@ -20,7 +20,7 @@ load(file = glue("{output_path}Now-cast counts at the tract level, pre-disaggreg
 
 Our strategy to disaggregate estimates by age group--primarily to break our estimates for ages 0-5 into 0-2 and 3-5--is to take the empirical age breakdown specific to each outcome, from the ACS 1-year data. 
 
-```{r calculate puma-specific age breakdowns}
+```{r calculate outcome-specific age breakdowns}
 calc_breakdown <- function(acs1_outcome_sub, outcome_var) {
   acs1_age_breakdown <-
     acs1_outcome_sub %>% 
@@ -32,34 +32,23 @@ calc_breakdown <- function(acs1_outcome_sub, outcome_var) {
            outcome_var = outcome_var)
 }
 
-if (local_ccdf_thresh == 185) {
-  ccdf_elig_cats <- c("WorkElig_0%-50%", 
-                      "WorkElig_50%-125%",
-                      "WorkElig_125%-185%")
-} else if (local_ccdf_thresh == 200) {
-  ccdf_elig_cats <- c("WorkElig_0%-100%", 
-                      "WorkElig_100%-200%")
-} else if (local_ccdf_thresh == 225) {
-  ccdf_elig_cats <- c("WorkElig_0%-75%", 
-                      "WorkElig_75%-150%",
-                      "WorkElig_150%-225%")
-} 
-
 age_breakdown_byoutcome <-
- bind_rows(calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_mix   == "0%-50%"),
-                          "incpov_le50_post_adj"),
-           calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 == "0%-100%"), 
-                          "incpov_le100_post_adj"),
-           calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_to185 %in% c("0%-50%", "50%-125%", "125%-185%")), 
-                          "incpov_le185_post_adj"),
-           calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 %in% c("0%-100%", "100%-200%")), 
-                          "incpov_le200_post_adj"),
-           calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by75  %in% c("0%-75%", "75%-150%", "150%-225%")), 
-                          "incpov_le225_post_adj"),
-           calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 %in% c("0%-100%", "100%-200%", "200%-300%", "300%-400%")), 
-                          "incpov_le400_post_adj"),
-           calc_breakdown(acs1_child %>% filter(work_incpov_status75 %in% ccdf_elig_cats),
-                          "ccdf_elig_tight_inc_adj"))
+ bind_rows(
+   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_mix   == "0%-50%"),
+                  "incpov_le50_post_adj"),
+   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 == "0%-100%"), 
+                  "incpov_le100_post_adj"),
+   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_to185 %in% c("0%-50%", "50%-125%", "125%-185%")), 
+                  "incpov_le185_post_adj"),
+   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 %in% c("0%-100%", "100%-200%")), 
+                  "incpov_le200_post_adj"),
+   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by75  %in% c("0%-75%", "75%-150%", "150%-225%")), 
+                  "incpov_le225_post_adj"),
+   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 %in% c("0%-100%", "100%-200%", "200%-300%", "300%-400%")), 
+                  "incpov_le400_post_adj"),
+   calc_breakdown(acs1_child %>% filter(work_incpov_statushs %in% c("WorkElig_0%-100%", glue("WorkElig_100%-{local_ccdf_thresh}%"))),
+                  "ccdf_elig_tight_inc_adj")
+   )
 
 ```
 
@@ -73,7 +62,7 @@ nowcast_parallel_counts <-
 # Prep overall population for under 5 breakdown
 pop_by_age_under5 <- 
   pop_by_age %>% 
-  dplyr::select(GEOID, year, age_0to2 = age_0to2_count, age_3to5 = age_3to5_count) %>% 
+  select(GEOID, year, age_0to2 = age_0to2_count, age_3to5 = age_3to5_count) %>% 
   pivot_longer(cols = matches("age"),
                names_to = "child_agegroup",
                values_to = "pop_count")
@@ -81,10 +70,10 @@ pop_by_age_under5 <-
 nowcast_elig_counts_0to5 <- 
   nowcast_parallel_counts %>% 
   filter(age == "age_0to5") %>% 
-  merge(age_breakdown_byoutcome %>% dplyr::select(outcome_var, child_agegroup, pct_age_of_lt5),
+  merge(age_breakdown_byoutcome %>% select(outcome_var, child_agegroup, pct_age_of_lt5),
         by = "outcome_var",
         allow.cartesian = TRUE) %>% 
-  dplyr::select(-pop_count) %>% 
+  select(-pop_count) %>% 
   merge(pop_by_age_under5,
         by = c("GEOID", "year", "child_agegroup"),
         all.x = TRUE) %>% 
@@ -92,9 +81,9 @@ nowcast_elig_counts_0to5 <-
          count_se = pct_age_of_lt5 * count_se)
 
 nowcast_elig_counts_final <- 
-  bind_rows(nowcast_elig_counts_0to5 %>% dplyr::select(-age, age = child_agegroup),
+  bind_rows(nowcast_elig_counts_0to5 %>% select(-age, age = child_agegroup),
             nowcast_parallel_counts) %>% 
-  dplyr::select(outcome_var, GEOID, pd, year, age, share, share_se, count, count_se, pop_count, pop_count_se) %>% 
+  select(outcome_var, GEOID, pd, year, age, share, share_se, count, count_se, pop_count, pop_count_se) %>% 
   arrange(outcome_var, GEOID, pd, age) %>% 
   data.table()
 
