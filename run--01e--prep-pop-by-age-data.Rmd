@@ -884,6 +884,15 @@ ggplot(comp_pop,
 pop_by_age <- pop_by_age_2
 ```
 
+```{r copies data for 2023}
+pop_2023 <- pop_by_age %>% 
+  filter(year == 2022) %>%
+  mutate(year = 2023)
+pop_by_age <- rbind(pop_by_age, pop_2023) %>%
+  arrange(GEOID)
+rm(pop_2023)
+```
+
 ```{r save}
 save(pop_by_age,
      file = glue("{output_path}pop_data_{my_output_tag}.Rda"))
