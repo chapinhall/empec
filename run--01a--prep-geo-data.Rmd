@@ -66,7 +66,11 @@ geo_crosswalk_zcta <-
   .[str_detect(GEOID_ZCTA5_20, glue("^({paste(zcta_starts, collapse = '|')})"))] %>%
   .[str_detect(GEOID_TRACT_20, glue("^{my_state_fip}"))] %>%
   rename(GEOID = GEOID_TRACT_20,
-         ZCTA  = GEOID_ZCTA5_20)
+         ZCTA  = GEOID_ZCTA5_20) %>% 
+  .[j = TRLANDPCT := AREALAND_PART / sum(AREALAND_PART),
+    by = GEOID]
+    # See next chunk for defense/exploration of this approach for building a field
+    # to apportion tract counts to ZCTAs
   # Source: https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.2020.html#zcta
 
 geo_crosswalk <-
@@ -100,8 +104,8 @@ geo_crosswalk_zcta_2010 <-
   fread("https://www2.census.gov/geo/docs/maps-data/data/rel/zcta_tract_rel_10.txt") %>%
   .[STATE == my_state_fip] %>% 
   .[j = GEOID := as.character(GEOID)] %>% 
-  .[j = .(pop_pct  = TRPOPPCT      / 100,
-          land_pct = TRAREALANDPCT / 100)]
+  .[j = `:=`(pop_pct  = TRPOPPCT      / 100,
+             land_pct = TRAREALANDPCT / 100)]
 
 geo_crosswalk_zcta_2010 %>% 
   # Remove fully-contained tracts
