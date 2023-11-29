@@ -563,8 +563,11 @@ transition_pred_vars_acs5 <-
   c("ed_lths", "ed_hs", "ed_somecoll", "ed_coll",
     "pctFemale_noSp_est", "pctMale_noSp_est", "pctMarried_est")
 
-transition_pred_vars_toadd_pov <- 
+transition_pred_vars_toadd_pov_mix <- 
   c("share_0_50", "share_50_100", "share_100_200", "share_200_300", "share_300_400", "share_400")
+
+transition_pred_vars_toadd_pov_by100s <- 
+  c("share_0_100", "share_100_200", "share_200_300", "share_300_400", "share_400")
 
 transition_pred_vars_toadd_ccdf_elig_pov <- 
     str_subset(cn(cps_child_base_post),
@@ -709,15 +712,18 @@ for (cps_recency in c("most_recent", "allbase")) {
                           "incpov_le225_post_adj", 
                           "incpov_le400_post_adj", 
                           "ccdf_elig_tight_inc_adj")
-        sae_controls <- transition_pred_vars_toadd_pov
+        if (str_detect(sae_spec, "incpov.+_100_")) {
+          sae_controls <- transition_pred_vars_toadd_pov_by100s
+        } else {
+          sae_controls <- transition_pred_vars_toadd_pov_mix
+        }
       } else if (str_detect(sae_spec, "^ccdf")) {
         outcome_vars <- "ccdf_elig_tight_inc_adj"
-        sae_controls <- 
-          if(str_detect(sae_spec, "wk_sp")) {
-            transition_pred_vars_toadd_ccdf_elig_spouse
-          } else {
-            transition_pred_vars_toadd_ccdf_elig_pov
-          }
+        if (str_detect(sae_spec, "wk_sp")) {
+          sae_controls <- transition_pred_vars_toadd_ccdf_elig_spouse
+        } else {
+          sae_controls <- transition_pred_vars_toadd_ccdf_elig_pov
+        }
       }
     
       for (outcome_var in outcome_vars) {
@@ -970,7 +976,7 @@ plot_trans_sensitivity_comp <- function(data, comp_col, base_val) {
 ```{r compare SAE specifications for HS prediction}
 plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & cps_base_recency == "most_recent"],
                             comp_col = "sae_spec",
-                            base_val = "incpov_ctrls2534_05") +
+                            base_val = "incpov_ctrls_mix_05") +
   labs(title = case_when(my_output_tag == "IL" ~ "For Head Start, Sensitivities Seem Reasonably Consistent, Except for Simplest Spec",
                          TRUE ~ ""),
        x = "Full Income/Poverty Controls, with Employment Adjustment",
@@ -988,7 +994,7 @@ plot_trans_sensitivity_comp(nowcast_out[outcome_var == "ccdf_elig_tight_inc_adj"
 ```
 
 ```{r compare CPS subsetting sensitivity for HS prediction - spec 1}
-plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & sae_spec == "incpov_ctrls2534_05"],
+plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & sae_spec == "incpov_ctrls_mix_05"],
                             comp_col = "cps_geo_subsample",
                             base_val = "none") +
   labs(title = case_when(my_output_tag == "IL" ~ "For Head Start, Sensitivities Seem Reasonably Consistent, Except for Simplest Spec",
@@ -998,7 +1004,7 @@ plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" &
 ```
 
 ```{r compare CPS subsetting sensitivity for HS prediction - spec 2}
-plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & sae_spec == "incpov_ctrls2534_05"],
+plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & sae_spec == "incpov_ctrls_mix_05"],
                             comp_col = "cps_base_recency",
                             base_val = "most_recent") +
   labs(title = case_when(my_output_tag == "IL" ~ "For HS, Using the 2020 Baseline yields 25% lower eligibility estimates",
@@ -1011,7 +1017,7 @@ plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" &
 comp_sae <- 
   build_trans_sensitivity_comp(nowcast_out,
                                comp_col = "sae_spec",
-                               base_val = "incpov_ctrls2534_05")
+                               base_val = "incpov_ctrls_mix_05")
 
 comp_sae[j = .(rho = cor(elig_base, elig_share)),
          by = .(sae_spec, outcome_var, cps_base_recency, cps_geo_subsample)] %>% 

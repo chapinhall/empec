@@ -160,6 +160,24 @@ if (exists("my_aux_geo")) {
 }
 ```
 
+```{r produce simple output of the aggregates}
+my_write.csv <- function(x, suffix) {
+  write.csv(x, 
+            file = glue("{output_path}Simple elig output by age, period, and outcome -- {suffix}.csv"),
+            row.names = FALSE)
+}
+
+my_write.csv(nowcast_agg_tract, "by tract")
+my_write.csv(nowcast_agg_zip,   "by zcta")
+my_write.csv(nowcast_agg_cty,   "by county")
+
+if (exists("my_aux_geo")) {
+  my_write.csv(nowcast_agg_aux, glue("by {my_aux_geo_desc}"))
+}
+
+```
+
+
 #### Generate Excel Tables with Estimates at Each Geographic Aggregation for CCDF
 
 ```{r develop time period indication for output }
@@ -282,48 +300,25 @@ if (exists("my_aux_geo")) {
 }
 ```
 
-```{r write various levels of geographic aggregation out to file for le50, le100, le200}
+```{r write various levels of geographic aggregation out to file for le50 100 and 200}
 if (exists("my_aux_geo")) {
   write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "le50"),
                    agg_level = "aux_geo_label",
                    sheet_name = my_aux_geo_desc, 
-                   add = TRUE,
+                   add = FALSE,
                    out_label = "Pov_below_50")
   
   write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "le100"),
                    agg_level = "aux_geo_label",
                    sheet_name = my_aux_geo_desc, 
-                   add = TRUE,
+                   add = FALSE,
                    out_label = "Pov_below_100")
   
   write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "le200"),
                    agg_level = "aux_geo_label",
                    sheet_name = my_aux_geo_desc, 
-                   add = TRUE,
+                   add = FALSE,
                    out_label = "Pov_below_200")
-}
-```
-
-```{r write various levels of geographic aggregation out to file for hs and upk}
-write_agg_output(x = nowcast_agg_zip %>% filter(str_detect(outcome_var, "hs|upk")),
-                 agg_level = "ZCTA",   
-                 sheet_name = "Zip Code", 
-                 add = FALSE,
-                 out_label = "HS and UPK")
-
-write_agg_output(x = nowcast_agg_cty %>% filter(str_detect(outcome_var, "hs|upk")), 
-                 agg_level = "County", 
-                 sheet_name = "County",
-                 add = TRUE,
-                 out_label = "HS and UPK")
-
-if (exists("my_aux_geo")) {
-  nowcast_ests_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  
-  write_agg_output(x = nowcast_ests_aux %>% filter(str_detect(outcome_var, "hs|upk")),
-                   agg_level = "aux_geo_label",
-                   sheet_name = my_aux_geo_desc, 
-                   add = TRUE,
-                   out_label = "HS and UPK")
 }
 ```
 

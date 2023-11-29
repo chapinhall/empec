@@ -8,8 +8,8 @@ pubic audiences are suppressed or moved to code chunks that can optionally be
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 if (!"calc_cps_transitions" %in% objects()) source_rmd("method--nowcasting-functions.Rmd", echo = FALSE)
 ```
@@ -17,6 +17,8 @@ if (!"calc_cps_transitions" %in% objects()) source_rmd("method--nowcasting-funct
 ```{r load final results from now-casting and select a sensitivity}
 load(file = glue("{output_path}Eligibility estimates using conditional transition ratio - {my_output_tag}.Rda"))
 load(file = glue("{output_path}pop_data_{my_output_tag}.Rda"))
+load(file = glue("{output_path}geo_data_{my_output_tag}.Rda"))
+load(file = glue("{output_path}acs5_data_{my_output_tag}.Rda"))
 ```
 
 ```{r select a sensitivity}
@@ -71,38 +73,38 @@ nowcast_parallel_setup <-
 nowcast_parallel_incpov_le50 <- 
   nowcast_parallel_setup %>% 
   filter(outcome_var == "incpov_le50_post_adj",
-         str_detect(sae_spec, "incpov_ctrls2534")) %>% 
+         str_detect(sae_spec, "incpov_ctrls_mix")) %>% 
   mutate(base_share = share_0_50)
 
 nowcast_parallel_incpov_le100 <- 
   nowcast_parallel_setup %>% 
   filter(outcome_var == "incpov_le100_post_adj",
-         str_detect(sae_spec, "incpov_ctrls2534")) %>% 
-  mutate(base_share = share_0_50 + share_50_100)
+         str_detect(sae_spec, "incpov_ctrls_100")) %>% 
+  mutate(base_share = share_0_100)
 
 nowcast_parallel_incpov_le185 <- 
   nowcast_parallel_setup %>% 
   filter(outcome_var == "incpov_le185_post_adj",
-         str_detect(sae_spec, "incpov_ctrls2534")) %>% 
+         str_detect(sae_spec, "incpov_ctrls_100")) %>% 
   mutate(base_share = NA)
 
 nowcast_parallel_incpov_le200 <- 
   nowcast_parallel_setup %>% 
   filter(outcome_var == "incpov_le200_post_adj",
-         str_detect(sae_spec, "incpov_ctrls2534")) %>% 
-  mutate(base_share = share_0_50 + share_50_100 + share_100_200)
+         str_detect(sae_spec, "incpov_ctrls_100")) %>% 
+  mutate(base_share = share_0_100 + share_100_200)
 
 nowcast_parallel_incpov_le225 <- 
   nowcast_parallel_setup %>% 
   filter(outcome_var == "incpov_le225_post_adj",
-         str_detect(sae_spec, "incpov_ctrls2534")) %>% 
+         str_detect(sae_spec, "incpov_ctrls_100")) %>% 
   mutate(base_share = NA)
 
 nowcast_parallel_incpov_le400 <- 
   nowcast_parallel_setup %>% 
   filter(outcome_var == "incpov_le400_post_adj",
-         str_detect(sae_spec, "incpov_ctrls2534")) %>% 
-  mutate(base_share = share_0_50 + share_50_100 + share_100_200 + share_200_300 + share_300_400)
+         str_detect(sae_spec, "incpov_ctrls_100")) %>% 
+  mutate(base_share = share_0_100 + share_100_200 + share_200_300 + share_300_400)
 
 nowcast_parallel_ccdf_elig <- 
   nowcast_parallel_setup %>% 
@@ -110,21 +112,6 @@ nowcast_parallel_ccdf_elig <-
          str_detect(sae_spec, "ccdf_wk_pov")) %>% 
   mutate(base_share = share_WorkElig_0_100 + get(glue("share_WorkElig_100_{local_ccdf_thresh}")))
 
-# This is the old scheme of custom breakpoints below the ccdf cutoff, which were
-# not necessarily aligned with head start eligibility (of income of 100)
-# if (local_ccdf_thresh == 185) {
-#   nowcast_parallel_ccdf_elig <- 
-#     nowcast_parallel_ccdf_elig %>% 
-#     mutate(base_share = share_WorkElig_0_50 + share_WorkElig_50_125 + share_WorkElig_125_185)
-# } else if (local_ccdf_thresh == 200) {
-#   nowcast_parallel_ccdf_elig <- 
-#     nowcast_parallel_ccdf_elig %>% 
-#     mutate(base_share = share_WorkElig_0_100 + share_WorkElig_100_200)
-# } else if (local_ccdf_thresh == 225) {
-#   nowcast_parallel_ccdf_elig <- 
-#     nowcast_parallel_ccdf_elig %>% 
-#     mutate(base_share = share_WorkElig_0_75 + share_WorkElig_75_150 + share_WorkElig_150_225)
-# }
 ```
 
 
