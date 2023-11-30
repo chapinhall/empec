@@ -6,7 +6,8 @@ reason, comments and headings that are not relevant to a final report to
 pubic audiences are suppressed or moved to code chunks that can optionally be 
 `echo`ed as desired. -->
 
-```{r run scripts for necessary packages and objects as necessary}
+```{r}
+# run scripts for necessary packages and objects as necessary
 if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
 if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)

@@ -19,6 +19,9 @@ for (p in packages.list) {
                                          verbose = FALSE))
 }
 
+# Suppress warnings from dplyr::summarise() with group_by()s
+options(dplyr.summarise.inform = FALSE)
+
 meanNA <- function(...) mean(..., na.rm = TRUE)
  sumNA <- function(...)  sum(..., na.rm = TRUE)
  minNA <- function(...)  min(..., na.rm = TRUE)

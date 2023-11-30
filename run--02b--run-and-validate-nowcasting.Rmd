@@ -8,8 +8,8 @@ pubic audiences are suppressed or moved to code chunks that can optionally be
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 if (!"calc_cps_transitions" %in% objects()) source_rmd("method--nowcasting-functions.Rmd", echo = FALSE)
 ```
@@ -17,13 +17,7 @@ if (!"calc_cps_transitions" %in% objects()) source_rmd("method--nowcasting-funct
 ```{r load data for now-casting run}
 # Load prepped data
 for (f in c("geo", "acs1", "cps", "acs5", "pop")) {
-  # Note: the cps data is national, and thus doesn't depend on locality or 
-  # sensitivity, thus it's neither saved nor loaded with a particular output tag
-  if (f == "cps") {
-    load(file = glue("{output_path}{f}_data.Rda"))
-  } else {
-    load(file = glue("{output_path}{f}_data_{my_output_tag}.Rda"))
-  }
+  load(file = glue("{output_path}{f}_data_{my_output_tag}.Rda"))
 }
 
 # Load SAE estimates
@@ -63,9 +57,9 @@ visualize_cps_transitions <- function(trans_calcs, # transition calculations out
                                       vul2_label,  # Label for the second vulnerability field
                                       title) {
   ggplot(trans_calcs[j = outcome_label := label_outcome(outcome_var)],
-         aes_string(x = vul_vars[1],
-                    y = "ratio_mean",
-                    fill = vul_vars[2])) +
+         aes(x = get(vul_vars[1]),
+             y = ratio_mean,
+             fill = get(vul_vars[2]))) +
   geom_bar(stat = "identity",
            position = "dodge") +
   geom_hline(yintercept = 1.0) +
@@ -414,11 +408,34 @@ cps_child_base_post <-
          share_225_300 = 1*(fam_incpov_ratio_cat_by75_adj  == "225%-300%"),
          share_250_300 = 1*(fam_incpov_ratio_cat_by50_adj  == "250%-300%"),
          share_300_400 = 1*(fam_incpov_ratio_cat_by100_adj == "300%-400%"),
-         share_400     = 1*(fam_incpov_ratio_cat_by100_adj == "400%+"))
+         share_400     = 1*(fam_incpov_ratio_cat_by100_adj == "400%+"),
+         
+         # Develop income measures for the HS-aligned CCDF categories
+         share_100_ccdf = 1*(fam_incpov_ratio_cat_hs_ccdf_adj == glue("100%-{local_ccdf_thresh}%")),
+         share_ccdf_350 = 1*(fam_incpov_ratio_cat_hs_ccdf_adj == glue("{local_ccdf_thresh}%-350%")),
+         share_350_500  = 1*(fam_incpov_ratio_cat_hs_ccdf_adj == "350%-500%"),
+         share_500      = 1*(fam_incpov_ratio_cat_hs_ccdf_adj == "500%+"),
+         
+         # Develop interactions
+         share_NotWorkElig_0_100    = (1 - ccdf_elig_loose)*share_0_100,
+         share_NotWorkElig_100_ccdf = (1 - ccdf_elig_loose)*share_100_ccdf,
+         share_NotWorkElig_ccdf_350 = (1 - ccdf_elig_loose)*share_ccdf_350,
+         share_NotWorkElig_350_500  = (1 - ccdf_elig_loose)*share_350_500,
+         share_NotWorkElig_500      = (1 - ccdf_elig_loose)*share_500,
+         share_WorkElig_0_100       =      ccdf_elig_loose *share_0_100,
+         share_WorkElig_100_ccdf    =      ccdf_elig_loose *share_100_ccdf,
+         share_WorkElig_ccdf_350    =      ccdf_elig_loose *share_ccdf_350,
+         share_WorkElig_350_500     =      ccdf_elig_loose *share_350_500,
+         share_WorkElig_500         =      ccdf_elig_loose *share_500)
+
+to_rename <- str_subset(cn(cps_child_base_post), "share_.+_ccdf")
+new_names <- str_replace(to_rename, "ccdf", as.character(local_ccdf_thresh))
+  
+setnames(cps_child_base_post,
+         old = to_rename,
+         new = new_names)
 
 # Generate work eligibility and income interactions consistent with SAE methods.
-# At the same time, also make sure to create un-interacted income categories
-# (as necessary) for the sake of the prediction step.
 
 if (local_ccdf_thresh == 185) {
   cps_child_base_post <- 
@@ -435,6 +452,9 @@ if (local_ccdf_thresh == 185) {
            share_WorkElig_185_300    =      ccdf_elig_loose *share_185_300,
            share_WorkElig_300_400    =      ccdf_elig_loose *share_300_400,
            share_WorkElig_400        =      ccdf_elig_loose *share_400)
+  ccdf_spec_vars <- 
+    str_subset(cn(cps_child_base_post),
+               "share_(Not)?WorkElig_(0_50|50_125|125_185|185_300|300_400|400)")
   
 } else if (local_ccdf_thresh == 200) {
   cps_child_base_post <- 
@@ -451,6 +471,9 @@ if (local_ccdf_thresh == 185) {
            share_WorkElig_200_300    =      ccdf_elig_loose *share_200_300,
            share_WorkElig_300_400    =      ccdf_elig_loose *share_300_400,
            share_WorkElig_400        =      ccdf_elig_loose *share_400)
+  ccdf_spec_vars <- 
+    str_subset(cn(cps_child_base_post),
+               "share_(Not)?WorkElig_(0_50|50_100|100_200|200_300|300_400|400)")
   
 } else if (local_ccdf_thresh == 225) {
   cps_child_base_post <- 
@@ -467,6 +490,9 @@ if (local_ccdf_thresh == 185) {
            share_WorkElig_225_300    =      ccdf_elig_loose *share_225_300,
            share_WorkElig_300_400    =      ccdf_elig_loose *share_300_400,
            share_WorkElig_400        =      ccdf_elig_loose *share_400)
+  ccdf_spec_vars <- 
+    str_subset(cn(cps_child_base_post),
+               "share_(Not)?WorkElig_(0_75|75_150|150_225|225_300|300_400|400)")
 }
 ```
 
@@ -476,7 +502,13 @@ cps_child_base_post[j = YEAR_MONTH_p := paste(YEAR_p,
                                               str_pad(MONTH_p, side = "left", pad = "0", width = 2), 
                                               sep = "-")]
 
-most_recent_months <- cps_child_base_post %>% pull(YEAR_MONTH_p) %>% setdiff("NA-NA") %>% unique() %>% sort(decreasing = TRUE) %>% .[1:3]
+most_recent_months <- 
+  cps_child_base_post %>% 
+  pull(YEAR_MONTH_p) %>% 
+  setdiff("NA-NA") %>% 
+  unique() %>% 
+  sort(decreasing = TRUE) %>% 
+  .[1:3]
 
 cps_reg_sample_most_recent <- 
   cps_child_base_post[YEAR_MONTH_p %in% most_recent_months]
@@ -531,16 +563,22 @@ transition_pred_vars_acs5 <-
   c("ed_lths", "ed_hs", "ed_somecoll", "ed_coll",
     "pctFemale_noSp_est", "pctMale_noSp_est", "pctMarried_est")
 
-transition_pred_vars_toadd_pov      <- 
+transition_pred_vars_toadd_pov_mix <- 
   c("share_0_50", "share_50_100", "share_100_200", "share_200_300", "share_300_400", "share_400")
 
+transition_pred_vars_toadd_pov_by100s <- 
+  c("share_0_100", "share_100_200", "share_200_300", "share_300_400", "share_400")
+
 transition_pred_vars_toadd_ccdf_elig_pov <- 
-  str_subset(colnames(cps_child_base_post),
-             "share_(Not)?WorkElig_\\d")
+    str_subset(cn(cps_child_base_post),
+               "share_(Not)?WorkElig_(0_100|100_ccdf|ccdf_350|350_500|500)")
+  # the prior specification, which was not necessarily aligned with 
+  # poverty
+  # ccdf_spec_vars 
 
 transition_pred_vars_toadd_ccdf_elig_spouse <- 
   str_subset(colnames(cps_child_base_post),
-             "share_(Not)?WorkElig_\\D")
+             "share_(Not)?WorkElig_(No)?Spouse")
 
 # Set reference group categories
 transition_pred_vars_toomit <- 
@@ -674,21 +712,24 @@ for (cps_recency in c("most_recent", "allbase")) {
                           "incpov_le225_post_adj", 
                           "incpov_le400_post_adj", 
                           "ccdf_elig_tight_inc_adj")
-        sae_controls <- transition_pred_vars_toadd_pov
+        if (str_detect(sae_spec, "incpov.+_100_")) {
+          sae_controls <- transition_pred_vars_toadd_pov_by100s
+        } else {
+          sae_controls <- transition_pred_vars_toadd_pov_mix
+        }
       } else if (str_detect(sae_spec, "^ccdf")) {
         outcome_vars <- "ccdf_elig_tight_inc_adj"
-        sae_controls <- 
-          if(str_detect(sae_spec, "wk_sp")) {
-            transition_pred_vars_toadd_ccdf_elig_spouse
-          } else {
-            transition_pred_vars_toadd_ccdf_elig_pov
-          }
+        if (str_detect(sae_spec, "wk_sp")) {
+          sae_controls <- transition_pred_vars_toadd_ccdf_elig_spouse
+        } else {
+          sae_controls <- transition_pred_vars_toadd_ccdf_elig_pov
+        }
       }
     
       for (outcome_var in outcome_vars) {
-        
-        # print(glue("Running CPS recency {cps_recency}, CPS geo subsample {cps_geo_subsample}, ",
-        #            "sae_spec {sae_spec}, outcome variable {outcome_var}"))
+
+        print(glue("Running CPS recency {cps_recency}, CPS geo subsample {cps_geo_subsample}, ",
+                   "sae_spec {sae_spec}, outcome variable {outcome_var}"))
         count_est_output <- 
           estimate_transition_counts(sae_spec_name   = glue("sae_results_{sae_spec}"),
                                      share_calc_var  = ifelse(use_only_sae_model_estimates,
@@ -935,7 +976,7 @@ plot_trans_sensitivity_comp <- function(data, comp_col, base_val) {
 ```{r compare SAE specifications for HS prediction}
 plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & cps_base_recency == "most_recent"],
                             comp_col = "sae_spec",
-                            base_val = "incpov_ctrls2534_05") +
+                            base_val = "incpov_ctrls_mix_05") +
   labs(title = case_when(my_output_tag == "IL" ~ "For Head Start, Sensitivities Seem Reasonably Consistent, Except for Simplest Spec",
                          TRUE ~ ""),
        x = "Full Income/Poverty Controls, with Employment Adjustment",
@@ -953,7 +994,7 @@ plot_trans_sensitivity_comp(nowcast_out[outcome_var == "ccdf_elig_tight_inc_adj"
 ```
 
 ```{r compare CPS subsetting sensitivity for HS prediction - spec 1}
-plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & sae_spec == "incpov_ctrls2534_05"],
+plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & sae_spec == "incpov_ctrls_mix_05"],
                             comp_col = "cps_geo_subsample",
                             base_val = "none") +
   labs(title = case_when(my_output_tag == "IL" ~ "For Head Start, Sensitivities Seem Reasonably Consistent, Except for Simplest Spec",
@@ -963,7 +1004,7 @@ plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" &
 ```
 
 ```{r compare CPS subsetting sensitivity for HS prediction - spec 2}
-plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & sae_spec == "incpov_ctrls2534_05"],
+plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" & sae_spec == "incpov_ctrls_mix_05"],
                             comp_col = "cps_base_recency",
                             base_val = "most_recent") +
   labs(title = case_when(my_output_tag == "IL" ~ "For HS, Using the 2020 Baseline yields 25% lower eligibility estimates",
@@ -976,7 +1017,7 @@ plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" &
 comp_sae <- 
   build_trans_sensitivity_comp(nowcast_out,
                                comp_col = "sae_spec",
-                               base_val = "incpov_ctrls2534_05")
+                               base_val = "incpov_ctrls_mix_05")
 
 comp_sae[j = .(rho = cor(elig_base, elig_share)),
          by = .(sae_spec, outcome_var, cps_base_recency, cps_geo_subsample)] %>% 
