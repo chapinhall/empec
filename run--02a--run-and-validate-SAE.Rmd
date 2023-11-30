@@ -523,7 +523,7 @@ How much do discrepancies between model and direct estimates exist across PUMAs?
 
 ```{r}
 plot_by_ordered_puma <- 
-  sae_results_incpov_ctrls2534_05_out %>% 
+  sae_results_incpov_ctrls_mix_05_out %>% 
   .[j = rank := rank(share_direct, ties.method = "random"), 
     by = vc_value] %>% 
   .[j = puma_by_rank := factor(PUMA, levels = unique(PUMA[order(rank)])),
@@ -713,7 +713,7 @@ if (str_detect(my_output_tag, "Cook2023")) {
 
 sae_results_incpov_ctrls_mix_05[["agg_comp_fh"]]$agg_comp_plot +
   labs(title = "PUMA-level SAE Estimates vs ACS1 Counts",
-       subtitle = "Inc-to-Pov, Extended Ctrls, Model-based Est, Ages 0-5",
+       subtitle = "Inc-to-Pov, Extended Ctrls, FH-based Est, Ages 0-5",
        x = "Observed ACS 1-year Counts") 
 
 sae_results_incpov_ctrls_mix_612[["agg_comp_fh"]]$agg_comp_plot +
@@ -932,7 +932,7 @@ compare_sae_lt100fpl(
   title = case_when(my_output_tag == "IL"       ~ diagnostic_note,
                     my_output_tag == "Cook2022" ~ diagnostic_note,
                     TRUE ~ ""),
-  xlab = "Observed ACS 5-year Poverty Rate, Ages 6-12 -- Rich Spec",
+  xlab = "Observed ACS 5-year Poverty Rate, Ages 6-12 -- Rich Spec - Mixed Interval FPL",
   ylab = "SAE Estimate of Poverty Rate, Ages 6-12") +
   theme_minimal()
 ```

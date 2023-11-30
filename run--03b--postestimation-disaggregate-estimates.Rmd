@@ -1,7 +1,6 @@
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
 if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
@@ -98,15 +97,15 @@ add_agg_level <- function(ests, agg_level) {
     if (agg_level == "ZCTA") {
       geo_merge_data <- 
         geo_crosswalk_zcta %>% 
-        transmute(GEOID = GEOID, 
-                  ZCTA = ZCTA,
+        transmute(GEOID    = GEOID, 
+                  ZCTA     = ZCTA,
                   geo_part = TRLANDPCT)
     } else if (agg_level == "aux_geo_label") {
       geo_merge_data <- 
         geo_crosswalk_aux %>% 
-        transmute(GEOID = GEOID, 
+        transmute(GEOID         = GEOID, 
                   aux_geo_label = aux_geo_label, 
-                  geo_part = pct_area)
+                  geo_part     = pct_area)
     } else {
       geo_merge_data <- 
         geo_crosswalk[j = c("GEOID", agg_level), with = FALSE] %>% 

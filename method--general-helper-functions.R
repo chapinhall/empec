@@ -380,7 +380,7 @@ label_outcome <- function(outcome_var) {
   labels <- 
     c("incpov_le50_post"      = "Income <50% FPL (unadj)",
       "incpov_le100_post"     = "Income <100% FPL (unadj)",
-      "incpov_le200_post"     = "income <200% FPL (unadj)",
+      "incpov_le200_post"     = "Income <200% FPL (unadj)",
       "incpov_le50_post_adj"  = "Income <50% FPL (adj)",
       "incpov_le100_post_adj" = "Income <100% FPL (adj)",
       "incpov_le200_post_adj" = "Income <200% FPL (adj)",
@@ -411,7 +411,9 @@ label_vars_prevec <- function(var) {
         str_detect(var, "Elig.+\\d$") ~
           paste0("HH ",
                  ifelse(bits[2]=="WorkElig", "Working, ", "Not Working, "),
-                 paste0("Inc-to-Pov: ", bits[3], "-", bits[4], "%")),
+                 paste0("Inc-to-Pov: ", bits[3], 
+                        ifelse(is.na(bits[4]), "%+", 
+                               paste0("-", bits[4], "%")))),
         # Interaction of work eligibility and spouse presence
         str_detect(var, "Elig.+Spouse") ~
           paste0("HH ",
@@ -419,11 +421,11 @@ label_vars_prevec <- function(var) {
                  ifelse(str_detect(var, "NoSpouse"), "No ", ""), "Spouse Present"),
         # Only income
         TRUE ~ paste0("Inc-to-Pov: ", bits[2], 
-                      ifelse(is.na(bits[3]), "+%",
+                      ifelse(is.na(bits[3]), "%+",
                              paste0("-", bits[3], "%")))
       ),
     
-    ### Recode education vars
+    ### Recode education vars /!\hk: 1) not sure where this is used, 2) do we need lesshs?
     str_detect(var, "^ed_") ~
       
       paste0("Educ - ",
@@ -436,7 +438,7 @@ label_vars_prevec <- function(var) {
       paste0("Inc-to-Pov: ",
              ifelse(str_detect(bits[2], "to"),
                     str_replace(bits[2], "r(\\d+)to(\\d+)", "\\1-\\2%"),
-                    str_replace(bits[2], "r(\\d+)", "\\1\\+%"))),
+                    str_replace(bits[2], "r(\\d+)", "\\1\\%+"))),
     
     ### Recode educational attainment by gender
     str_detect(var, "^(f|m)_.+est$") ~
@@ -445,7 +447,7 @@ label_vars_prevec <- function(var) {
              c("lesshs"   = "< HS,",
                "hsgrad"   = "- HS,",
                "somecoll" = "- Some Coll,",
-               "coll"     = "Coll,")[bits[2]],
+               "coll"     = "- Coll,")[bits[2]],
              c("f" = " Female",
                "m" = " Male")[bits[1]]),
     

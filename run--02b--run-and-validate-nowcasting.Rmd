@@ -571,7 +571,7 @@ transition_pred_vars_toadd_pov_by100s <-
 
 transition_pred_vars_toadd_ccdf_elig_pov <- 
     str_subset(cn(cps_child_base_post),
-               "share_(Not)?WorkElig_(0_100|100_ccdf|ccdf_350|350_500|500)")
+               "share_(Not)?WorkElig_(0_100|100_ccdf|ccdf_350|350_500|500)") #/!\hk: since we changed the name in lines 431-436, not sure if this will detect the _ccdf part? Just double checking.
   # the prior specification, which was not necessarily aligned with 
   # poverty
   # ccdf_spec_vars 
@@ -853,7 +853,7 @@ Comparing conditional vs unconditional estimates of SAE measures.
 compare_betas(
   betas = filter(nowcast_betas_out,
                  outcome_var       == "incpov_le100_post_adj",
-                 sae_spec          == "incpov_ctrls2534_05",
+                 sae_spec          == "incpov_ctrls_mix_05",
                  cps_base_recency  == "most_recent",
                  cps_geo_subsample == "none"),
   title = "Now-Casting Coefficients Predicting Head Start Elig: Conditional vs Unconditional",
@@ -869,7 +869,7 @@ compare_betas(
 compare_betas(
   betas = filter(nowcast_betas_out,
                  outcome_var      == "incpov_le100_post_adj",
-                 sae_spec         == "incpov_ctrls2534_05",
+                 sae_spec         == "incpov_ctrls_mix_05",
                  cps_base_recency == "most_recent",
                  trans_spec       == "cond"),
   title = "Now-Casting Coefficients Predicting Head Start Elig: Comparison Across CPS Subsets",
@@ -883,7 +883,7 @@ compare_betas(
 compare_betas(
   betas = filter(nowcast_betas_out,
                  outcome_var       == "incpov_le100_post_adj",
-                 sae_spec %in% c("incpov_ctrls2534_05", "incpov_ctrls2534_612"),
+                 sae_spec %in% c("incpov_ctrls_mix_05", "incpov_ctrls_mix_612"),
                  cps_base_recency  == "most_recent",
                  cps_geo_subsample == "none",
                  trans_spec        == "cond"),
@@ -891,14 +891,14 @@ compare_betas(
   subtitle = case_when(my_output_tag == "IL" ~ "",
                        TRUE ~ ""),
   comp_var = "sae_spec",
-  comp_var_label = "CPS Geographic Subset",
+  comp_var_label = "Age",
   save_tag = "hs_comp-age05-vs-612"
 )
 
 compare_betas(
   betas = filter(nowcast_betas_out,
                  outcome_var       == "incpov_le100_post_adj",
-                 sae_spec          == "incpov_ctrls2534_05",
+                 sae_spec          == "incpov_ctrls_mix_05",
                  cps_geo_subsample == "none",
                  trans_spec        == "cond"),
   title = "Now-Casting Coefficients Predicting Head Start Elig: Comparison Across CPS Recency",
