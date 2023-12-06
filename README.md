@@ -23,8 +23,8 @@ Running this code requires contributors to set up a `settings--profile.R` file w
 my_output_tag <- "<run tag>"
 
 # Indicate base year of analysis
-# This will drive the pull of ACS 1-year data
-base_year <- 2021
+base_year <- 2022 # This will drive the pull of ACS 1-year data
+acs5_year <- 2021 # This will drive the pull of ACS 5-year data
 
 # Provide the names of the CPS data extract to be used in the script
 # `run--01c--prep-cps-data.Rmd`. Include the file name but not the file extension.
@@ -119,7 +119,7 @@ local_ccdf_thresh <- <numeric value for income-to-poverty line threashold for in
 ### Set Other Run Parameters ---------------------------------------------------
 
 # Use only "model" estimates from the Small Area Estimation method, rather than
-# the blended estimates from the Fay-Herriott method?
+# the blended estimates from the Fay-Herriott method
 # Users should consider setting this option to `TRUE` based on diagnostics
 # examining `share_model` vs `share_direct` estimates, to judge whether
 # "model" estimates are often skewed away from direct estimates within PUMAs

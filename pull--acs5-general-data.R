@@ -71,12 +71,12 @@ apis %>% filter(grepl("acs5", name)) %>% with(table(vintage))
 
 # Pull metadata for ACS 1-year and 5-year tables
 
-acs1_years <- 2019:2019
+acs1_years <- {base_year}:{base_year}
 acs1_tables <- c("B01001", "B09001", "B17024", "B17026", 
                  "B03002", "B08006", "B08013", "B10051", "B23001", "C15002", 
 					       paste0("B17001", c("", LETTERS[1:9])),
                  "B17012", "B01003", "B10063", "B08303")
-acs5_years <- 2019:2019
+acs5_years <- {acs5_year}:{acs5_year}
 acs5_tables <-  c("B01001", "B09001", "B17024", "B17026",
                   "B03002", "B08006", "B08013", "B10051", "B23001", "C15002", 
                   paste0("B17001", c("", LETTERS[1:9])),
@@ -772,9 +772,9 @@ if (update_acs_pulls) {
   } # End of loop across acs1 and acs5 data
   save(list = tableList,
        file = glue("{input_path}acs_tables.Rda"))
+} else {
+  load(glue("{input_path}acs_tables.Rda"))
 }
-
-load(glue("{input_path}acs_tables.Rda"))
 
 # -----------------------------------------------------------------------------#
 # Produce new variables for ACS data set ---------------------------------------
@@ -880,12 +880,13 @@ acs_childpop <-
   # /!\ Note that these field names do not follow conventions. At present,
   # "_count" denotes denominators (while "_est" is the rate of num/denom). 
   mutate(age_3to5_count  = age_3to4_count + age_5to5_count,
-         age_3to5_se     = sqrt(age_3to4_se^2 + age_5to5_se^2),
-         age_0to5_count  = age_lt3_count + age_3to5_count,
-         age_0to5_se     = sqrt(age_lt3_se^2 + age_3to5_se^2),
+         age_0to5_count  = age_lt3_count  + age_3to5_count,
          age_6to12_count = age_6to8_count + age_9to11_count + age_12to14_count*(1/3),
-         age_6to12_se    = sqrt(age_6to8_se^2 + age_9to11_se^2 + (age_12to14_se*(1/3))^2),
          age_6to13_count = age_6to8_count + age_9to11_count + age_12to14_count*(2/3),
+         
+         age_3to5_se     = sqrt(age_3to4_se^2 + age_5to5_se^2),
+         age_0to5_se     = sqrt(age_lt3_se^2 + age_3to5_se^2),
+         age_6to12_se    = sqrt(age_6to8_se^2 + age_9to11_se^2 + (age_12to14_se*(1/3))^2),
          age_6to13_se    = sqrt(age_6to8_se^2 + age_9to11_se^2 + (age_12to14_se*(2/3))^2))
 
 # Check summary statistics.
@@ -1066,6 +1067,13 @@ acs_incpov <-
 exclude_vars <- names(acs_incpov) %in% c("source", "endyear", "geo", "geo_val", "NAME")
 summary(acs_incpov[!exclude_vars])
 
+# Check NA's
+acs_incpov %>% 
+  filter(is.na(acs_incpov$incpov_r0to50_est)) %>% 
+  select(geo_val) %>% 
+  unique()
+# NA's for 9 geo_val (17031381700, 17097863005, 17097863006, 17031980000, 17197980000, 17201980000, 17031980100, 17031990000, 17097990000)
+
 # ------------------------------------ #
 # Travel time from home to work
 # ------------------------------------ #
@@ -1182,9 +1190,9 @@ acs_emp <-
     employrate_m_est   = emp_m_est/lf_m_est,
     employrate_m_se    = se_proportion(emp_m_est, lf_m_est, emp_m_se, lf_m_se),
     employrate_m_count = lf_m_est,
-    lfrate_m_est   = ifelse(pop_m_est!=0, lf_m_est/pop_m_est, NA),
-    lfrate_m_se    = se_proportion(lf_m_est, pop_m_est, lf_m_se, pop_m_se),
-    lfrate_m_count = pop_m_est
+    lfrate_m_est       = ifelse(pop_m_est!=0, lf_m_est/pop_m_est, NA),
+    lfrate_m_se        = se_proportion(lf_m_est, pop_m_est, lf_m_se, pop_m_se),
+    lfrate_m_count     = pop_m_est
   ) %>%
   dplyr::select(-pop_f_est, -pop_f_se, -lf_f_est, -lf_f_se, -emp_f_est, -emp_f_se, 
          -pop_m_est, -pop_m_se, -lf_m_est, -lf_m_se, -emp_m_est, -emp_m_se )
@@ -1221,9 +1229,9 @@ acs_emp_age25to34 <-
     employrate_m_a2534_est   = emp_m_a2534_est/lf_m_a2534_est,
     employrate_m_a2534_se    = se_proportion(emp_m_a2534_est, lf_m_a2534_est, emp_m_a2534_se, lf_m_a2534_se),
     employrate_m_a2534_count = lf_m_a2534_est,
-    lfrate_m_a2534_est   = ifelse(pop_m_a2534_est!=0, lf_m_a2534_est/pop_m_a2534_est, NA),
-    lfrate_m_a2534_se    = se_proportion(lf_m_a2534_est, pop_m_a2534_est, lf_m_a2534_se, pop_m_a2534_se),
-    lfrate_m_a2534_count = pop_m_a2534_est
+    lfrate_m_a2534_est       = ifelse(pop_m_a2534_est!=0, lf_m_a2534_est/pop_m_a2534_est, NA),
+    lfrate_m_a2534_se        = se_proportion(lf_m_a2534_est, pop_m_a2534_est, lf_m_a2534_se, pop_m_a2534_se),
+    lfrate_m_a2534_count     = pop_m_a2534_est
   ) %>%
   dplyr::select(-pop_f_a2534_est, -pop_f_a2534_se, -lf_f_a2534_est, -lf_f_a2534_se, -emp_f_a2534_est, -emp_f_a2534_se, 
          -pop_m_a2534_est, -pop_m_a2534_se, -lf_m_a2534_est, -lf_m_a2534_se, -emp_m_a2534_est, -emp_m_a2534_se )
@@ -1245,6 +1253,15 @@ summary(acs_emp[!exclude_vars])
   ## /!\ There are also cases with 0 labor force counts that need to be investigated
   
   filter(acs_emp, (lfrate_f_count == 0 | lfrate_m_count == 0)) %>% as.data.frame()
+
+# Check NA's
+acs_emp %>% 
+  ungroup() %>% 
+  filter(is.na(employrate_f_est) | is.na(employrate_m_est)) %>% 
+  select(geo_val) %>% 
+  unique()
+  # NA's for 8 geo_val (17031381700, 17097863006, 17031980000, 17197980000, 17201980000, 17031980100, 17031990000, 17097990000)
+  # Similar tracts to missing counts in `acs_incpov`
 
 # ------------------------------------ #
 # Education level by gender (by race/ethnicity)
@@ -1636,4 +1653,4 @@ acs_final5 <-
 
 save(acs_final5, 
      file = glue("{output_path}acs5_variables.Rda"))
-write.csv(acs_final5, glue("{output_path}acs5_variables.csv"))
+write.csv(acs_final5, glue("{output_path}acs5_variables_{my_output_tag}.csv"))

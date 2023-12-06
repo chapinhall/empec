@@ -9,6 +9,7 @@ pubic audiences are suppressed or moved to code chunks that can optionally be
 ```{r}
 # set flags for running this cps script
 print_documentation <- FALSE
+developer_mode <- FALSE
 ```
 
 ```{r}
@@ -356,16 +357,22 @@ cps_pov <-
   .[j = `:=`(fam_incpov_ratio     = faminc_draw / fpl,
              fam_incpov_ratio_adj = faminc_adj  / fpl)] %>% 
   # Bin family income
-  .[j = `:=`(fam_incpov_ratio_cat_byMix     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00, 4.00)),
-             fam_incpov_ratio_cat_byMix_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00, 4.00)),
-             fam_incpov_ratio_cat_to185     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00, 4.00)),
-             fam_incpov_ratio_cat_to185_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00, 4.00)),
-             fam_incpov_ratio_cat_by50      = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = seq(0, 4, by = 0.50)),
-             fam_incpov_ratio_cat_by50_adj  = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = seq(0, 4, by = 0.50)),
-             fam_incpov_ratio_cat_by75      = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.75, 1.50, 2.25, 3.00, 4.00)),
-             fam_incpov_ratio_cat_by75_adj  = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.75, 1.50, 2.25, 3.00, 4.00)),
-             fam_incpov_ratio_cat_by100     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = seq(0, 4, by = 1.00)),
-             fam_incpov_ratio_cat_by100_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = seq(0, 4, by = 1.00)),
+  .[j = `:=`(
+             # Develop categories of household income to align with those in ACS1, which define the SAE targets
+             fam_incpov_ratio_cat_byMix       = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00, 4.00)),
+             fam_incpov_ratio_cat_byMix_adj   = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00, 4.00)),
+             fam_incpov_ratio_cat_hs_ccdf     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 1.00, local_ccdf_thresh/100, 3.50, 5.00)),
+             fam_incpov_ratio_cat_hs_ccdf_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 1.00, local_ccdf_thresh/100, 3.50, 5.00)),
+             fam_incpov_ratio_cat_to185       = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00, 4.00)),
+             fam_incpov_ratio_cat_to185_adj   = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00, 4.00)),
+             fam_incpov_ratio_cat_by50        = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = seq(0, 4, by = 0.50)),
+             fam_incpov_ratio_cat_by50_adj    = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = seq(0, 4, by = 0.50)),
+             fam_incpov_ratio_cat_by75        = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.75, 1.50, 2.25, 3.00, 4.00)),
+             fam_incpov_ratio_cat_by75_adj    = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.75, 1.50, 2.25, 3.00, 4.00)),
+             fam_incpov_ratio_cat_by100       = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = seq(0, 4, by = 1.00)),
+             fam_incpov_ratio_cat_by100_adj   = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = seq(0, 4, by = 1.00)),
+             
+             # Develop income measures to be used as outcomes of nowcasting
              fam_incpov_ratio_le.5       = 1*(fam_incpov_ratio     <= 0.5),
              fam_incpov_ratio_le.5_adj   = 1*(fam_incpov_ratio_adj <= 0.5),
              fam_incpov_ratio_le1        = 1*(fam_incpov_ratio     <= 1.0),
@@ -681,11 +688,12 @@ cps_child_base <-
                                    levels = 0:1, 
                                    labels = c("No Spouse Present, Base",
                                               "Spouse Present, Base")),
-          faminc_adj, fam_incpov_ratio,
-          fam_incpov_ratio_cat_by50,  fam_incpov_ratio_cat_by50_adj, 
-          fam_incpov_ratio_cat_by75,  fam_incpov_ratio_cat_by75_adj,
-          fam_incpov_ratio_cat_by100, fam_incpov_ratio_cat_by100_adj,
-          fam_incpov_ratio_cat_to185, fam_incpov_ratio_cat_to185_adj)] %>% 
+          faminc_adj,                   fam_incpov_ratio,
+          fam_incpov_ratio_cat_by50,    fam_incpov_ratio_cat_by50_adj, 
+          fam_incpov_ratio_cat_by75,    fam_incpov_ratio_cat_by75_adj,
+          fam_incpov_ratio_cat_by100,   fam_incpov_ratio_cat_by100_adj,
+          fam_incpov_ratio_cat_to185,   fam_incpov_ratio_cat_to185_adj,
+          fam_incpov_ratio_cat_hs_ccdf, fam_incpov_ratio_cat_hs_ccdf_adj)] %>% 
   merge(cps_base_hoh,
         by = "CPSID",
         all.x = TRUE)
@@ -717,18 +725,18 @@ cps_post <-
            j = .(CPSID,
                  YEAR, MONTH, HWTFINL, is_validation,
                  faminc_adj, fam_incpov_ratio,
-                 hoh_empl_post = 1*(EMPSTAT == 10),
-                 incpov_le50_post  = fam_incpov_ratio_le.5,
-                 incpov_le100_post = fam_incpov_ratio_le1,
-                 incpov_le185_post = fam_incpov_ratio_le1.85,
-                 incpov_le200_post = fam_incpov_ratio_le2,
-                 incpov_le225_post = fam_incpov_ratio_le2.25,
-                 incpov_le400_post = fam_incpov_ratio_le4.00,
+                 hoh_empl_post         = 1*(EMPSTAT == 10),
+                 incpov_le50_post      = fam_incpov_ratio_le.5,
                  incpov_le50_post_adj  = fam_incpov_ratio_le.5_adj,
+                 incpov_le100_post     = fam_incpov_ratio_le1,
                  incpov_le100_post_adj = fam_incpov_ratio_le1_adj,
+                 incpov_le185_post     = fam_incpov_ratio_le1.85,
                  incpov_le185_post_adj = fam_incpov_ratio_le1.85_adj,
+                 incpov_le200_post     = fam_incpov_ratio_le2,
                  incpov_le200_post_adj = fam_incpov_ratio_le2_adj,
+                 incpov_le225_post     = fam_incpov_ratio_le2.25,
                  incpov_le225_post_adj = fam_incpov_ratio_le2.25_adj,
+                 incpov_le400_post     = fam_incpov_ratio_le4.00,
                  incpov_le400_post_adj = fam_incpov_ratio_le4.00_adj,
                  ccdf_elig_tight_inc, ccdf_elig_tight_inc_adj,
                  ccdf_elig_loose_inc, ccdf_elig_loose_inc_adj)]
@@ -1120,5 +1128,5 @@ cps_hoh_pre_post[#YEAR_b %in 2019,
 
 ```{r}
 save(cps_child_base, cps_post,
-     file = glue("{output_path}cps_data.Rda"))
+     file = glue("{output_path}cps_data_{my_output_tag}.Rda"))
 ```

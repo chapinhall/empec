@@ -21,7 +21,7 @@ load(glue("{output_path}geo_data_{my_output_tag}.Rda"))
 ```
 
 ```{r run acs5 data pull if data is not available}
-acs5_filename <- glue("{output_path}acs5_variables.csv")
+acs5_filename <- glue("{output_path}acs5_variables_{my_output_tag}.csv")
 if (!file.exists(acs5_filename)) {
   source("pull--acs5-general-data.R")
 }

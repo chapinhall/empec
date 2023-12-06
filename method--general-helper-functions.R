@@ -377,121 +377,100 @@ build_fm <- function(lhs, rhs) {
 #------------------------------------------------------------------------------#
 
 label_outcome <- function(outcome_var) {
-  
-  sapply(outcome_var,
-         function(x) {
-           switch(x,
-                  "deep_pov_post"     = "Deep Poverty (unadj)",
-                  "hs_elig_post"      = "HS Eligible (unadj)",
-                  "pfa_elig_post"     = "PFA Eligible (unadj)",
-                  "deep_pov_adj"      = "Deep Poverty",
-                  "hs_elig_post_adj"  = "HS Eligible",
-                  "pfa_elig_post_adj" = "PFA Eligible",
-                  "hoh_empl_post"     = "HOH Employed in Post",
-                  "ccdf_elig_tight_inc"     = "CCAP Elig 'tight' (unadj)",
-                  "ccdf_elig_tight_inc_adj" = "CCAP Elig 'tight' (adj)",
-                  "ccdf_elig_loose_inc"     = "CCAP Elig 'loose' (unadj)",
-                  "ccdf_elig_loose_inc_adj" = "CCAP Elig 'loose' (adj)")
-         })
+  labels <- 
+    c("incpov_le50_post"      = "Income <50% FPL (unadj)",
+      "incpov_le100_post"     = "Income <100% FPL (unadj)",
+      "incpov_le200_post"     = "Income <200% FPL (unadj)",
+      "incpov_le50_post_adj"  = "Income <50% FPL (adj)",
+      "incpov_le100_post_adj" = "Income <100% FPL (adj)",
+      "incpov_le200_post_adj" = "Income <200% FPL (adj)",
+      "hoh_empl_post"         = "HOH Employed in Post",
+      "ccdf_elig_tight_inc"     = "CCAP Elig 'tight' (unadj)",
+      "ccdf_elig_tight_inc_adj" = "CCAP Elig 'tight' (adj)",
+      "ccdf_elig_loose_inc"     = "CCAP Elig 'loose' (unadj)",
+      "ccdf_elig_loose_inc_adj" = "CCAP Elig 'loose' (adj)")
+  return(labels[outcome_var])
 }
 
-label_vars <- function(var) {
+# Implement a renaming function that is flexible to inputs
+# Not that the structure of this function means that it is not vectorized, and
+# so we use the `Vectorize()` function below to make it so.
+label_vars_prevec <- function(var) {
   
-  sapply(var,
-         function(x) {
-           switch(x,
-                  "ed_hs"       = "Educ - HS",
-                  "ed_somecoll" = "Educ - Some Coll",
-                  "ed_coll"     = "Educ - Coll",
-                  
-                  "share_0_50"    = "Inc-to-Pov: 0-50%",
-                  "share_0_75"    = "Inc-to-Pov: 0-75%",
-                  "share_0_100"   = "Inc-to-Pov: 0-100%",
-                  "share_50_100"  = "Inc-to-Pov: 50-100%",
-                  "share_50_125"  = "Inc-to-Pov: 50-125%",
-                  "share_75_150"  = "Inc-to-Pov: 75-150%",
-                  "share_100_150" = "Inc-to-Pov: 100-150%",
-                  "share_100_200" = "Inc-to-Pov: 100-200%",
-                  "share_125_185" = "Inc-to-Pov: 125-185%",
-                  "share_150_200" = "Inc-to-Pov: 150-200%",
-                  "share_150_225" = "Inc-to-Pov: 150-225%",
-                  "share_185_300" = "Inc-to-Pov: 185-300%",
-                  "share_200_250" = "Inc-to-Pov: 200-250%",
-                  "share_200_300" = "Inc-to-Pov: 200-300%",
-                  "share_225_300" = "Inc-to-Pov: 225-300%",
-                  "share_250_300" = "Inc-to-Pov: 250-300%",
-                  "share_300_400" = "Inc-to-Pov: 300-400%",
-                  "share_400"     = "Inc-to-Pov: 400%+",
-                  "share_WorkElig_0_50"    = "HH Working, Inc-to-Pov: 0-50%",
-                  "share_WorkElig_0_75"    = "HH Working, Inc-to-Pov: 0-75%",
-                  "share_WorkElig_0_100"   = "HH Working, Inc-to-Pov: 0-100%",
-                  "share_WorkElig_50_100"  = "HH Working, Inc-to-Pov: 50-100%",
-                  "share_WorkElig_50_125"  = "HH Working, Inc-to-Pov: 50-125%",
-                  "share_WorkElig_75_150"  = "HH Working, Inc-to-Pov: 75-150%",
-                  "share_WorkElig_100_150" = "HH Working, Inc-to-Pov: 100-150%",
-                  "share_WorkElig_100_200" = "HH Working, Inc-to-Pov: 100-200%",
-                  "share_WorkElig_125_185" = "HH Working, Inc-to-Pov: 125-185%",
-                  "share_WorkElig_150_200" = "HH Working, Inc-to-Pov: 150-200%",
-                  "share_WorkElig_150_225" = "HH Working, Inc-to-Pov: 150-225%",
-                  "share_WorkElig_185_300" = "HH Working, Inc-to-Pov: 185-300%",
-                  "share_WorkElig_200_250" = "HH Working, Inc-to-Pov: 200-250%",
-                  "share_WorkElig_200_300" = "HH Working, Inc-to-Pov: 200-300%",
-                  "share_WorkElig_225_300" = "HH Working, Inc-to-Pov: 225-300%",
-                  "share_WorkElig_250_300" = "HH Working, Inc-to-Pov: 250-300%",
-                  "share_WorkElig_300_400" = "HH Working, Inc-to-Pov: 300-400%",
-                  "share_WorkElig_400"     = "HH Working, Inc-to-Pov: 400%+",
-                  "share_NotWorkElig_0_50"    = "HH Not Working, Inc-to-Pov: 0-50%",
-                  "share_NotWorkElig_0_75"    = "HH Not Working, Inc-to-Pov: 0-75%",
-                  "share_NotWorkElig_0_100"   = "HH Not Working, Inc-to-Pov: 0-100%",
-                  "share_NotWorkElig_50_100"  = "HH Not Working, Inc-to-Pov: 50-100%",
-                  "share_NotWorkElig_50_125"  = "HH Not Working, Inc-to-Pov: 50-125%",
-                  "share_NotWorkElig_75_150"  = "HH Not Working, Inc-to-Pov: 75-150%",
-                  "share_NotWorkElig_100_150" = "HH Not Working, Inc-to-Pov: 100-150%",
-                  "share_NotWorkElig_100_200" = "HH Not Working, Inc-to-Pov: 100-200%",
-                  "share_NotWorkElig_125_185" = "HH Not Working, Inc-to-Pov: 125-185%",
-                  "share_NotWorkElig_150_200" = "HH Not Working, Inc-to-Pov: 150-200%",
-                  "share_NotWorkElig_150_225" = "HH Not Working, Inc-to-Pov: 150-225%",
-                  "share_NotWorkElig_185_300" = "HH Not Working, Inc-to-Pov: 185-300%",
-                  "share_NotWorkElig_200_250" = "HH Not Working, Inc-to-Pov: 200-250%",
-                  "share_NotWorkElig_200_300" = "HH Not Working, Inc-to-Pov: 200-300%",
-                  "share_NotWorkElig_225_300" = "HH Not Working, Inc-to-Pov: 225-300%",
-                  "share_NotWorkElig_250_300" = "HH Not Working, Inc-to-Pov: 250-300%",
-                  "share_NotWorkElig_300_400" = "HH Not Working, Inc-to-Pov: 300-400%",
-                  "share_NotWorkElig_400"     = "HH Not Working, Inc-to-Pov: 400%+",
-                  
-                  "share_NotWorkElig_SpousePresent"   = "HH Not Working, Spouse Present",
-                  "share_WorkElig_SpousePresent"      = "HH Working, Spouse Present",
-                  "share_NotWorkElig_NoSpousePresent" = "HH Not Working, No Spouse Present",
-                  "share_WorkElig_NoSpousePresent"    = "HH Working, No Spouse Present",
-                  
-                  "incpov_r0to50_est"     = "Inc-to-Pov: 0-50%",
-                  "incpov_r50to100_est"   = "Inc-to-Pov: 50-100%",
-                  "incpov_r100to199_est"  = "Inc-to-Pov: 100-199%",
-                  "incpov_r200to299_est"  = "Inc-to-Pov: 200-299%",
-                  
-                  "f_lesshs_est"   = "Educ < HS, Female",
-                  "m_lesshs_est"   = "Educ < HS, Male",
-                  "f_hsgrad_est"   = "Educ - HS, Female",
-                  "m_hsgrad_est"   = "Educ - HS, Male",
-                  "f_somecoll_est" = "Educ - Some Coll, Female",
-                  "m_somecoll_est" = "Educ - Some Coll, Male",
-                  "f_coll_est" = "Educ - Coll, Female",
-                  "m_coll_est" = "Educ - Coll, Male",
-                  
-                  "pctMale_noSp_est"   = "Household is Male-Headed Only",
-                  "pctFemale_noSp_est" = "Household is Female-Headed only",
-                  "pctMarried_est"     = "Household is Married Couple",
-                  
-                  "employrate_m_a2534_est" = "Empl't Rate, Male Age 25-34",
-                  "employrate_f_a2534_est" = "Empl't Rate, Female Age 25-34",
-                  "employrate_m_est"       = "Empl't Rate, Male",
-                  "employrate_f_est"       = "Empl't Rate, Female",
-                  "lfrate_m_a2534_est"     = "LF Part Rate, Male Age 25-34",
-                  "lfrate_f_a2534_est"     = "LF Part Rate, Female Age 25-34",
-                  "lfrate_m_est"           = "LF Part Rate, Male",
-                  "lfrate_f_est"           = "LF Part Rate, Female")
-         })
+  bits <- str_split(var, "_") %>% unlist()
+  #print(bits)
+  
+  # Using `case_when()` because it is vectorized (i.e. it accepts vector input)
+  
+  case_when(
+    ### Recode "share" variables
+    str_detect(var, "^share") ~
+      
+      case_when(
+        # If interaction of work eligibility and income
+        str_detect(var, "Elig.+\\d$") ~
+          paste0("HH ",
+                 ifelse(bits[2]=="WorkElig", "Working, ", "Not Working, "),
+                 paste0("Inc-to-Pov: ", bits[3], 
+                        ifelse(is.na(bits[4]), "%+", 
+                               paste0("-", bits[4], "%")))),
+        # Interaction of work eligibility and spouse presence
+        str_detect(var, "Elig.+Spouse") ~
+          paste0("HH ",
+                 ifelse(bits[2]=="WorkElig", "Working, ", "Not Working, "),
+                 ifelse(str_detect(var, "NoSpouse"), "No ", ""), "Spouse Present"),
+        # Only income
+        TRUE ~ paste0("Inc-to-Pov: ", bits[2], 
+                      ifelse(is.na(bits[3]), "%+",
+                             paste0("-", bits[3], "%")))
+      ),
+    
+    ### Recode education vars /!\hk: 1) not sure where this is used, 2) do we need lesshs?
+    str_detect(var, "^ed_") ~
+      
+      paste0("Educ - ",
+             c("hs"       = "HS",
+               "somecoll" = "Some Coll",
+               "coll"     = "Coll")[bits[2]]),
+    
+    ### Recode income to poverty
+    str_detect(var, "^incpov_r") ~ 
+      paste0("Inc-to-Pov: ",
+             ifelse(str_detect(bits[2], "to"),
+                    str_replace(bits[2], "r(\\d+)to(\\d+)", "\\1-\\2%"),
+                    str_replace(bits[2], "r(\\d+)", "\\1\\%+"))),
+    
+    ### Recode educational attainment by gender
+    str_detect(var, "^(f|m)_.+est$") ~
+      
+      paste0("Educ ",
+             c("lesshs"   = "< HS,",
+               "hsgrad"   = "- HS,",
+               "somecoll" = "- Some Coll,",
+               "coll"     = "- Coll,")[bits[2]],
+             c("f" = " Female",
+               "m" = " Male")[bits[1]]),
+    
+    ### Recode labor force statistics
+    str_detect(var, "^(employ|lfrate)") ~
+      
+      paste0(c("employrate" = "Empl't Rate",
+               "lfrate"     = "LF Part Rate")[bits[1]],
+             ",",
+             c("f" = " Female",
+               "m" = " Male")[bits[2]],
+             c("est" = "",
+               "a2534" = " Age 25-34")[bits[3]]),
+    
+    ### Handle other cases directly
+    TRUE ~ 
+      case_when(var == "pctMale_noSp_est"   ~ "Household is Male-Headed Only",
+                var == "pctFemale_noSp_est" ~ "Household is Female-Headed only",
+                var == "pctMarried_est"     ~ "Household is Married Couple")
+    
+    )
 }
 
-
+# Vectorize the previous function
+label_vars <- Vectorize(label_vars_prevec)
 
