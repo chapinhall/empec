@@ -19,6 +19,12 @@ source(glue("{code_path}settings--main.R"))
 source(glue("{code_path}settings--profile.R"))
 source(glue("{code_path}method--general-helper-functions.R"))
 
+my_state_fip <- 
+  fips_codes %>% 
+  filter(state == my_state_abbr) %>% 
+  pull(state_code) %>% 
+  unique()
+
 # Set local variable values
 
 update_meta <- TRUE
@@ -946,7 +952,8 @@ acs_incpov_age_myranges <-
             unite_fpls("r100to199", c("r100to124", "r125to149", "r150to174", "r175to184", "r185to199")),
             unite_fpls("r100to199", c("r100to124", "r125to149", "r150to174", "r175to184", "r185to199")),
             unite_fpls("r200to299", c("r200to299")),
-            unite_fpls("r300plus",  c("r300to399", "r400to499", "r500plus")))
+            unite_fpls("r300to399", c("r300to399")),
+            unite_fpls("r400plus",  c("r400to499", "r500plus")))
 
 acs_incpov_age_out <- 
   acs_incpov_age_myranges %>% 
