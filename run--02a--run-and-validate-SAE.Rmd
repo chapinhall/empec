@@ -982,7 +982,7 @@ acs1_5pct_puma_formerge <-
 ```
 
 
-```{r function to redistribute estimates}
+```{r misc functions for use in redistribution}
 bound <- function(x, lower = 0, upper = 1) {
   x[x < lower] <- lower
   x[x > upper] <- upper
@@ -993,109 +993,129 @@ if (FALSE) {
   bound(c(-1, 0.2, 0.8, 5))
 }
 
-sae_to_redis <- sae_results_incpov_ctrls_100_05_out
-sae_age <- "05" # "612"
-residual_cat <- "400%+"
-stopifnot(residual_cat %in% sae_to_redis$vc_value)
-
 pop_age <- case_when(sae_age == "05"  ~ "0to5", 
                      sae_age == "612" ~ "6to12")
 acs_age <- case_when(sae_age == "05"  ~ "lt6", 
                      sae_age == "612" ~ "6to11")
 
-z <- 
-  sae_to_redis %>% 
-  merge(acs1_5pct_puma_formerge %>% 
-          filter(age == acs_age) %>% 
-          select(PUMA, vc_value, acs1_5pct_pct),
-        by = c("PUMA", "vc_value"),
-        all.x = TRUE) %>% 
-  merge(acs5_incpov_cat %>%
-          filter(age == acs_age) %>%
-          select(GEOID, vc_value, share_acs5 = value),
-        by = c("GEOID", "vc_value"),
-        all.x = TRUE) %>%
-  merge(pop_long %>% filter(age == pop_age, year == base_year),
-        by = "GEOID",
-        all.x = TRUE) %>% 
-  # merge(acs5_incpov_cat_var %>% 
-  #         filter(age == sae_age) %>% 
-  #         select(PUMA, vc_value, acs5_tract.in.puma_sd),
-  #       by = c("PUMA", "vc_value"),
-  #       all.x = TRUE) %>% 
-  # calculate variance %>% 
-  group_by(PUMA, vc_value) %>% 
-  mutate(
-    # Center values to have mean 0
-    share_model_trunc_m0 = share_model_trunc - mean(share_model_trunc),
-    share_fh_trunc_m0    = share_fh_trunc    - mean(share_fh_trunc),
-    share_acs5_m0        = share_acs5        - mean(share_acs5),
-    
-    # Calculate std-deviations of shares
-    share_model_trunc_sd = sdNA(share_model_trunc),
-    share_fh_trunc_sd    = sdNA(share_fh_trunc),
-    share_acs5_sd        = sdNA(share_acs5),
-    
-    ## Perform logistic transformation, and get sd's
-    # For some reason, it's producing NAs to combine the separate calculations
-    # below. Separating them, as we have, avoids this.
-    share_model_trunc_log      = qlogis(share_model_trunc),
-    share_model_trunc_log_mean = meanNA(share_model_trunc_log),
-    share_model_trunc_log_m0   = share_model_trunc_log - share_model_trunc_log_mean,
-    share_model_trunc_log_sd   = sdNA(share_model_trunc_log_m0),
-    
-    share_fh_trunc_log      = qlogis(share_fh_trunc),
-    share_fh_trunc_log_mean = meanNA(share_fh_trunc_log),
-    share_fh_trunc_log_m0   = share_fh_trunc_log - share_fh_trunc_log_mean,
-    share_fh_trunc_log_sd   = sdNA(share_fh_trunc_log_m0),
-    
-    share_acs5_log = qlogis(share_acs5),
-    share_acs5_log_mean = meanNA(share_acs5_log),
-    share_acs5_log_m0 = share_acs5_log - share_acs5_log_mean,
-    share_acs5_log_sd = sdNA(share_acs5_log_m0),
-    
-    # Build inflation factors
-    infl_model_pct = share_acs5_sd     / share_model_trunc_sd,
-    infl_model_log = share_acs5_log_sd / share_model_trunc_log_sd,
-    infl_fh_pct    = share_acs5_sd     / share_fh_trunc_sd,
-    infl_fh_log    = share_acs5_log_sd / share_fh_trunc_log_sd,
-    
-    # Rebuild distributed scales
-    # share_model_infl_pct =       (infl_model_pct * share_model_trunc_m0),
-    # share_model_infl_log = plogis(infl_model_log * share_model_trunc_m0),
-    # share_fh_infl_pct    =       (infl_fh_pct    * share_fh_trunc_m0),
-    # share_fh_infl_log    = plogis(infl_fh_log    * share_fh_trunc_m0),
-    # share_model_redis_pct = share_model_infl_pct + acs1_5pct_pct,
-    # share_model_redis_log = share_model_infl_log + acs1_5pct_pct,
-    # share_fh_redis_pct    = share_fh_infl_pct    + acs1_5pct_pct,
-    # share_fh_redis_log    = share_fh_infl_log    + acs1_5pct_pct
-    
-    acs1_5pct_pct_log = qlogis(acs1_5pct_pct),
-    
-    share_model_redis_pct =       (infl_model_pct * share_model_trunc_m0) + acs1_5pct_pct,
-    share_fh_redis_pct    =       (infl_fh_pct    * share_fh_trunc_m0)    + acs1_5pct_pct,
-    share_model_redis_log = plogis(infl_model_log * share_model_trunc_m0  + acs1_5pct_pct_log),
-    share_fh_redis_log    = plogis(infl_fh_log    * share_fh_trunc_m0     + acs1_5pct_pct_log),
-    
-    # Bound results within the interval [0,1]
-    share_model_redis_pct01 = bound(share_model_redis_pct),
-    share_fh_redis_pct01    = bound(share_fh_redis_pct),
-    share_model_redis_log01 = bound(share_model_redis_log),
-    share_fh_redis_log01    = bound(share_fh_redis_log)
+```
+
+
+```{r function for performing redistribution}
+# Values for easy interactive debugging
+if (FALSE) {
+  sae_to_redis <- sae_results_incpov_ctrls_100_05
+  sae_age <- "05" # "612"
+}
+
+redis_sae <- function(sae_to_redis, sae_age) {
+  
+  redis_out <- 
+    sae_to_redis$sae_out %>% 
+    merge(acs1_5pct_puma_formerge %>% 
+            filter(age == acs_age) %>% 
+            select(PUMA, vc_value, acs1_5pct_pct),
+          by = c("PUMA", "vc_value"),
+          all.x = TRUE) %>% 
+    merge(acs5_incpov_cat %>%
+            filter(age == acs_age) %>%
+            select(GEOID, vc_value, share_acs5 = value),
+          by = c("GEOID", "vc_value"),
+          all.x = TRUE) %>%
+    merge(pop_long %>% filter(age == pop_age, year == base_year),
+          by = "GEOID",
+          all.x = TRUE) %>% 
+    group_by(PUMA, vc_value) %>% 
+    mutate(
+      # Center values to have mean 0
+      share_model_trunc_m0 = share_model_trunc - mean(share_model_trunc),
+      share_fh_trunc_m0    = share_fh_trunc    - mean(share_fh_trunc),
+      share_acs5_m0        = share_acs5        - mean(share_acs5),
+      
+      # Calculate std-deviations of shares
+      share_model_trunc_sd = sdNA(share_model_trunc),
+      share_fh_trunc_sd    = sdNA(share_fh_trunc),
+      share_acs5_sd        = sdNA(share_acs5),
+      
+      ## Perform logistic transformation, and get sd's
+      # For some reason, it's producing NAs to combine the separate calculations
+      # below. Separating them, as we have, avoids this.
+      share_model_trunc_log      = qlogis(share_model_trunc),
+      share_model_trunc_log_mean = meanNA(share_model_trunc_log),
+      share_model_trunc_log_m0   = share_model_trunc_log - share_model_trunc_log_mean,
+      share_model_trunc_log_sd   = sdNA(share_model_trunc_log_m0),
+      
+      share_fh_trunc_log      = qlogis(share_fh_trunc),
+      share_fh_trunc_log_mean = meanNA(share_fh_trunc_log),
+      share_fh_trunc_log_m0   = share_fh_trunc_log - share_fh_trunc_log_mean,
+      share_fh_trunc_log_sd   = sdNA(share_fh_trunc_log_m0),
+      
+      share_acs5_log = qlogis(share_acs5),
+      share_acs5_log_mean = meanNA(share_acs5_log),
+      share_acs5_log_m0 = share_acs5_log - share_acs5_log_mean,
+      share_acs5_log_sd = sdNA(share_acs5_log_m0),
+      
+      # Build inflation factors
+      infl_model_pct = share_acs5_sd     / share_model_trunc_sd,
+      infl_model_log = share_acs5_log_sd / share_model_trunc_log_sd,
+      infl_fh_pct    = share_acs5_sd     / share_fh_trunc_sd,
+      infl_fh_log    = share_acs5_log_sd / share_fh_trunc_log_sd,
+      
+      acs1_5pct_pct_log = qlogis(acs1_5pct_pct),
+      
+      share_model_redis_pct =       (infl_model_pct * share_model_trunc_m0) + acs1_5pct_pct,
+      share_fh_redis_pct    =       (infl_fh_pct    * share_fh_trunc_m0)    + acs1_5pct_pct,
+      share_model_redis_log = plogis(infl_model_log * share_model_trunc_m0  + acs1_5pct_pct_log),
+      share_fh_redis_log    = plogis(infl_fh_log    * share_fh_trunc_m0     + acs1_5pct_pct_log),
+      
+      # Bound results within the interval [0,1]
+      share_model_redis_pct01 = bound(share_model_redis_pct),
+      share_fh_redis_pct01    = bound(share_fh_redis_pct),
+      share_model_redis_log01 = bound(share_model_redis_log),
+      share_fh_redis_log01    = bound(share_fh_redis_log)
     ) %>% 
-  group_by(GEOID) %>% 
-  mutate(
-    share_model_redis_pct01_infl = share_model_redis_pct01 / sum(share_model_redis_pct01),
-    share_fh_redis_pct01_infl    = share_fh_redis_pct01    / sum(share_fh_redis_pct01),
-    share_model_redis_log01_infl = share_model_redis_log01 / sum(share_model_redis_log01),
-    share_fh_redis_log01_infl    = share_fh_redis_log01    / sum(share_fh_redis_log01)
-  )
+    group_by(GEOID) %>% 
+    mutate(
+      share_model_redis_pct01_infl = share_model_redis_pct01 / sum(share_model_redis_pct01),
+      share_fh_redis_pct01_infl    = share_fh_redis_pct01    / sum(share_fh_redis_pct01),
+      share_model_redis_log01_infl = share_model_redis_log01 / sum(share_model_redis_log01),
+      share_fh_redis_log01_infl    = share_fh_redis_log01    / sum(share_fh_redis_log01)
+    )
+  
+  # Output the results to the `sae_out` slot of the input SAE
+  sae_to_redis[["sae_out"]] <- redis_out
+  
+  return(sae_to_redis)
+}
+```
+
+
+```{r implement redistributions}
+for (spec in specs) {
+  #print(spec)
+  sae_name <- glue("sae_results_{spec}")
+  # The age is given by the final numbers in the name of the spec
+  sae_age <- str_extract(spec, "\\d+$")
+  
+  assign(glue("sae_results_{spec}"),
+         redis_sae(get(sae_name), sae_age))
+}
+
+# Check on success
+if (FALSE) {
+  str_subset(cn(sae_results_ccdf_wk_pov_05$sae_out), "_infl$")
+}
+
+```
+
+```{r pick a single SAE sensitivity to investigate}
+check_redis_sae <- sae_results_incpov_ctrls_100_05$sae_out
 ```
 
 ```{r examine overages}
 # Examine how the sums look
 overs <- 
-  z %>% 
+  check_redis_sae %>% 
   group_by(GEOID, PUMA) %>% 
   summarize(sums = sum(share_model_redis_pct01),
             check = sum(share_model_redis_pct01_infl))
@@ -1109,30 +1129,6 @@ overs %>%
   group_by(PUMA) %>% 
   summarize(pct_over = mean(sums>1.5))
 
-overs %>% 
-  filter(sums>1.5) %>% 
-  inner_join(z, by = "GEOID") %>% 
-  select(GEOID, vc_value, share_model_trunc, share_model_redis_pct, share_model_redis_pct01) %>% 
-  filter(vc_value == "400%+") %>% 
-  pull(share_model_trunc)
-```
-
-
-```{r examine sums omitting resid cat}
-omit_sums <- 
-  z %>% 
-  group_by(GEOID, PUMA) %>% 
-  filter(vc_value != residual_cat) %>% 
-  summarize(sums = sum(share_model_redis_pct01))
-
-ggplot(omit_sums %>% filter(!is.na(sums)),
-       aes(x = sums)) +
-  geom_density()
-```
-
-
-```{r pick a single SAE sensitivity to investigate}
-check_redis_sae <- z
 ```
 
 ```{r calculate percentages of estimates falling outside of [0,1], eval = developer_mode}
