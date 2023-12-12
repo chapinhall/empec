@@ -383,34 +383,6 @@ if (rerun_sae) {
 }
 ```
 
-```{r save SAE ingredients}
-
-if (rerun_sae) {
-  # Organize contents
-  sae_aux_data_acs5 <- acs5tract_sae
-  sae_controls_list <- list(sae_controls_simple_05,
-                            sae_controls_simple_612,
-                            sae_controls_added_2534_05,
-                            sae_controls_added_2534_612)
-  results <- paste0("sae_results_", specs)
-  
-  # Save the bundle of objects
-  save(list = c(results, "specs", "incpov_ref_value", "sae_controls_list", "sae_aux_data_acs5"),
-       file = glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rda"))
-  
-} else {
-  load(file = glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rda")) 
-}
-```
-
-```{r extract estimate tables from sae output}
-for (spec in specs) {
-  stem <- glue("sae_results_{spec}")
-  assign(glue("{stem}_out"),
-         get(stem)[["sae_out"]])
-}
-```
-
 #### Compare Direct versus FH Output Estimates
 
 As a reality check, confirm that a single "direct" estimate applies to all tracts within each given PUMA. The result should be that there are all "0" numbers of duplicates. 
@@ -495,6 +467,7 @@ How much do discrepancies between model and direct estimates exist across PUMAs?
 ```{r}
 plot_by_ordered_puma <- 
   sae_results_incpov_ctrls_mix_05_out %>% 
+  as.data.table() %>% 
   .[j = rank := rank(share_direct, ties.method = "random"), 
     by = vc_value] %>% 
   .[j = puma_by_rank := factor(PUMA, levels = unique(PUMA[order(rank)])),
@@ -576,7 +549,7 @@ if (my_output_tag == "Cook2022") {
 ```{r examine SAE share composition by tract -- FH estimates}
 plot_sae_comp_by_tract <- function(sae_est, base_cat, title) {
   
-  tract_order <- sae_est[vc_value == base_cat] %>% .[order(-share_fh_trunc)] %>%  .[j = rank := 1:.N]
+  tract_order <- sae_est[vc_value == base_cat] %>% as.data.table() %>% .[order(-share_fh_trunc)] %>%  .[j = rank := 1:.N]
   
   ggplot(sae_est %>% merge(tract_order[, .(GEOID, rank)], by = "GEOID"),
          aes(x = reorder(GEOID, rank),
@@ -1080,7 +1053,8 @@ redis_sae <- function(sae_to_redis, sae_age) {
       share_fh_redis_pct01_infl    = share_fh_redis_pct01    / sum(share_fh_redis_pct01),
       share_model_redis_log01_infl = share_model_redis_log01 / sum(share_model_redis_log01),
       share_fh_redis_log01_infl    = share_fh_redis_log01    / sum(share_fh_redis_log01)
-    )
+    ) %>% 
+    as.data.table()
   
   # Output the results to the `sae_out` slot of the input SAE
   sae_to_redis[["sae_out"]] <- redis_out
@@ -1104,8 +1078,39 @@ for (spec in specs) {
 # Check on success
 if (FALSE) {
   str_subset(cn(sae_results_ccdf_wk_pov_05$sae_out), "_infl$")
+  sae_results_ccdf_wk_pov_05$sae_out %>% 
+    select(GEOID, vc_value, 
+           share_model_trunc, share_model_redis_pct, share_model_redis_pct01_infl)
 }
 
+```
+
+```{r save SAE ingredients}
+
+if (rerun_sae) {
+  # Organize contents
+  sae_aux_data_acs5 <- acs5tract_sae
+  sae_controls_list <- list(sae_controls_simple_05,
+                            sae_controls_simple_612,
+                            sae_controls_added_2534_05,
+                            sae_controls_added_2534_612)
+  results <- paste0("sae_results_", specs)
+  
+  # Save the bundle of objects
+  save(list = c(results, "specs", "incpov_ref_value", "sae_controls_list", "sae_aux_data_acs5"),
+       file = glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rda"))
+  
+} else {
+  load(file = glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rda")) 
+}
+```
+
+```{r extract estimate tables from sae output}
+for (spec in specs) {
+  stem <- glue("sae_results_{spec}")
+  assign(glue("{stem}_out"),
+         get(stem)[["sae_out"]])
+}
 ```
 
 ```{r pick a single SAE sensitivity to investigate}
