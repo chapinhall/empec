@@ -388,7 +388,7 @@ if (rerun_sae) {
 As a reality check, confirm that a single "direct" estimate applies to all tracts within each given PUMA. The result should be that there are all "0" numbers of duplicates. 
 
 ```{r check that all tracts in each puma have the same direct estimate, eval = developer_mode}
-sae_results_incpov_simple_05_out %>% 
+sae_results_incpov_simple_05$sae_out %>% 
   group_by(vc_value, GEOID, PUMA) %>% 
   summarize(ndups = n_distinct(share_direct) - 1) %>% 
   with(table(ndups))
@@ -466,7 +466,7 @@ How much do discrepancies between model and direct estimates exist across PUMAs?
 
 ```{r}
 plot_by_ordered_puma <- 
-  sae_results_incpov_ctrls_mix_05_out %>% 
+  sae_results_incpov_ctrls_mix_05$sae_out %>% 
   as.data.table() %>% 
   .[j = rank := rank(share_direct, ties.method = "random"), 
     by = vc_value] %>% 
@@ -492,7 +492,7 @@ ggplot(plot_by_ordered_puma,
 Identify which PUMAs have the greatest discrepancies between direct and model estimates, especially for lower levels of income.
 
 ```{r}
-sae_results_incpov_ctrls_mix_05_out %>% 
+sae_results_incpov_ctrls_mix_05$sae_out %>% 
   group_by(vc_value, PUMA) %>% 
   summarize(model_vs_direct_var = (sum((share_model - share_direct)^2)/n()) %>% round(3),
             model_vs_direct_above = mean(share_model > share_direct) %>% percent(),
@@ -571,19 +571,19 @@ plot_sae_comp_by_tract <- function(sae_est, base_cat, title) {
 ```{r}
 # /!\ Consider ways to display them in a grid.
 # /!\ Consider how to loop or sapply this, to be more compact
-plot_sae_comp_by_tract(sae_results_incpov_simple_05_out,  
+plot_sae_comp_by_tract(sae_results_incpov_simple_05$sae_out,  
                        base_cat = incpov_ref_value,
                        title = "Vulnerability Cat Composition by Tract -- Simple Spec")
-plot_sae_comp_by_tract(sae_results_incpov_ctrls_mix_05_out,   
+plot_sae_comp_by_tract(sae_results_incpov_ctrls_mix_05$sae_out,   
                        base_cat = incpov_ref_value, 
                        title = "Vulnerability Cat Composition by Tract -- Added Controls (2534)")
 
-plot_sae_comp_by_tract(sae_results_ccdf_wk_sp_05_out,   
+plot_sae_comp_by_tract(sae_results_ccdf_wk_sp_05$sae_out,   
                        base_cat = "WorkElig_SpousePresent", 
                        title = "Vulnerability Cat Composition by Tract -- Work Eligibility by Presence of Spouse")
 
-plot_sae_comp_by_tract(sae_results_ccdf_wk_pov_05_out,   
-                       base_cat = str_subset(sae_results_ccdf_wk_pov_05_out$vc_value, "^WorkElig_0%") %>% unique(), 
+plot_sae_comp_by_tract(sae_results_ccdf_wk_pov_05$sae_out,   
+                       base_cat = str_subset(sae_results_ccdf_wk_pov_05$sae_out$vc_value, "^WorkElig_0%") %>% unique(), 
                        title = "Vulnerability Cat Composition by Tract -- Work Eligibility by Income-to-Pov")
 ```
 
@@ -965,12 +965,6 @@ bound <- function(x, lower = 0, upper = 1) {
 if (FALSE) {
   bound(c(-1, 0.2, 0.8, 5))
 }
-
-pop_age <- case_when(sae_age == "05"  ~ "0to5", 
-                     sae_age == "612" ~ "6to12")
-acs_age <- case_when(sae_age == "05"  ~ "lt6", 
-                     sae_age == "612" ~ "6to11")
-
 ```
 
 
@@ -982,6 +976,11 @@ if (FALSE) {
 }
 
 redis_sae <- function(sae_to_redis, sae_age) {
+  
+  pop_age <- case_when(sae_age == "05"  ~ "0to5", 
+                       sae_age == "612" ~ "6to12")
+  acs_age <- case_when(sae_age == "05"  ~ "lt6", 
+                       sae_age == "612" ~ "6to11")
   
   redis_out <- 
     sae_to_redis$sae_out %>% 
