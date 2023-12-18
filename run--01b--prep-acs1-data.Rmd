@@ -36,6 +36,20 @@ if (!file.exists(acs1_save_file)) {
 acs1[j = PUMA := str_pad(PUMA, width = 5, side = "left", pad = "0")]
 ```
 
+```{r develop fields for the relationship variable depending on its source}
+if (base_year <= 2018) {
+  acs1[j = cRel := 
+         case_when(rel_var == 00 ~ "Head",
+                   rel_var == 01 ~ "Spouse",
+                   TRUE ~ "Other relationship")]
+} else {
+  acs1[j = cRel := 
+         case_when(rel_var == 20 ~ "Head",
+                   rel_var %in% c(21, 23) ~ "Spouse",
+                   TRUE ~ "Other relationship")]
+}
+```
+
 
 ### Sample Restrictions
 
@@ -69,14 +83,14 @@ if (exists("my_county")) {
 ```{r view variables relevant to head-of-household coding, results = "asis", eval = developer_mode}
 if (print_documentation) {
   my_pums %>% 
-    filter(var_code %in% c("RELSHIPP", "SCHL", "INDP", "RAC2P", "HISP")) %>% 
+    filter(var_code %in% c(rel_var, "SCHL", "INDP", "RAC2P", "HISP")) %>% 
     kable()
 }
 ```
 
 ```{r investigate the number of households without a householder, eval = developer_mode}
 acs1[by = .(YEAR, SERIALNO),
-     j  = .(has_hoh = maxNA(RELSHIPP == 20))] %>% 
+     j  = .(has_hoh = maxNA(cRel == "Head"))] %>% 
   summary()
 ```
 
@@ -87,7 +101,7 @@ Although not currently used in this analysis, this codebase develops indicators 
 # Note: for households that contain multiple families, this method may produce inaccurate results (i.e., head of household may be unrelated to child in multi-family households).
 acs1_hoh <- 
   acs1 %>%
-  .[RELSHIPP == 20] %>%
+  .[cRel == "Head"] %>%
   .[, `:=`(hoh_educ = 
              case_when(between(SCHL,  2, 15) ~ "less_hs", 
                        between(SCHL, 16, 17) ~ "hs", 
@@ -110,7 +124,7 @@ acs1_hoh <-
 ```{r view variables relevant to constructing household-level measures, eval = developer_mode, results = "asis"}
 if (print_documentation) {
   my_pums %>% 
-    filter(var_code %in% c("RELSHIPP", "SCH", "ESR")) %>%
+    filter(var_code %in% c(rel_var, "SCH", "ESR")) %>%
     kable()
 }
 ```
@@ -131,9 +145,9 @@ An additional set of indicators is built using all information about household m
 
 acs1_hh <-
   acs1 %>% 
-  .[i = RELSHIPP %in% c(20,21,23), # subset to only householder and spouse records
+  .[i = cRel %in% c("Head", "Spouse"), # subset to only householder and spouse records
     by = .(YEAR, SAMPLE, SERIALNO),
-    j = .(spouse_present = maxNA(RELSHIPP %in% c(21,23)), # This corresponds to spouse
+    j = .(spouse_present = maxNA(cRel == "Spouse"),
           all_work_sch   = minNA(ESR %in% 1:2 | SCH %in% 2:3))] # corresponds to working, or in school
 
   # /!\ Not built, but possibly of interest may be gender of households, and
@@ -145,7 +159,7 @@ acs1_hh <-
 # Allow examination of cases
 if (FALSE) {
   check <- 
-    merge(acs1[j = .(YEAR, SERIALNO, RELSHIPP, SEX, AGEP, SCH, ESR)],
+    merge(acs1[j = .(YEAR, SERIALNO, cRel, SEX, AGEP, SCH, ESR)],
           acs1_hh[j = .(YEAR, SERIALNO, spouse_present, all_work_sch)],
           all = TRUE) %>% 
     .[order(SERIALNO, YEAR)]
@@ -459,19 +473,28 @@ acs1_puma_stats <-
 # Other attempts to automatically pull PUMA-level data in batches from the Census
 # (https://data.census.gov/) produced the same error. Only when PUMAs were 
 # pulled manually, individually 
-if (FALSE) {
-  acs1_tables <- 
-    get_acs(geography = "puma", 
-            state     = my_state_abbr,
-            survey    = "acs1",
-            table     = "B17024",
-            year      = 2022)
-  
-  acs1_tables_labeled <- 
-    label_acs(acs1_tables,
-              year = 2022,
-              survey = "acs1")  
-}
+
+acs1_tables <- 
+  get_acs(geography = "puma", 
+          state     = my_state_abbr,
+          survey    = "acs1",
+          table     = "B17024",
+          year      = base_year)
+
+acs1_tables_labeled <- 
+  label_acs(acs1_tables,
+            year = base_year,
+            survey = "acs1")  
+
+# /!\ The API pulls of ACS1 aggregate tables is resulting in NAs. This source
+# reflects a manual pull that individually pulled problematic PUMAs to avoid
+# missings.
+# acs1_tables_labeled <-
+#   openxlsx::read.xlsx(glue("{input_path}acs_puma_cook_b17024_2022.xlsx"),
+#                       sheet = "in") %>%
+#   merge(acs1_tables_labeled %>% select(variable, label) %>% unique(),
+#         by = "variable",
+#         all.x = TRUE)
 
 acs1_5pct_puma <- 
   acs1_tables_labeled %>% 
@@ -501,6 +524,7 @@ acs1_5pct_puma <-
                                est_175to184 + est_185to199,
          acs1_agg_200_300_n  = est_200to299,
          acs1_agg_300_400_n  = est_300to399,
+         acs1_agg_200_400_n  = est_200to299 + est_300to399,
          acs1_agg_400_n      = est_400to499 + est_ge500,
          
          acs1_agg_0_50_pct     = acs1_agg_0_50_n    / est_tot,
@@ -509,6 +533,7 @@ acs1_5pct_puma <-
          acs1_agg_100_200_pct  = acs1_agg_100_200_n / est_tot,
          acs1_agg_200_300_pct  = acs1_agg_200_300_n / est_tot,
          acs1_agg_300_400_pct  = acs1_agg_300_400_n / est_tot,
+         acs1_agg_200_400_pct  = acs1_agg_200_400_n / est_tot,
          acs1_agg_400_pct      = acs1_agg_400_n     / est_tot,
          
          PUMA = str_replace(GEOID, glue("^{my_state_fip}"), "")) %>% 

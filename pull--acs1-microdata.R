@@ -29,8 +29,12 @@
 #list necessary variables
 # Note: "TYPE" is missing
 
+rel_var <- ifelse(base_year <= 2018,
+                  "RELP",
+                  "RELSHIPP")
+
 pull_vars <- 
-  c("SERIALNO", "ST", "PUMA", "FS", "SPORDER", "RELSHIPP", "SEX", "AGEP", 
+  c("SERIALNO", "ST", "PUMA", "FS", "SPORDER", rel_var, "SEX", "AGEP", 
     "RAC2P", "HISP", "SCH", "SCHL", "ESR", "COW", "OCCP", "INDP", "FINCP", 
     "POVPIP", "PWGTP", "WGTP")
 
@@ -88,7 +92,7 @@ acs1 <-
     PUMA     = as.numeric(PUMA),
     ST       = as.numeric(ST),
     FS       = as.numeric(FS),
-    RELSHIPP = as.numeric(RELSHIPP),
+    rel_var  = as.numeric(get(rel_var)),
     SEX      = as.numeric(SEX),
     RAC2P    = as.numeric(RAC2P),
     HISP     = as.numeric(HISP),

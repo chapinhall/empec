@@ -37,16 +37,24 @@ if ("my_county" %in% objects()) {
 
 <!-- ### Load Geographic Crosswalks ------------------------------------------->
 
-```{r prepare ACS 5-year crosswalk data}
+```{r prepare geographic crosswalk data}
+if (base_year <= 2021) {
+  xwalk_source <- "https://www2.census.gov/geo/docs/maps-data/data/rel/2010_Census_Tract_to_2010_PUMA.txt"
+  # We use 2010 crosswalks even up through 2021 because that is the geographic units reported
+  # 
+} else {
+  xwalk_source <- "https://www2.census.gov/geo/docs/maps-data/data/rel2020/2020_Census_Tract_to_2020_PUMA.txt"
+}
+
 geo_crosswalk_puma <-
-  fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/2020_Census_Tract_to_2020_PUMA.txt") %>% 
+  fread(xwalk_source) %>% 
     
     # for reference, this is the 2020 tract-to-PUMA crosswalk. While ACS5 data
     # from 2020 is available and uses this, the ACS1 data pull from 2021 uses
     # 2010 PUMA definitions. Temporarily, we are planning to continue to work on
     # a 2010 basis by pulling ACS5 data from 2019
     # 2010 crosswalk
-    # "https://www2.census.gov/geo/docs/maps-data/data/rel/2010_Census_Tract_to_2010_PUMA.txt"
+    # 
   .[STATEFP == my_state_fip] %>% 
   # /!\ Am not aware of the significance of the FIP versus CE suffix. It's an 
   # assumption that there's no consequence to dropping the distinction
@@ -163,7 +171,7 @@ for (geo in c("puma20", "zcta520")) {
     unzip(glue("{input_path}tl_{tiger_year}_{my_state_fip}_{geo}.zip"),
           exdir = str_replace(input_path, "\\/$", ""))
     pumaShp <- st_read(glue("{input_path}tl_{tiger_year}_{my_state_fip}_puma20.shp"))
-  } else if (geo == "zcta520" && !exists("zctaShpShp")) {
+  } else if (geo == "zcta520" && !exists("zctaShp")) {
     download_filename <- glue("us_zcta520")
     download.file(url      = glue("{census_path}tl_{tiger_year}_us_zcta520.zip"),
                   destfile = glue("{input_path}{download_filename}.zip"))
