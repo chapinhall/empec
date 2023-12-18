@@ -1027,31 +1027,55 @@ redis_sae <- function(sae_to_redis, sae_age) {
       share_acs5_log_m0 = share_acs5_log - share_acs5_log_mean,
       share_acs5_log_sd = sdNA(share_acs5_log_m0),
       
-      # Build inflation factors
+      acs1_5pct_pct_log = qlogis(acs1_5pct_pct),
+      
+      # Build variance inflation factors
       infl_model_pct = share_acs5_sd     / share_model_trunc_sd,
       infl_model_log = share_acs5_log_sd / share_model_trunc_log_sd,
       infl_fh_pct    = share_acs5_sd     / share_fh_trunc_sd,
       infl_fh_log    = share_acs5_log_sd / share_fh_trunc_log_sd,
       
-      acs1_5pct_pct_log = qlogis(acs1_5pct_pct),
+      # Build a multiplicative inflation factor
+      infl_acs1_acs5     = acs1_5pct_pct / meanNA(share_acs5),
+      infl_acs1_acs5_wgt = acs1_5pct_pct / weighted.mean(share_acs5, w = pop, na.rm = TRUE),
+        # We build this only for the acs5 shares because, under the current pilot
+        # test stage, we are not planning to do a variance adjustment that the
+        # SAE estimates would need
       
+      # Redistribute using variance and mean adjustment
       share_model_redis_pct =       (infl_model_pct * share_model_trunc_m0) + acs1_5pct_pct,
       share_fh_redis_pct    =       (infl_fh_pct    * share_fh_trunc_m0)    + acs1_5pct_pct,
       share_model_redis_log = plogis(infl_model_log * share_model_trunc_m0  + acs1_5pct_pct_log),
       share_fh_redis_log    = plogis(infl_fh_log    * share_fh_trunc_m0     + acs1_5pct_pct_log),
+      share_acs5_redis_pct  =                         share_acs5_m0         + acs1_5pct_pct,
+        # We allow for an acs5-based estimate which simply adjusts means. The variance
+        # of course doesn't have to be inflated, because it's already the benchmark
+        # for inflation!
+      
+      # Redistribute using multiplication
+      share_acs5_redis_mult      = share_acs5 * infl_acs1_acs5,
+      share_acs5_redis_mult_wgt  = share_acs5 * infl_acs1_acs5_wgt,
       
       # Bound results within the interval [0,1]
       share_model_redis_pct01 = bound(share_model_redis_pct),
       share_fh_redis_pct01    = bound(share_fh_redis_pct),
       share_model_redis_log01 = bound(share_model_redis_log),
-      share_fh_redis_log01    = bound(share_fh_redis_log)
+      share_fh_redis_log01    = bound(share_fh_redis_log),
+      share_acs5_redis_pct01  = bound(share_acs5_redis_pct),
+      
+      share_acs5_redis_mult01      = bound(share_acs5_redis_mult),
+      share_acs5_redis_mult_wgt01  = bound(share_acs5_redis_mult_wgt),
     ) %>% 
     group_by(GEOID) %>% 
     mutate(
       share_model_redis_pct01_infl = share_model_redis_pct01 / sum(share_model_redis_pct01),
       share_fh_redis_pct01_infl    = share_fh_redis_pct01    / sum(share_fh_redis_pct01),
       share_model_redis_log01_infl = share_model_redis_log01 / sum(share_model_redis_log01),
-      share_fh_redis_log01_infl    = share_fh_redis_log01    / sum(share_fh_redis_log01)
+      share_fh_redis_log01_infl    = share_fh_redis_log01    / sum(share_fh_redis_log01),
+      share_acs5_redis_pct01_infl  = share_acs5_redis_pct01  / sum(share_acs5_redis_pct01),
+      
+      share_acs5_redis_mult01_infl     = share_acs5_redis_mult01     / sum(share_acs5_redis_mult01),
+      share_acs5_redis_mult_wgt01_infl = share_acs5_redis_mult_wgt01 / sum(share_acs5_redis_mult_wgt01),
     ) %>% 
     as.data.table()
   
@@ -1076,6 +1100,11 @@ for (spec in specs) {
 
 # Check on success
 if (FALSE) {
+  str_subset(cn(sae_results_incpov_ctrls_100_05$sae_out), "_infl$")
+  sae_results_incpov_ctrls_100_05$sae_out %>% 
+    select(GEOID, vc_value, 
+           share_model_trunc, share_model_redis_pct, share_model_redis_pct01_infl)
+  
   str_subset(cn(sae_results_ccdf_wk_pov_05$sae_out), "_infl$")
   sae_results_ccdf_wk_pov_05$sae_out %>% 
     select(GEOID, vc_value, 
@@ -1114,6 +1143,24 @@ for (spec in specs) {
 
 ```{r pick a single SAE sensitivity to investigate}
 check_redis_sae <- sae_results_incpov_ctrls_100_05$sae_out
+```
+
+```{r check the comparison of population-weighted vs unweighted acs5 inflation factors}
+check_redis_sae %>% 
+  ggplot(aes(x = infl_acs1_acs5, 
+             y = infl_acs1_acs5_wgt)) + 
+  geom_45() + 
+  geom_point() + 
+  facet_wrap(~vc_value)
+```
+
+```{r compare acs5 redis vs mult methods}
+check_redis_sae %>% 
+  ggplot(aes(x = share_acs5_redis_pct01_infl, 
+             y = share_acs5_redis_mult01_infl)) + 
+  geom_45() + 
+  geom_point(alpha = 0.1) + 
+  facet_wrap(~vc_value)
 ```
 
 ```{r examine overages}
@@ -1233,49 +1280,38 @@ check_redis_sae %>%
 ```
 
 ```{r examine distributions and correlations of original and final SAE vs acs5}
-check_redis_sae %>% 
-  filter(!is.na(share_acs5),
-         !is.na(share_model_trunc)) %>% 
-  ggplot(aes(x = share_acs5,
-             y = share_model_trunc)) +
+comp_plot <- function(field1, field2) {
+  check_redis_sae %>% 
+  filter(!is.na(get(field1)),
+         !is.na(get(field2))) %>% 
+  ggplot(aes(x = get(field1),
+             y = get(field2))) +
   geom_45() + 
   geom_point(alpha = 0.1) +
   geom_smooth() + 
   scale_y_continuous(limits = c(0, 1)) +
+  labs(x = field1, y = field2) +
   facet_wrap(~vc_value)
+}
 
-check_redis_sae %>% 
-  filter(!is.na(share_acs5),
-         !is.na(share_model_redis_pct)) %>% 
-  ggplot(aes(x = share_acs5,
-             y = share_model_redis_pct)) +
-  geom_45() + 
-  geom_point(alpha = 0.1) +
-  geom_smooth() + 
-  scale_y_continuous(limits = c(0, 1)) +
-  facet_wrap(~vc_value)
-
-check_redis_sae %>% 
-  filter(!is.na(share_acs5),
-         !is.na(share_model_redis_pct01_infl)) %>% 
-  ggplot(aes(x = share_acs5,
-             y = share_model_redis_pct01_infl)) +
-  geom_45() + 
-  geom_point(alpha = 0.1) +
-  geom_smooth() + 
-  scale_y_continuous(limits = c(0, 1)) +
-  facet_wrap(~vc_value)
+comp_plot("share_acs5", "share_model_trunc")
+comp_plot("share_acs5", "share_model_redis_pct")
+comp_plot("share_acs5", "share_model_redis_pct01_infl")
+comp_plot("share_acs5", "share_acs5_redis_pct01_infl")
+comp_plot("share_acs5_redis_pct01_infl", "share_acs5_redis_pct01_infl")
 
 check_redis_sae %>% 
   group_by(vc_value) %>% 
   summarize(cor_acs5_sae  = cor(share_acs5, share_model_trunc,            use = "pairwise") %>% round(3),
             cor_acs5_pct = cor(share_acs5, share_model_redis_pct, use = "pairwise") %>% round(3),
             cor_acs5_infl = cor(share_acs5, share_model_redis_pct01_infl, use = "pairwise") %>% round(3),
+            cor_acs5_acs5 = cor(share_acs5, share_acs5_redis_pct01_infl, use = "pairwise") %>% round(3),
             
             var_acs5 = varNA(share_acs5) %>% round(3),
             var_sae  = varNA(share_model_trunc) %>% round(3),
             var_pct = varNA(share_model_redis_pct) %>% round(3),
-            var_infl = varNA(share_model_redis_pct01_infl) %>% round(3)) %>% 
+            var_infl = varNA(share_model_redis_pct01_infl) %>% round(3),
+            var_acs5_infl = varNA(share_acs5_redis_pct01_infl) %>% round(3)) %>% 
   ungroup()
   # Shows that correlations have dropped somewhat with each manipulation, but 
   # the variances are substantially more realistic, which is critical
@@ -1289,7 +1325,8 @@ est_vs_acs1 <-
   check_redis_sae %>% 
   ungroup() %>%
   select(GEOID, PUMA, vc_value, pop, share_acs1 = acs1_5pct_pct, 
-         share_acs5, share_model_trunc, share_model_redis_pct, share_model_redis_pct01_infl) %>% 
+         share_acs5, share_model_trunc, share_model_redis_pct,
+         share_model_redis_pct01_infl, share_acs5_redis_pct01_infl) %>% 
   pivot_longer(cols = -c(GEOID, PUMA, vc_value, pop, share_acs1),
                names_to = "method",
                values_to = "estimate") %>% 
@@ -1305,7 +1342,8 @@ est_vs_acs1 <-
                     levels = c("share_acs5", 
                                "share_model_trunc", 
                                "share_model_redis_pct",
-                               "share_model_redis_pct01_infl"))
+                               "share_model_redis_pct01_infl",
+                               "share_acs5_redis_pct01_infl"))
   )
 
 ggplot(est_vs_acs1,
