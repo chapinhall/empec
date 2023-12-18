@@ -647,10 +647,12 @@ for (cps_recency in c("most_recent", "allbase")) {
         # The new strategy of using ACS1 means and ACS5 variance to redistribute
         # the sae calculations is only available so far for income-to-poverty
         # calculations
-        share_calc_var_use <- 
-          ifelse(use_only_sae_model_estimates,
-                 "share_model_redis_pct01_infl",
-                 "share_fh_redis_pct01_infl")
+        # share_calc_var_use <- 
+        #   ifelse(use_only_sae_model_estimates,
+        #          "share_model_redis_pct01_infl",
+        #          "share_fh_redis_pct01_infl")
+        #share_calc_var_use <- "share_acs5_redis_pct01_infl"
+        share_calc_var_use <- "share_acs5_redis_mult_wgt01_infl"
 
       } else if (str_detect(sae_spec, "^ccdf")) {
         outcome_vars <- "ccdf_elig_tight_inc_adj"
