@@ -139,9 +139,9 @@ add_agg_level <- function(ests, agg_level) {
 agg_tracts_up <- function(ests, agg_level) {
   ests %>%
     add_agg_level(agg_level) %>% 
-    .[j = .(count        = sum(pop_count*share*geo_part),
+    .[j = .(count        = sumNA(pop_count*share*geo_part),
             count_se     = se_sum(se_product(pop_count*geo_part, share, pop_count_se*geo_part, share_se)),
-            pop_count    = sum(pop_count*geo_part),
+            pop_count    = sumNA(pop_count*geo_part),
             pop_count_se = se_sum(pop_count_se*geo_part)),
       by = c(agg_level, "age", "pd", "outcome_var")] %>% 
     mutate(share    = count / pop_count,
