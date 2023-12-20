@@ -477,6 +477,7 @@ acs1_puma_stats <-
 acs1_tables <- 
   get_acs(geography = "puma", 
           state     = my_state_abbr,
+          county    = ifelse(exists("my_county"), my_county, NULL),
           survey    = "acs1",
           table     = "B17024",
           year      = base_year)
@@ -486,15 +487,26 @@ acs1_tables_labeled <-
             year = base_year,
             survey = "acs1")  
 
-# /!\ The API pulls of ACS1 aggregate tables is resulting in NAs. This source
-# reflects a manual pull that individually pulled problematic PUMAs to avoid
-# missings.
-# acs1_tables_labeled <-
-#   openxlsx::read.xlsx(glue("{input_path}acs_puma_cook_b17024_2022.xlsx"),
-#                       sheet = "in") %>%
-#   merge(acs1_tables_labeled %>% select(variable, label) %>% unique(),
-#         by = "variable",
-#         all.x = TRUE)
+# /!\ The API pulls of ACS1 aggregate tables is resulting in NAs. These code 
+# chunks reflect ad hoc, manual pulls of individually pulled problematic PUMAs 
+# to avoid these missings
+if (base_year == 2022) {
+  acs1_tables_labeled <-
+    openxlsx::read.xlsx(glue("{input_path}acs_puma_cook_b17024_2022.xlsx"),
+                        sheet = "in") %>%
+    merge(acs1_tables_labeled %>% select(variable, label) %>% unique(),
+          by = "variable",
+          all.x = TRUE)
+} else if (base_year == 2018) {
+  acs1_tables_labeled <-
+    read.csv(glue("{input_path}acs_pov_estimates_2018.csv"),
+             stringsAsFactors = FALSE) %>%
+    mutate(estimate = as.numeric(str_replace_all(estimate, ",", "")),
+           moe      = as.numeric(str_replace_all(moe,      ",", ""))) %>% 
+    merge(acs1_tables_labeled %>% select(variable, label) %>% unique(),
+          by = "variable",
+          all.x = TRUE)
+}
 
 acs1_5pct_puma <- 
   acs1_tables_labeled %>% 

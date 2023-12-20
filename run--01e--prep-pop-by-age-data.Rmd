@@ -831,7 +831,39 @@ ests_with_forecast_long <-
                          age %in% 13:17 ~ "age_13to17_count")) %>% 
   group_by(age, GEOID, year) %>%
   summarise(value = sum(value))
+```
 
+
+```{r reapportion population estimates to 2010 census geographies}
+if (base_year <= 2021) {
+  rel_10_20 <- 
+    fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/tract/tab20_tract20_tract10_natl.txt", sep = "|") %>% 
+    mutate(GEOID_TRACT_10    = as.character(GEOID_TRACT_10),
+           GEOID_TRACT_20    = as.character(GEOID_TRACT_20),
+           AREALAND_PART     = as.numeric(AREALAND_PART),
+           AREALAND_TRACT_20 = as.numeric(AREALAND_TRACT_20)
+            # Note -- the `as.numeric()` functions are necessary to convert values
+            # from integer64 values, which can cause errors in calculation
+           ) %>% 
+    filter(str_detect(GEOID_TRACT_10, glue("^{my_state_fip}")), 
+           str_detect(GEOID_TRACT_20, glue("^{my_state_fip}"))) %>% 
+    mutate(part_of_20 = AREALAND_PART / AREALAND_TRACT_20)
+  
+  ests_with_forecast_long <- 
+    ests_with_forecast_long %>% 
+    rename(GEOID_TRACT_20 = GEOID) %>% 
+    merge(rel_10_20 %>% select(GEOID_TRACT_20, GEOID = GEOID_TRACT_10, part_of_20),
+          by = "GEOID_TRACT_20",
+          all.x = TRUE) %>% 
+    mutate(value = value * part_of_20) %>% 
+    group_by(GEOID, age, year) %>% 
+    summarize(value = sum(value))
+}
+
+```
+
+
+```{r reshape temporary population estimates}
 pop_by_age_2 <- 
   ests_with_forecast_long %>% 
   pivot_wider(names_from  = "age",
@@ -885,11 +917,15 @@ pop_by_age <- pop_by_age_2
 ```
 
 ```{r copies data for 2023}
-pop_2023 <- pop_by_age %>% 
+pop_2023 <- 
+  pop_by_age %>% 
   filter(year == 2022) %>%
   mutate(year = 2023)
-pop_by_age <- rbind(pop_by_age, pop_2023) %>%
+
+pop_by_age <- 
+  rbind(pop_by_age, pop_2023) %>%
   arrange(GEOID)
+
 rm(pop_2023)
 ```
 

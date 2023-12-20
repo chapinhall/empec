@@ -189,22 +189,36 @@ tractShp <-
          COUNTYFIP = COUNTYFP,
          TRACTFIP  = TRACTCE)
 
-pumaShp <- 
-  pumaShp %>%
-  rename(STATEFIP  = STATEFP20,
-         PUMA      = PUMACE20,
-         GEOID     = GEOID20)
+if (base_year <= 2021) {
+  pumaShp <- 
+    pumaShp %>%
+    rename(STATEFIP  = STATEFP10,
+           PUMA      = PUMACE10,
+           GEOID     = GEOID10)  
+  
+  zctaShp <-
+    zctaShp %>% 
+    rename(ZCTA      = ZCTA5CE10,
+           GEOID     = GEOID10)
+} else {
+  pumaShp <- 
+    pumaShp %>%
+    rename(STATEFIP  = STATEFP20,
+           PUMA      = PUMACE20,
+           GEOID     = GEOID20)
+
+  zctaShp <-
+    zctaShp %>% 
+    rename(ZCTA      = ZCTA5CE20,
+           GEOID     = GEOID20)
+    
+}
 
 countyShp <-
   countyShp %>% 
   rename(STATEFIP  = STATEFP,
          COUNTYFIP = COUNTYFP,
          County    = NAME)
-
-zctaShp <-
-  zctaShp %>% 
-  rename(ZCTA      = ZCTA5CE20,
-         GEOID     = GEOID20)
 ```
 
 
@@ -258,13 +272,13 @@ if (exists("my_aux_geo")) {
   # Plot overlap to examine any potential issues
   if (FALSE) {
     ggplot() +
-      geom_sf(data = auxShp %>% filter(str_detect(NAME, "District 299")),
-              color = "green", 
-              fill = NA, 
-              linewidth = 1) + 
       geom_sf(data = tractShp %>% filter(COUNTYFIP == "031"), 
               color = "red",   
               fill = NA) +
+      geom_sf(data = auxShp,
+              color = "green", 
+              fill = NA, 
+              linewidth = 1) + 
       theme_void()
   }
   
