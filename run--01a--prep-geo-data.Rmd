@@ -40,8 +40,11 @@ if ("my_county" %in% objects()) {
 ```{r prepare geographic crosswalk data}
 if (base_year <= 2021) {
   xwalk_source <- "https://www2.census.gov/geo/docs/maps-data/data/rel/2010_Census_Tract_to_2010_PUMA.txt"
-  # We use 2010 crosswalks even up through 2021 because that is the geographic units reported
-  # 
+  # We use 2010 crosswalks even up through 2021 because that is the geographic units 
+  # utilized by 2021 ACS1 microdata (i.e. 2010 vintage PUMAs). 
+  # See this reference for various connections between data release and 
+  # vintage of related geographic boundaries:
+  #   https://www.census.gov/programs-surveys/acs/geography-acs/geography-boundaries-by-year.2021.html#list-tab-626530102
 } else {
   xwalk_source <- "https://www2.census.gov/geo/docs/maps-data/data/rel2020/2020_Census_Tract_to_2020_PUMA.txt"
 }
