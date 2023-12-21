@@ -579,8 +579,8 @@ table(cps_ccdf_subset$premphrs, cps_ccdf_subset$pemlr)
 
 cps_ccdf_flags <- 
   cps_ccdf_subset %>% 
-  .[j = .(ccdf_elig_tight = min(pemlr == 1),                           # This requires all parents to be working for _tight == 1
-          ccdf_elig_loose = min(pemlr %in% c(1, 2) | peschenr == 1)),  # This requires parents to be either working, having a job but not at work last week, or enrolled in school part-time or full-time
+  .[j = .(ccdf_elig_tight = min(pemlr %in% c(1, 2)    | peschenr == 1),         # corresponds to at work, with a job but not at work, public school, or private/home school
+          ccdf_elig_loose = min(pemlr %in% c(1, 2, 7) | peschenr == 1)),        # adding "other" NILF which could be education or training, or housework
     by = .(hryear4, hrmonth, year_month, cpsid)]
 
 # Examine conditions

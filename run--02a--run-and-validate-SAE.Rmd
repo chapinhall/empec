@@ -943,6 +943,9 @@ for (spec in specs) {
 save(list = c(results, "specs", "incpov_ref_value", "sae_controls_list", "sae_aux_data_acs5"),
        file = glue("{output_path}sae_sensitivity_estimates_final_{my_output_tag}.Rda"))
 
+#/!\hk: object results is missing when we set rerun_sae <- FALSE. The above command would not work. 
+load(file = glue("{output_path}sae_sensitivity_estimates_final_{my_output_tag}.Rda"))
+
 # Check inflation worked
 if (FALSE) {
   my_spec$sae_out %>% 
@@ -1054,6 +1057,7 @@ map_sae_components(my_dt, "sae_pov_model_05", "", val_limits = limits_05, save_l
 # Build 
 (puma_agg_sae <- 
   sae_results_ccdf_wk_pov_05$sae_out %>% 
+   as.data.table() %>%
   .[j = PUMA := as.numeric(PUMA)] %>% 
   .[str_detect(vc_value, "^WorkElig_(0%|75%|150%).+"),
     .(n_p = sum(n_pt),

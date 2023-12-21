@@ -26,13 +26,12 @@
 # - settings--profile.R
 # - method--general-helper-functions.R
 
-#list necessary variables
-# Note: "TYPE" is missing
-
+# List necessary variables
 pull_vars <- 
   c("SERIALNO", "ST", "PUMA", "FS", "SPORDER", "RELSHIPP", "SEX", "AGEP", 
     "RAC2P", "HISP", "SCH", "SCHL", "ESR", "COW", "OCCP", "INDP", "FINCP", 
-    "POVPIP", "PWGTP", "WGTP")
+    "POVPIP", "PWGTP", "WGTP", "SFN", "SFR", "HHT", "HHT2", "NPF", "ESP",
+    "PINCP", "HINCP")
 
 # View all available variables for acs1
 if (FALSE) {
@@ -42,6 +41,8 @@ if (FALSE) {
            survey == "acs1"
     )
   View(my_pums)
+  
+  write.csv(my_pums, file = glue("{input_path}my_pums_{base_year}.csv")) #save list of variables
 }
 
 # Print variables already selected
@@ -50,7 +51,7 @@ if (FALSE) {
     filter(var_code %in% pull_vars)
 }
 
-# Pull ACS data
+# Pull ACS1 data
 acs1 <- 
   get_pums(variables = pull_vars,
            state     = my_state_abbr, #'all' for all states
@@ -92,7 +93,6 @@ acs1 <-
     SEX      = as.numeric(SEX),
     RAC2P    = as.numeric(RAC2P),
     HISP     = as.numeric(HISP),
-    INDP     = as.numeric(INDP),
     SAMPLE   = as.numeric(SAMPLE),
     STRATA   = as.numeric(STRATA),
     SCHL     = recode(SCHL,
@@ -107,9 +107,27 @@ acs1 <-
     COW      = recode(COW,
                       `b` = "0"),
     COW      = as.numeric(COW),
+    INDP     = recode(INDP,
+                      `000N` = "0"),
+    INDP     = as.numeric(INDP),
     POVPIP   = recode(as.numeric(POVPIP),
                       `0` = 1,
-                      `-1` = 0)
+                      `-1` = 0),
+    SFN      = recode(SFN,
+                      `b` = "0"),
+    SFN      = as.numeric(SFN),
+    SFR      = recode(SFR,
+                      `b` = "0"),
+    SFR      = as.numeric(SFR),
+    HHT      = recode(HHT,
+                      `b` = "0"),
+    HHT      = as.numeric(HHT),
+    HHT2     = recode(HHT2,
+                       `bb` = "0"),
+    HHT2     = as.numeric(HHT2),
+    ESP      = recode(ESP,
+                      `b` = "0"),
+    ESP      = as.numeric(ESP)
   ) %>% 
   data.table()
 

@@ -120,15 +120,24 @@ An additional set of indicators is built using all information about household m
 
 ```{r prepare ACS 1-year microdata for families}
 # Key field values (Census)
-# ESR -- 0 - N/A (less than 16 yrs old), 1 - Civilian employed, at work, 2 - Civilian employed, with a job but not at work, 3 - Unemployed, 4 - Armed forces, at work, 5 - Armed forces, with a job but not at work, 6 - Not in labor force
-# SCH -- 0 - N/A (less than 3 yrs old), 1 - No, has not attended in the last 3 months, 2 - Yes, public school or public college, 3 - Yes, private school or college or home school
+# ESR: 0 - N/A (less than 16 yrs old)
+#      1 - Civilian employed, at work
+#      2 - Civilian employed, with a job but not at work
+#      3 - Unemployed
+#      4 - Armed forces, at work
+#      5 - Armed forces, with a job but not at work
+#      6 - Not in labor force
+# SCH: 0 - N/A (less than 3 yrs old)
+#      1 - No, has not attended in the last 3 months
+#      2 - Yes, public school or public college
+#      3 - Yes, private school or college or home school
 
 acs1_hh <-
   acs1 %>% 
   .[i = RELSHIPP %in% c(20,21,23), # subset to only householder and spouse records
     by = .(YEAR, SAMPLE, SERIALNO),
-    j = .(spouse_present = maxNA(RELSHIPP %in% c(21,23)), # This corresponds to spouse
-          all_work_sch   = minNA(ESR %in% 1:2 | SCH %in% 2:3))] # corresponds to working, or in school
+    j = .(spouse_present = maxNA(RELSHIPP %in% c(21,23)),       # corresponds to spouse
+          all_work_sch   = minNA(ESR %in% 1:2 | SCH %in% 2:3))] # corresponds to employed/in school
 
   # /!\ Not built, but possibly of interest may be gender of households, and
   # separate examination of SCH and ESR
