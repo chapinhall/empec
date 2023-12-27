@@ -356,7 +356,9 @@ This method considers community factors of households for predicting potential t
 While the SAE method is limited in how much detail it can estimate for 2019 with validity, this method uses other measures by assuming that ACS 5-year measures are applicable to 2019. For some measures like adult educational attainment and race/ethnicity, we believe that this assumption is defensible.
 
 ```{r prepare cps data for statistical analysis of transitions}
-
+# Note--fields that need to be constructed in parallel to the SAE specifications
+# are done in functions below, custom to the fields represented in the SAE spec
+# driving a given analysis
 cps_child_base_post <- 
   merge(cps_child_base,
         cps_post,
@@ -372,128 +374,8 @@ cps_child_base_post <-
          
          pctFemale_noSp_est = 1*((!spouse_present)*(hoh_gender == "female")),
            pctMale_noSp_est = 1*((!spouse_present)*(hoh_gender == "male")),
-             pctMarried_est = 1*(  spouse_present),
-         
-         # Note: Even though we use `ccdf_elig_tight` as the outcome measure of
-         # interest below, we use `ccdf_elig_loose` here because this is the 
-         # measure that is more consistent with the ACS 1-year definition available
-         # via work and school variables. The `tight` measures, by contrast, is
-         # closer to the outcome we believe in, i.e. that actual eligibility is
-         # closer to the `tight` construction available in the CPS data than it 
-         # is to the `loose`.
-         # Develop measures parallel to vulnerability categories constructed in
-         # the ACS 1-year, and produced in the SAE method
-         
-         share_NotWorkElig_SpousePresent   = (1 - ccdf_elig_loose)*(    spouse_present),
-         share_NotWorkElig_NoSpousePresent = (1 - ccdf_elig_loose)*(1 - spouse_present),
-         share_WorkElig_SpousePresent      =      ccdf_elig_loose *(    spouse_present),
-         share_WorkElig_NoSpousePresent    =      ccdf_elig_loose *(1 - spouse_present),
-         
-         # Develop income measures in parallel with what is developed in the SAE
-         # methods
-         share_0_50    = 1*(fam_incpov_ratio_cat_by50_adj  == "0%-50%"),
-         share_0_75    = 1*(fam_incpov_ratio_cat_by75_adj  == "0%-75%"),
-         share_0_100   = 1*(fam_incpov_ratio_cat_by100_adj == "0%-100%"),
-         share_50_100  = 1*(fam_incpov_ratio_cat_by50_adj  == "50%-100%"),
-         share_50_125  = 1*(fam_incpov_ratio_cat_to185_adj == "50%-125%"),
-         share_75_150  = 1*(fam_incpov_ratio_cat_by75_adj  == "75%-150%"),
-         share_100_150 = 1*(fam_incpov_ratio_cat_by50_adj  == "100%-150%"),
-         share_100_200 = 1*(fam_incpov_ratio_cat_by100_adj == "100%-200%"),
-         share_125_185 = 1*(fam_incpov_ratio_cat_to185_adj == "125%-185%"),
-         share_150_200 = 1*(fam_incpov_ratio_cat_by50_adj  == "150%-200%"),
-         share_150_225 = 1*(fam_incpov_ratio_cat_by75_adj  == "150%-225%"),
-         share_185_300 = 1*(fam_incpov_ratio_cat_to185_adj == "185%-300%"),
-         share_200_250 = 1*(fam_incpov_ratio_cat_by50_adj  == "200%-250%"),
-         share_200_300 = 1*(fam_incpov_ratio_cat_by100_adj == "200%-300%"),
-         share_225_300 = 1*(fam_incpov_ratio_cat_by75_adj  == "225%-300%"),
-         share_250_300 = 1*(fam_incpov_ratio_cat_by50_adj  == "250%-300%"),
-         share_300_400 = 1*(fam_incpov_ratio_cat_by100_adj == "300%-400%"),
-         share_400     = 1*(fam_incpov_ratio_cat_by100_adj == "400%+"),
-         
-         # Develop income measures for the HS-aligned CCDF categories
-         share_100_ccdf = 1*(fam_incpov_ratio_cat_hs_ccdf_adj == glue("100%-{local_ccdf_thresh}%")),
-         share_ccdf_350 = 1*(fam_incpov_ratio_cat_hs_ccdf_adj == glue("{local_ccdf_thresh}%-350%")),
-         share_350_500  = 1*(fam_incpov_ratio_cat_hs_ccdf_adj == "350%-500%"),
-         share_500      = 1*(fam_incpov_ratio_cat_hs_ccdf_adj == "500%+"),
-         
-         # Develop interactions
-         share_NotWorkElig_0_100    = (1 - ccdf_elig_loose)*share_0_100,
-         share_NotWorkElig_100_ccdf = (1 - ccdf_elig_loose)*share_100_ccdf,
-         share_NotWorkElig_ccdf_350 = (1 - ccdf_elig_loose)*share_ccdf_350,
-         share_NotWorkElig_350_500  = (1 - ccdf_elig_loose)*share_350_500,
-         share_NotWorkElig_500      = (1 - ccdf_elig_loose)*share_500,
-         share_WorkElig_0_100       =      ccdf_elig_loose *share_0_100,
-         share_WorkElig_100_ccdf    =      ccdf_elig_loose *share_100_ccdf,
-         share_WorkElig_ccdf_350    =      ccdf_elig_loose *share_ccdf_350,
-         share_WorkElig_350_500     =      ccdf_elig_loose *share_350_500,
-         share_WorkElig_500         =      ccdf_elig_loose *share_500)
-
-to_rename <- str_subset(cn(cps_child_base_post), "share_.+_ccdf")
-new_names <- str_replace(to_rename, "ccdf", as.character(local_ccdf_thresh))
-  
-setnames(cps_child_base_post,
-         old = to_rename,
-         new = new_names)
-
-# Generate work eligibility and income interactions consistent with SAE methods.
-
-if (local_ccdf_thresh == 185) {
-  cps_child_base_post <- 
-    cps_child_base_post %>% 
-    mutate(share_NotWorkElig_0_50    = (1 - ccdf_elig_loose)*share_0_50,
-           share_NotWorkElig_50_125  = (1 - ccdf_elig_loose)*share_50_125,
-           share_NotWorkElig_125_185 = (1 - ccdf_elig_loose)*share_125_185,
-           share_NotWorkElig_185_300 = (1 - ccdf_elig_loose)*share_185_300,
-           share_NotWorkElig_300_400 = (1 - ccdf_elig_loose)*share_300_400,
-           share_NotWorkElig_400     = (1 - ccdf_elig_loose)*share_400,
-           share_WorkElig_0_50       =      ccdf_elig_loose *share_0_50,
-           share_WorkElig_50_125     =      ccdf_elig_loose *share_50_125,
-           share_WorkElig_125_185    =      ccdf_elig_loose *share_125_185,
-           share_WorkElig_185_300    =      ccdf_elig_loose *share_185_300,
-           share_WorkElig_300_400    =      ccdf_elig_loose *share_300_400,
-           share_WorkElig_400        =      ccdf_elig_loose *share_400)
-  ccdf_spec_vars <- 
-    str_subset(cn(cps_child_base_post),
-               "share_(Not)?WorkElig_(0_50|50_125|125_185|185_300|300_400|400)")
-  
-} else if (local_ccdf_thresh == 200) {
-  cps_child_base_post <- 
-    cps_child_base_post %>% 
-    mutate(share_NotWorkElig_0_50    = (1 - ccdf_elig_loose)*share_0_50,
-           share_NotWorkElig_50_100  = (1 - ccdf_elig_loose)*share_50_100,
-           share_NotWorkElig_100_200 = (1 - ccdf_elig_loose)*share_100_200,
-           share_NotWorkElig_200_300 = (1 - ccdf_elig_loose)*share_200_300,
-           share_NotWorkElig_300_400 = (1 - ccdf_elig_loose)*share_300_400,
-           share_NotWorkElig_400     = (1 - ccdf_elig_loose)*share_400,
-           share_WorkElig_0_50       =      ccdf_elig_loose *share_0_50,
-           share_WorkElig_50_100     =      ccdf_elig_loose *share_50_100,
-           share_WorkElig_100_200    =      ccdf_elig_loose *share_100_200,
-           share_WorkElig_200_300    =      ccdf_elig_loose *share_200_300,
-           share_WorkElig_300_400    =      ccdf_elig_loose *share_300_400,
-           share_WorkElig_400        =      ccdf_elig_loose *share_400)
-  ccdf_spec_vars <- 
-    str_subset(cn(cps_child_base_post),
-               "share_(Not)?WorkElig_(0_50|50_100|100_200|200_300|300_400|400)")
-  
-} else if (local_ccdf_thresh == 225) {
-  cps_child_base_post <- 
-    cps_child_base_post %>% 
-    mutate(share_NotWorkElig_0_75    = (1 - ccdf_elig_loose)*share_0_75,
-           share_NotWorkElig_75_150  = (1 - ccdf_elig_loose)*share_75_150,
-           share_NotWorkElig_150_225 = (1 - ccdf_elig_loose)*share_150_225,
-           share_NotWorkElig_225_300 = (1 - ccdf_elig_loose)*share_225_300,
-           share_NotWorkElig_300_400 = (1 - ccdf_elig_loose)*share_300_400,
-           share_NotWorkElig_400     = (1 - ccdf_elig_loose)*share_400,
-           share_WorkElig_0_75       =      ccdf_elig_loose *share_0_75,
-           share_WorkElig_75_150     =      ccdf_elig_loose *share_75_150,
-           share_WorkElig_150_225    =      ccdf_elig_loose *share_150_225,
-           share_WorkElig_225_300    =      ccdf_elig_loose *share_225_300,
-           share_WorkElig_300_400    =      ccdf_elig_loose *share_300_400,
-           share_WorkElig_400        =      ccdf_elig_loose *share_400)
-  ccdf_spec_vars <- 
-    str_subset(cn(cps_child_base_post),
-               "share_(Not)?WorkElig_(0_75|75_150|150_225|225_300|300_400|400)")
-}
+             pctMarried_est = 1*(  spouse_present)
+  )
 ```
 
 ```{r develop select subsets of cps pre-post data for use}
@@ -535,12 +417,6 @@ pivot_sae_wide <- function(sae_spec, share_var) {
                 names_from = vc_value, 
                 values_from = share_var)
 }
-
-# for (spec in specs) {
-#   assign(glue("sae_{spec}_wide"),
-#          get(glue("sae_results_{spec}")) %>%
-#            pivot_sae_wide())
-# }
 ```
 
 ```{r develop list of predictors for transition/now-casting}
@@ -624,12 +500,67 @@ pop_for_nowcast <-
 
 
 ```{r set a function for estimating a single run of transition estimation}
-
-estimate_transition_counts <- function(sae_spec_name, share_calc_var, outcome_var, sae_controls, transition_data, age_prefix) {
+estimate_transition_counts <- function(sae_spec_name, share_calc_var, outcome_var, transition_data, age_prefix) {
    
   sae_wide <- pivot_sae_wide(get(sae_spec_name),
                              share_calc_var)
   
+  # Ensure that the fields in the sae data are represented in the cps data
+  vc_vals <- cn(sae_wide) %>% setdiff("GEOID")
+  for (vc_val in vc_vals) {
+    
+    # Extract work information if present
+    cWork <- str_extract(vc_val, "(_WorkElig|NotWorkElig)")
+    
+    # Extract spouse information if present
+    cSpouse <- str_extract(vc_val, "(_SpousePresent|NoSpousePresent)")
+    
+    # Extract all incpov information if present
+    vIncpov <- str_extract_all(vc_val, "\\d+|ccdf") %>% unlist()
+    vIncpov[vIncpov == "ccdf"] <- as.character(local_ccdf_thresh)
+    vIncpov <- as.numeric(vIncpov)
+    
+    transition_data <- 
+      transition_data %>% 
+      .[j = c(vc_val) := 
+          # Build work eligibility qualifier if indicated
+          case_when(is.na(cWork)              ~ 1,
+                    str_detect(cWork, "Not")  ~ 1 - ccdf_elig_loose,
+                    TRUE                      ~     ccdf_elig_loose) *
+          
+          # Build presence of spouse if indicated
+          case_when(is.na(cSpouse)            ~ 1,
+                    str_detect(cSpouse, "No") ~ 1 - spouse_present,
+                    TRUE                      ~     spouse_present) *
+          
+          # Note: 01b bins income using [lower, upper) inclusions -- i.e., 
+          # closed lower limit, open upper. We do this by hand because between()
+          # uses closed lower and upper (likely a very small point).
+          case_when(length(vIncpov) == 0 ~  1,
+                    length(vIncpov) == 1 ~  fam_incpov_ratio_b*100 >= vIncpov[1],
+                    TRUE                 ~ (fam_incpov_ratio_b*100 >= vIncpov[1])*(fam_incpov_ratio_b*100 < vIncpov[2]))]
+      
+  }
+  
+  # Check constructions
+  if (FALSE) {
+    vc_val <- "share_0_50"
+    # <run the above>
+    transition_data[j = .N, by = .(fn = share_0_50, hand = 1*(fam_incpov_ratio_b <= .5))] %>% unique()
+    
+    vc_val <- "share_WorkElig_100_ccdf"
+    # <run the above>
+    transition_data[j = .N, by = .(fn = share_WorkElig_100_ccdf, hand = 1*(ccdf_elig_loose)*between(fam_incpov_ratio_b, 1, local_ccdf_thresh/100))] %>% unique()
+    
+    vc_val <- "share_NotWorkElig_400"
+    # <run the above>
+    transition_data[j = .N, by = .(fn = share_NotWorkElig_400, hand = 1*(!ccdf_elig_loose)*(fam_incpov_ratio_b >= 4))] %>% unique()
+    
+    vc_val <- "share_NotWorkElig_SpousePresent"
+    # <run the above>
+    transition_data[j = .N, by = .(fn = share_NotWorkElig_SpousePresent, hand = 1*(!ccdf_elig_loose)*(spouse_present))] %>% unique()
+  }
+    
   pred_data <- 
     sae_wide %>% 
     merge(acs5tract_reg,
@@ -645,14 +576,14 @@ estimate_transition_counts <- function(sae_spec_name, share_calc_var, outcome_va
   
   pred_controls <- 
     c(transition_pred_vars_acs5,
-      sae_controls) %>% 
+      vc_vals) %>% 
     unique() %>% 
     setdiff(transition_pred_vars_toomit)
   
   est_apply_trans(cps_trans_data  = transition_data,
                   outcome_var     = outcome_var,
                   pred_vars       = pred_controls,     
-                  vars_for_uncond = setdiff(sae_controls, transition_pred_vars_toomit),
+                  vars_for_uncond = setdiff(vc_vals, transition_pred_vars_toomit),
                   sae_acs5_vals   = pred_data, 
                   count_var       = glue("{age_prefix}_count"),     
                   count_se_var    = glue("{age_prefix}_se"))
@@ -712,31 +643,34 @@ for (cps_recency in c("most_recent", "allbase")) {
                           "incpov_le225_post_adj", 
                           "incpov_le400_post_adj", 
                           "ccdf_elig_tight_inc_adj")
-        if (str_detect(sae_spec, "incpov.+_100_")) {
-          sae_controls <- transition_pred_vars_toadd_pov_by100s
-        } else {
-          sae_controls <- transition_pred_vars_toadd_pov_mix
-        }
+        
+        # The new strategy of using ACS1 means and ACS5 variance to redistribute
+        # the sae calculations is only available so far for income-to-poverty
+        # calculations
+        # share_calc_var_use <- 
+        #   ifelse(use_only_sae_model_estimates,
+        #          "share_model_redis_pct01_infl",
+        #          "share_fh_redis_pct01_infl")
+        #share_calc_var_use <- "share_acs5_redis_pct01_infl"
+        share_calc_var_use <- "share_acs5_redis_mult_wgt01_infl"
+
       } else if (str_detect(sae_spec, "^ccdf")) {
         outcome_vars <- "ccdf_elig_tight_inc_adj"
-        if (str_detect(sae_spec, "wk_sp")) {
-          sae_controls <- transition_pred_vars_toadd_ccdf_elig_spouse
-        } else {
-          sae_controls <- transition_pred_vars_toadd_ccdf_elig_pov
-        }
+        share_calc_var_use <- 
+          ifelse(use_only_sae_model_estimates,
+                 "share_model_trunc",
+                 "share_fh_trunc")
       }
     
       for (outcome_var in outcome_vars) {
 
         print(glue("Running CPS recency {cps_recency}, CPS geo subsample {cps_geo_subsample}, ",
                    "sae_spec {sae_spec}, outcome variable {outcome_var}"))
+        
         count_est_output <- 
           estimate_transition_counts(sae_spec_name   = glue("sae_results_{sae_spec}"),
-                                     share_calc_var  = ifelse(use_only_sae_model_estimates,
-                                                              "share_model_trunc",
-                                                              "share_fh_trunc"),
+                                     share_calc_var  = share_calc_var_use,
                                      outcome_var     = outcome_var,
-                                     sae_controls    = sae_controls,
                                      transition_data = cps_reg_use,
                                      age_prefix      = age_prefix)
         add_run_details <- function(x) {

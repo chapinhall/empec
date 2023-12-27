@@ -127,7 +127,7 @@ run_sae <- function(direct_ests,                 # Direct, tract-level estimates
              new = c("aux_n", "aux_n_se")) %>% 
     # Calculate PUMA-level sums for adjusting standard errors at the end
     .[j = n_pt := aux_n] %>% 
-    .[j = n_p  := sum(n_pt), by = PUMA]
+    .[j = n_p  := sumNA(n_pt), by = PUMA]
   
   aux_n <- nrow(aux_data_use)
   aux_data_use <- na.omit(aux_data_use)

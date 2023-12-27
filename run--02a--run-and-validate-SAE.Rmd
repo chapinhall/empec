@@ -72,19 +72,9 @@ Below, we see the size of the sample partitioned jointly by household work eligi
 ```{r examine overall distribution of ACS1 sample with detail below poverty}
 # Here is the density tailored to the local ccdf threshold
 
-show_acs1_cat_density("work_incpov_statushs", 
+show_acs1_cat_density("work_incpov_mix", 
                       glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
 
-# if (local_ccdf_thresh == 185) {
-#   show_acs1_cat_density("work_incpov_status185", 
-#                       glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-# } else if (local_ccdf_thresh == 200) {
-#   show_acs1_cat_density("work_incpov_status100", 
-#                       glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-# } else if (local_ccdf_thresh == 225) {
-#   show_acs1_cat_density("work_incpov_status75", 
-#                       glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-# }
 ```
 
 The figures below explore the amount of variation in each category across PUMAs. We perform this check to examine the extent to which there are gaps--specifically, exact zeroes--of children in given categories.
@@ -119,19 +109,8 @@ show_acs1_cat_density_by_puma("fam_incpov_ratio_cat_mix", "Income-to-Poverty Rat
 # equal the corresponding PUMA-level counts, given how much sample variation there
 # presumably would be.
 
-show_acs1_cat_density_by_puma("work_incpov_statushs", 
+show_acs1_cat_density_by_puma("work_incpov_mix", 
                                 glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-
-# if (local_ccdf_thresh == 185) {
-#   show_acs1_cat_density_by_puma("work_incpov_status185", 
-#                                 glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-# } else if (local_ccdf_thresh == 200) {
-#   show_acs1_cat_density_by_puma("work_incpov_status100", 
-#                                 glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-# } else if (local_ccdf_thresh == 225) {
-#   show_acs1_cat_density_by_puma("work_incpov_status75", 
-#                                 glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
-# }
 ```
 
 ### Examine pattern contrasts between ACS1 and ACS5 measures
@@ -208,19 +187,10 @@ incpov_ranges_for_estimation <- c("0to50", "50to100", "100to199", "200to299")
 # c("WorkElig_0%-75%", "WorkElig_75%-150%", "WorkElig_150%-225%")` could be
 # added to make a direct comparison.
 
-# Our current specification of `work_incpov_statushs` embeds this alignment 
+# Our current specification of `work_incpov_mix` embeds this alignment 
 # by adding the income threshold directly, in addition to the 100% for Head Start
 
-work_incpov_spec_field <- "work_incpov_statushs"
-
-# Previously, we had custom breakpoints below `local_ccdf_thresh`. The new spec
-# above ensures alignment with Head Start.
-
-work_incpov_spec_field_alt <-
-  case_when(local_ccdf_thresh == 185 ~ "work_incpov_status185",
-            local_ccdf_thresh == 200 ~ "work_incpov_status100",
-            local_ccdf_thresh == 225 ~ "work_incpov_status75",
-            TRUE ~ "work_incpov_status100")
+work_incpov_spec_field <- "work_incpov_mix"
 
 ```
 
@@ -349,96 +319,67 @@ run_saes_byCtrls <- function(vul_vars, sae_input_data, my_controls) {
 
 
 ```{r run SAE method}
-if (rerun_sae) {
- 
-  parallelize_sae <- TRUE
+
+parallelize_sae <- TRUE
+
+if (parallelize_sae) {
   
-  if (parallelize_sae) {
+  runlist <- 
+    list(sae_results_incpov_simple_05     = list(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_simple_05),
+         sae_results_incpov_simple_612    = list(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_simple_612),
+         sae_results_incpov_ctrls_mix_05  = list(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_added_2534_05),
+         sae_results_incpov_ctrls_mix_612 = list(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_added_2534_612),
+         sae_results_incpov_ctrls_100_05  = list(incpov_spec_field_100,  acs1_child05_sae,  sae_controls_added_2534_05),
+         sae_results_incpov_ctrls_100_612 = list(incpov_spec_field_100,  acs1_child612_sae, sae_controls_added_2534_612),
+         sae_results_ccdf_wk_pov_05       = list(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534_05),
+         sae_results_ccdf_wk_pov_612      = list(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534_612),
+         sae_results_ccdf_wk_sp_05        = list("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534_05))
+  
+  # Code to recruit (almost) as many core processors as are available (but not more than we need)
+  cores <- detectCores() - 1 # not to overload your computer
+  cores <- min(cores, length(runlist))
+  cl <- makeCluster(cores) 
+  registerDoParallel(cl)
+  
+  sae_results <- foreach (r = seq_along(runlist)) %dopar% {
+    source("settings--main.R")
     
-    runlist <- 
-      list(sae_results_incpov_simple_05     = list(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_simple_05),
-           sae_results_incpov_simple_612    = list(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_simple_612),
-           sae_results_incpov_ctrls_mix_05  = list(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_added_2534_05),
-           sae_results_incpov_ctrls_mix_612 = list(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_added_2534_612),
-           sae_results_incpov_ctrls_100_05  = list(incpov_spec_field_100,  acs1_child05_sae,  sae_controls_added_2534_05),
-           sae_results_incpov_ctrls_100_612 = list(incpov_spec_field_100,  acs1_child612_sae, sae_controls_added_2534_612),
-           sae_results_ccdf_wk_pov_05       = list(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534_05),
-           sae_results_ccdf_wk_pov_612      = list(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534_612),
-           sae_results_ccdf_wk_sp_05        = list("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534_05))
-    
-    # Code to recruit (almost) as many core processors as are available (but not more than we need)
-    cores <- detectCores() - 1 # not to overload your computer
-    cores <- min(cores, length(runlist))
-    cl <- makeCluster(cores) 
-    registerDoParallel(cl)
-    
-    sae_results <- foreach (r = seq_along(runlist)) %dopar% {
-      source("settings--main.R")
-      
-      run_saes_byCtrls(runlist[[r]][[1]], 
-                       runlist[[r]][[2]],
-                       runlist[[r]][[3]])
-    }
-    stopCluster(cl)
-    
-    # Separate parallelized results to conform to downstream code
-    # /!\ Note: arguably, it'd be wise to update the downstream code to conform
-    # to the list format output by parallelization
-    for (r in seq_along(sae_results)) {
-      assign(names(runlist)[r],
-             sae_results[[r]])
-    }
-    
-  } else {
-    sae_results_incpov_simple_05     <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_simple_05)
-    sae_results_incpov_simple_612    <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_simple_612)
-    sae_results_incpov_ctrls_mix_05  <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_added_2534_05)
-    sae_results_incpov_ctrls_mix_612 <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_added_2534_612)
-    sae_results_incpov_ctrls_100_05  <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_added_2534_05)
-    sae_results_incpov_ctrls_100_612 <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_added_2534_612)
-    sae_results_ccdf_wk_pov_05       <- run_saes_byCtrls(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534_05)
-    sae_results_ccdf_wk_pov_12       <- run_saes_byCtrls(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534_612)
-    sae_results_ccdf_wk_sp_05        <- run_saes_byCtrls("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534_05)
+    run_saes_byCtrls(runlist[[r]][[1]], 
+                     runlist[[r]][[2]],
+                     runlist[[r]][[3]])
+  }
+  stopCluster(cl)
+  
+  # Separate parallelized results to conform to downstream code
+  # /!\ Note: arguably, it'd be wise to update the downstream code to conform
+  # to the list format output by parallelization
+  for (r in seq_along(sae_results)) {
+    assign(names(runlist)[r],
+           sae_results[[r]])
   }
   
-  specs <- c("incpov_simple_05", 
-             "incpov_simple_612",
-             "incpov_ctrls_mix_05",
-             "incpov_ctrls_mix_612",
-             "incpov_ctrls_100_05",
-             "incpov_ctrls_100_612",
-             "ccdf_wk_sp_05",
-             "ccdf_wk_pov_05",
-             "ccdf_wk_pov_612") 
-}
-```
-
-```{r save SAE ingredients}
-
-if (rerun_sae) {
-  # Organize contents
-  sae_aux_data_acs5 <- acs5tract_sae
-  sae_controls_list <- list(sae_controls_simple_05,
-                            sae_controls_simple_612,
-                            sae_controls_added_2534_05,
-                            sae_controls_added_2534_612)
-  results <- paste0("sae_results_", specs)
-  
-  # Save the bundle of objects
-  save(list = c(results, "specs", "incpov_ref_value", "sae_controls_list", "sae_aux_data_acs5"),
-       file = glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rda"))
-  
 } else {
-  load(file = glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rda")) 
+  sae_results_incpov_simple_05     <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_simple_05)
+  sae_results_incpov_simple_612    <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_simple_612)
+  sae_results_incpov_ctrls_mix_05  <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_added_2534_05)
+  sae_results_incpov_ctrls_mix_612 <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_added_2534_612)
+  sae_results_incpov_ctrls_100_05  <- run_saes_byCtrls(incpov_spec_field_100,  acs1_child05_sae,  sae_controls_added_2534_05)
+  sae_results_incpov_ctrls_100_612 <- run_saes_byCtrls(incpov_spec_field_100,  acs1_child612_sae, sae_controls_added_2534_612)
+  sae_results_ccdf_wk_pov_05       <- run_saes_byCtrls(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534_05)
+  sae_results_ccdf_wk_pov_12       <- run_saes_byCtrls(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534_612)
+  sae_results_ccdf_wk_sp_05        <- run_saes_byCtrls("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534_05)
 }
-```
 
-```{r extract estimate tables from sae output}
-for (spec in specs) {
-  stem <- glue("sae_results_{spec}")
-  assign(glue("{stem}_out"),
-         get(stem)[["sae_out"]])
-}
+specs <- c("incpov_simple_05", 
+           "incpov_simple_612",
+           "incpov_ctrls_mix_05",
+           "incpov_ctrls_mix_612",
+           "incpov_ctrls_100_05",
+           "incpov_ctrls_100_612",
+           "ccdf_wk_sp_05",
+           "ccdf_wk_pov_05",
+           "ccdf_wk_pov_612") 
+
 ```
 
 #### Compare Direct versus FH Output Estimates
@@ -446,7 +387,7 @@ for (spec in specs) {
 As a reality check, confirm that a single "direct" estimate applies to all tracts within each given PUMA. The result should be that there are all "0" numbers of duplicates. 
 
 ```{r check that all tracts in each puma have the same direct estimate, eval = developer_mode}
-sae_results_incpov_simple_05_out %>% 
+sae_results_incpov_simple_05$sae_out %>% 
   group_by(vc_value, GEOID, PUMA) %>% 
   summarize(ndups = n_distinct(share_direct) - 1) %>% 
   with(table(ndups))
@@ -515,6 +456,7 @@ ggplot(display_lambda_wgt,
   geom_point(alpha = 0.1) +
   geom_45(color = "blue") +
   facet_wrap(~ vc_value) +
+  labs(title = "Comparison of SAE Output -- Model-Estimated Share (y) vs Direct (x)") +
   theme_minimal()
   
 ```
@@ -523,7 +465,8 @@ How much do discrepancies between model and direct estimates exist across PUMAs?
 
 ```{r}
 plot_by_ordered_puma <- 
-  sae_results_incpov_ctrls_mix_05_out %>% 
+  sae_results_incpov_ctrls_mix_05$sae_out %>% 
+  as.data.table() %>% 
   .[j = rank := rank(share_direct, ties.method = "random"), 
     by = vc_value] %>% 
   .[j = puma_by_rank := factor(PUMA, levels = unique(PUMA[order(rank)])),
@@ -533,10 +476,10 @@ ggplot(plot_by_ordered_puma,
        aes(x = puma_by_rank)) +
     geom_point(aes(y = share_model),
                color = "red",
-               alpha = 0.3) +
+               alpha = 0.1) +
     geom_point(aes(y = share_direct),
                color = "blue",
-               alpha = 0.3) +
+               alpha = 0.1) +
     facet_wrap(~ vc_value,
                scales = "free") +
     theme_minimal()  +
@@ -548,7 +491,7 @@ ggplot(plot_by_ordered_puma,
 Identify which PUMAs have the greatest discrepancies between direct and model estimates, especially for lower levels of income.
 
 ```{r}
-sae_results_incpov_ctrls_mix_05_out %>% 
+sae_results_incpov_ctrls_mix_05$sae_out %>% 
   group_by(vc_value, PUMA) %>% 
   summarize(model_vs_direct_var = (sum((share_model - share_direct)^2)/n()) %>% round(3),
             model_vs_direct_above = mean(share_model > share_direct) %>% percent(),
@@ -583,13 +526,13 @@ if (my_output_tag == "Cook2022") {
     geom_point(data = aug_sae_out[CCA != 54],
                aes(y = share_model),
                color = "red",
-               alpha = 0.3) + # CCA == 54 is Riverdale
+               alpha = 0.1) + # CCA == 54 is Riverdale
     geom_point(data = aug_sae_out[CCA == 54],
                aes(y = share_model),
                color = "black") + # CCA == 54 is Riverdale
     geom_point(aes(y = share_direct),
                color = "blue",
-               alpha = 0.3) +
+               alpha = 0.1) +
     facet_wrap(~ vc_value) +
     # scale_color_manual(breaks = c(F, T),
     #                    values = c("red", "black")) +
@@ -605,13 +548,13 @@ if (my_output_tag == "Cook2022") {
 ```{r examine SAE share composition by tract -- FH estimates}
 plot_sae_comp_by_tract <- function(sae_est, base_cat, title) {
   
-  tract_order <- sae_est[vc_value == base_cat] %>% .[order(-share_fh_trunc)] %>%  .[j = rank := 1:.N]
+  tract_order <- sae_est[vc_value == base_cat] %>% as.data.table() %>% .[order(-share_fh_trunc)] %>%  .[j = rank := 1:.N]
   
   ggplot(sae_est %>% merge(tract_order[, .(GEOID, rank)], by = "GEOID"),
          aes(x = reorder(GEOID, rank),
              y = share_fh_trunc,
              color = vc_value)) +
-    geom_point() +
+    geom_point(alpha = 0.3) +
     geom_hline(yintercept = 0) +
     scale_y_continuous(labels = percent) +
     scale_color_discrete(name = "Vulnerability Category") +
@@ -627,19 +570,19 @@ plot_sae_comp_by_tract <- function(sae_est, base_cat, title) {
 ```{r}
 # /!\ Consider ways to display them in a grid.
 # /!\ Consider how to loop or sapply this, to be more compact
-plot_sae_comp_by_tract(sae_results_incpov_simple_05_out,  
+plot_sae_comp_by_tract(sae_results_incpov_simple_05$sae_out,  
                        base_cat = incpov_ref_value,
                        title = "Vulnerability Cat Composition by Tract -- Simple Spec")
-plot_sae_comp_by_tract(sae_results_incpov_ctrls_mix_05_out,   
+plot_sae_comp_by_tract(sae_results_incpov_ctrls_mix_05$sae_out,   
                        base_cat = incpov_ref_value, 
                        title = "Vulnerability Cat Composition by Tract -- Added Controls (2534)")
 
-plot_sae_comp_by_tract(sae_results_ccdf_wk_sp_05_out,   
+plot_sae_comp_by_tract(sae_results_ccdf_wk_sp_05$sae_out,   
                        base_cat = "WorkElig_SpousePresent", 
                        title = "Vulnerability Cat Composition by Tract -- Work Eligibility by Presence of Spouse")
 
-plot_sae_comp_by_tract(sae_results_ccdf_wk_pov_05_out,   
-                       base_cat = str_subset(sae_results_ccdf_wk_pov_05_out$vc_value, "^WorkElig_0%") %>% unique(), 
+plot_sae_comp_by_tract(sae_results_ccdf_wk_pov_05$sae_out,   
+                       base_cat = str_subset(sae_results_ccdf_wk_pov_05$sae_out$vc_value, "^WorkElig_0%") %>% unique(), 
                        title = "Vulnerability Cat Composition by Tract -- Work Eligibility by Income-to-Pov")
 ```
 
@@ -791,9 +734,11 @@ cbind(sae_results_incpov_simple_05[["agg_comp_model"]]$agg_comp_cor     %>% muta
   # But also, in a sense, this is a cleaner perspective on the results of the model
 ```
 
-#### Compare Tract-Level SAE Estimates to the ACS 5-year
+#### Redistribute SAE
 
-<!-- From direct examination of estimates, we had found cases where SAE estimates of <100% FPL were much higher than the ACS 5-year estimates for tracts within certain CCAs. First, we want to systematically investigate the extent of these outliers. -->
+Our non-canonical application of the SAE method requires several adjustments. First, the PUMA-level means are imprecise. In part, it is not guaranteed from the SAE method itself, although the diagnostics above suggest that the counts are closer. But also, our use of the ACS 1-year microdata is thin, and there are cases--notably for income bands--where ACS 1-year 5% data are available (i.e. the aggregate tables) and we have better anchors. 
+
+Second, because our model makes use of left-hand side quantities that have reduced variance, as PUMA-level aggregates rather than truly tract-level estimates, our SAE estimates become compressed. See below. 
 
 ```{r compare SAE estimate to acs5}
 compare_sae_lt100fpl <- function(sae_spec, title, xlab, ylab) {
@@ -944,6 +889,533 @@ sae_results_incpov_ctrls_mix_05$sae_out %>%
     .(GEOID, vc_value, share_direct, share_fh)] %>% 
   .[order(GEOID, vc_value)]
 ```
+
+Thus, we undertake a further adjustment, by:
+
+1. aligning our SAE estimates for each income-to-poverty category to the ACS 1-year 5% sample values for each PUMA, and
+2. expanding the variance of the SAE estimates to equal the variance of ACS 5-year analogs.
+
+In this way, we anchor the distribution of our new estimates in the most reliable and most recent values that are available.
+
+```{r calculate variance of acs5 analogs to each income-to-poverty measure}
+# /!\ Consider moving this to run--01d
+acs5_incpov_cat <- 
+  acs5tract %>% 
+  select(matches("GEOID|incpov_(lt6|6to11).+_est")) %>% 
+  pivot_longer(cols = -GEOID) %>% 
+  mutate(age   = str_replace(name, "incpov_(.+)_r.+", "\\1"),
+         range = str_replace(name, ".+\\d_(r.+)_est", "\\1")) %>% 
+  select(-name) %>% 
+  pivot_wider(names_from = "range",
+              values_from = "value") %>% 
+  mutate(r50to100 = r0to50 + r50to100) %>% 
+  pivot_longer(cols = -c(GEOID, age)) %>% 
+  # Put values into format that will merge into SAE `vc_value` field names
+  mutate(vc_value = 
+           name %>% 
+           str_replace("r(\\d+)to(\\d+)", "\\1%-\\2%") %>% 
+           str_replace("r(\\d+)plus", "\\1%+") %>% 
+           str_replace("199", "200") %>% 
+           str_replace("299", "300") %>% 
+           str_replace("399", "400"))
+
+acs5_incpov_cat_var <- 
+  acs5_incpov_cat %>% 
+  merge(geo_crosswalk %>% select(GEOID, PUMA) %>% unique(),
+        by = "GEOID",
+        all.x = TRUE) %>% 
+  group_by(PUMA, age, vc_value) %>% 
+  # /!\ Consider whether to build this as a population-weighted variance
+  summarize(acs5_tract.in.puma_sd = sd(value, na.rm = TRUE)) %>% 
+  ungroup()
+```
+
+
+```{r calculate variance of acs5 analogs to each income-to-poverty measure}
+pop_long <- 
+  pop_by_age %>% 
+  #filter(year == base_year) %>% 
+  pivot_longer(cols = -c(GEOID, year)) %>% 
+  mutate(age = str_replace(name, ".+_(\\d+to\\d+).+", "\\1")) %>% 
+  select(GEOID, year, age, pop = value)
+
+```
+
+```{r prep acs1_5pct data for merge}
+acs1_5pct_puma_formerge <- 
+  acs1_5pct_puma %>% 
+  pivot_longer(cols = -c(GEOID, PUMA, age)) %>% 
+  filter(!str_detect(name, "_n$")) %>% 
+  mutate(vc_value =
+           name %>% 
+           str_replace(".+_(\\d+)_(\\d+).+", "\\1%-\\2%") %>% 
+           str_replace(".+agg_(\\d+)_pct", "\\1%+")) %>% 
+  rename(acs1_5pct_pct = value)
+```
+
+
+```{r misc functions for use in redistribution}
+bound <- function(x, lower = 0, upper = 1) {
+  x[x < lower] <- lower
+  x[x > upper] <- upper
+  return(x)
+}
+
+if (FALSE) {
+  bound(c(-1, 0.2, 0.8, 5))
+}
+```
+
+
+```{r function for performing redistribution}
+# Values for easy interactive debugging
+if (FALSE) {
+  sae_to_redis <- sae_results_incpov_ctrls_100_05
+  sae_age <- "05" # "612"
+}
+
+redis_sae <- function(sae_to_redis, sae_age) {
+  
+  pop_age <- case_when(sae_age == "05"  ~ "0to5", 
+                       sae_age == "612" ~ "6to12")
+  acs_age <- case_when(sae_age == "05"  ~ "lt6", 
+                       sae_age == "612" ~ "6to11")
+  
+  redis_out <- 
+    sae_to_redis$sae_out %>% 
+    merge(acs1_5pct_puma_formerge %>% 
+            filter(age == acs_age) %>% 
+            select(PUMA, vc_value, acs1_5pct_pct),
+          by = c("PUMA", "vc_value"),
+          all.x = TRUE) %>% 
+    merge(acs5_incpov_cat %>%
+            filter(age == acs_age) %>%
+            select(GEOID, vc_value, share_acs5 = value),
+          by = c("GEOID", "vc_value"),
+          all.x = TRUE) %>%
+    merge(pop_long %>% filter(age == pop_age, year == base_year),
+          by = "GEOID",
+          all.x = TRUE) %>% 
+    group_by(PUMA, vc_value) %>% 
+    mutate(
+      # Center values to have mean 0
+      share_model_trunc_m0 = share_model_trunc - mean(share_model_trunc),
+      share_fh_trunc_m0    = share_fh_trunc    - mean(share_fh_trunc),
+      share_acs5_m0        = share_acs5        - mean(share_acs5),
+      
+      # Calculate std-deviations of shares
+      share_model_trunc_sd = sdNA(share_model_trunc),
+      share_fh_trunc_sd    = sdNA(share_fh_trunc),
+      share_acs5_sd        = sdNA(share_acs5),
+      
+      ## Perform logistic transformation, and get sd's
+      # For some reason, it's producing NAs to combine the separate calculations
+      # below. Separating them, as we have, avoids this.
+      share_model_trunc_log      = qlogis(share_model_trunc),
+      share_model_trunc_log_mean = meanNA(share_model_trunc_log),
+      share_model_trunc_log_m0   = share_model_trunc_log - share_model_trunc_log_mean,
+      share_model_trunc_log_sd   = sdNA(share_model_trunc_log_m0),
+      
+      share_fh_trunc_log      = qlogis(share_fh_trunc),
+      share_fh_trunc_log_mean = meanNA(share_fh_trunc_log),
+      share_fh_trunc_log_m0   = share_fh_trunc_log - share_fh_trunc_log_mean,
+      share_fh_trunc_log_sd   = sdNA(share_fh_trunc_log_m0),
+      
+      share_acs5_log = qlogis(share_acs5),
+      share_acs5_log_mean = meanNA(share_acs5_log),
+      share_acs5_log_m0 = share_acs5_log - share_acs5_log_mean,
+      share_acs5_log_sd = sdNA(share_acs5_log_m0),
+      
+      acs1_5pct_pct_log = qlogis(acs1_5pct_pct),
+      
+      # Build variance inflation factors
+      infl_model_pct = share_acs5_sd     / share_model_trunc_sd,
+      infl_model_log = share_acs5_log_sd / share_model_trunc_log_sd,
+      infl_fh_pct    = share_acs5_sd     / share_fh_trunc_sd,
+      infl_fh_log    = share_acs5_log_sd / share_fh_trunc_log_sd,
+      
+      # Build a multiplicative inflation factor
+      infl_acs1_acs5     = acs1_5pct_pct / meanNA(share_acs5),
+      infl_acs1_acs5_wgt = acs1_5pct_pct / weighted.mean(share_acs5, w = pop, na.rm = TRUE),
+        # We build this only for the acs5 shares because, under the current pilot
+        # test stage, we are not planning to do a variance adjustment that the
+        # SAE estimates would need
+      
+      # Redistribute using variance and mean adjustment
+      share_model_redis_pct =       (infl_model_pct * share_model_trunc_m0) + acs1_5pct_pct,
+      share_fh_redis_pct    =       (infl_fh_pct    * share_fh_trunc_m0)    + acs1_5pct_pct,
+      share_model_redis_log = plogis(infl_model_log * share_model_trunc_m0  + acs1_5pct_pct_log),
+      share_fh_redis_log    = plogis(infl_fh_log    * share_fh_trunc_m0     + acs1_5pct_pct_log),
+      share_acs5_redis_pct  =                         share_acs5_m0         + acs1_5pct_pct,
+        # We allow for an acs5-based estimate which simply adjusts means. The variance
+        # of course doesn't have to be inflated, because it's already the benchmark
+        # for inflation!
+      
+      # Redistribute using multiplication
+      share_acs5_redis_mult      = share_acs5 * infl_acs1_acs5,
+      share_acs5_redis_mult_wgt  = share_acs5 * infl_acs1_acs5_wgt,
+      
+      # Bound results within the interval [0,1]
+      share_model_redis_pct01 = bound(share_model_redis_pct),
+      share_fh_redis_pct01    = bound(share_fh_redis_pct),
+      share_model_redis_log01 = bound(share_model_redis_log),
+      share_fh_redis_log01    = bound(share_fh_redis_log),
+      share_acs5_redis_pct01  = bound(share_acs5_redis_pct),
+      
+      share_acs5_redis_mult01      = bound(share_acs5_redis_mult),
+      share_acs5_redis_mult_wgt01  = bound(share_acs5_redis_mult_wgt),
+    ) %>% 
+    group_by(GEOID) %>% 
+    mutate(
+      share_model_redis_pct01_infl = share_model_redis_pct01 / sum(share_model_redis_pct01),
+      share_fh_redis_pct01_infl    = share_fh_redis_pct01    / sum(share_fh_redis_pct01),
+      share_model_redis_log01_infl = share_model_redis_log01 / sum(share_model_redis_log01),
+      share_fh_redis_log01_infl    = share_fh_redis_log01    / sum(share_fh_redis_log01),
+      share_acs5_redis_pct01_infl  = share_acs5_redis_pct01  / sum(share_acs5_redis_pct01),
+      
+      share_acs5_redis_mult01_infl     = share_acs5_redis_mult01     / sum(share_acs5_redis_mult01),
+      share_acs5_redis_mult_wgt01_infl = share_acs5_redis_mult_wgt01 / sum(share_acs5_redis_mult_wgt01),
+    ) %>% 
+    as.data.table()
+  
+  # Output the results to the `sae_out` slot of the input SAE
+  sae_to_redis[["sae_out"]] <- redis_out
+  
+  return(sae_to_redis)
+}
+```
+
+
+```{r implement redistributions}
+for (spec in specs) {
+  #print(spec)
+  sae_name <- glue("sae_results_{spec}")
+  # The age is given by the final numbers in the name of the spec
+  sae_age <- str_extract(spec, "\\d+$")
+  
+  assign(glue("sae_results_{spec}"),
+         redis_sae(get(sae_name), sae_age))
+}
+
+# Check on success
+if (FALSE) {
+  str_subset(cn(sae_results_incpov_ctrls_100_05$sae_out), "_infl$")
+  sae_results_incpov_ctrls_100_05$sae_out %>% 
+    select(GEOID, vc_value, 
+           share_model_trunc, share_model_redis_pct, share_model_redis_pct01_infl)
+  
+  str_subset(cn(sae_results_ccdf_wk_pov_05$sae_out), "_infl$")
+  sae_results_ccdf_wk_pov_05$sae_out %>% 
+    select(GEOID, vc_value, 
+           share_model_trunc, share_model_redis_pct, share_model_redis_pct01_infl)
+}
+
+```
+
+```{r save SAE ingredients}
+
+if (rerun_sae) {
+  # Organize contents
+  sae_aux_data_acs5 <- acs5tract_sae
+  sae_controls_list <- list(sae_controls_simple_05,
+                            sae_controls_simple_612,
+                            sae_controls_added_2534_05,
+                            sae_controls_added_2534_612)
+  results <- paste0("sae_results_", specs)
+  
+  # Save the bundle of objects
+  save(list = c(results, "specs", "incpov_ref_value", "sae_controls_list", "sae_aux_data_acs5"),
+       file = glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rda"))
+  
+} else {
+  load(file = glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rda")) 
+}
+```
+
+```{r extract estimate tables from sae output}
+for (spec in specs) {
+  stem <- glue("sae_results_{spec}")
+  assign(glue("{stem}_out"),
+         get(stem)[["sae_out"]])
+}
+```
+
+```{r pick a single SAE sensitivity to investigate}
+check_redis_sae <- sae_results_incpov_ctrls_100_05$sae_out
+```
+
+```{r check the comparison of population-weighted vs unweighted acs5 inflation factors}
+check_redis_sae %>% 
+  ggplot(aes(x = infl_acs1_acs5, 
+             y = infl_acs1_acs5_wgt)) + 
+  geom_45() + 
+  geom_point() + 
+  facet_wrap(~vc_value)
+```
+
+```{r compare acs5 redis vs mult methods}
+check_redis_sae %>% 
+  ggplot(aes(x = share_acs5_redis_pct01_infl, 
+             y = share_acs5_redis_mult01_infl)) + 
+  geom_45() + 
+  geom_point(alpha = 0.1) + 
+  facet_wrap(~vc_value)
+```
+
+```{r examine overages}
+# Examine how the sums look
+overs <- 
+  check_redis_sae %>% 
+  group_by(GEOID, PUMA) %>% 
+  summarize(sums = sum(share_model_redis_pct01),
+            check = sum(share_model_redis_pct01_infl))
+
+ggplot(overs,
+       aes(x = sums)) +
+  geom_density()
+
+# Concentrated in smaller sets of PUMAs?
+overs %>% 
+  group_by(PUMA) %>% 
+  summarize(pct_over = mean(sums>1.5))
+
+```
+
+```{r calculate percentages of estimates falling outside of [0,1], eval = developer_mode}
+check_redis_sae %>% 
+  group_by(vc_value) %>% 
+  summarize(share_model_redis_pct_lt0 = meanNA(share_model_redis_pct < 0) %>% percent(1),
+            share_model_redis_pct_gt1 = meanNA(share_model_redis_pct > 1) %>% percent(1),
+            
+            share_model_redis_log_lt0 = meanNA(share_model_redis_log < 0) %>% percent(1),
+            share_model_redis_log_gt1 = meanNA(share_model_redis_log > 1) %>% percent(1),
+            
+            share_fh_redis_pct_lt0    = meanNA(share_fh_redis_pct    < 0) %>% percent(1),
+            share_fh_redis_pct_gt1    = meanNA(share_fh_redis_pct    > 1) %>% percent(1),
+            
+            share_fh_redis_log_lt0    = meanNA(share_fh_redis_log    < 0) %>% percent(1),
+            share_fh_redis_log_gt1    = meanNA(share_fh_redis_log    > 1) %>% percent(1)) %>% 
+  pivot_longer(cols = -vc_value) %>% 
+  pivot_wider(names_from = vc_value,
+              values_from = value)
+```
+
+
+
+```{r check the results -- final versus acs5, eval = developer_mode}
+# This is done to see if we obtain something relatively close to the 45
+check_redis_sae %>% 
+  ggplot(aes(x = share_acs5,
+             y = share_model_redis_pct)) +
+  geom_45() + 
+  geom_point(alpha = 0.1) + 
+  geom_smooth() +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 1, color = "red") +
+  facet_wrap(~vc_value)
+
+check_redis_sae %>% 
+  ggplot(aes(x = share_acs5,
+             y = share_model_redis_log)) +
+  geom_45() + 
+  geom_point(alpha = 0.1) +
+  geom_smooth() +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 1, color = "red") +
+  facet_wrap(~vc_value)
+
+# Check the correlations between each adjustment type and the acs5 -- seems that
+# the pct adjustment -- despite violating [0,1] bounds -- respects
+
+check_redis_sae %>% 
+  group_by(vc_value) %>% 
+  summarize(cor_acs5_pct = cor(share_acs5, share_model_redis_pct, use = "pairwise"),
+            cor_acs5_log = cor(share_acs5, share_model_redis_log, use = "pairwise"))
+  # True -- they are often clearly better. This is never mind the fact that the 
+  # slopes of the former are also closer to 1.
+```
+```{r check the results -- final versus acs5, eval = developer_mode}
+# This is done to see if we obtain something relatively close to the 45
+check_redis_sae %>% 
+  ggplot(aes(x = share_acs5,
+             y = share_model_redis_pct01_infl)) +
+  geom_45() + 
+  geom_point(alpha = 0.1) + 
+  geom_smooth() +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 1, color = "red") +
+  facet_wrap(~vc_value)
+
+check_redis_sae %>% 
+  ggplot(aes(x = share_model_redis_pct,
+             y = share_model_redis_pct01_infl)) +
+  geom_45() + 
+  geom_point(alpha = 0.1) +
+  geom_smooth() +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 1, color = "red") +
+  facet_wrap(~vc_value)
+
+# Check the correlations between each adjustment type and the acs5 -- seems that
+# the pct adjustment -- despite violating [0,1] bounds -- respects
+
+check_redis_sae %>% 
+  group_by(vc_value) %>% 
+  summarize(cor_acs5_pct = cor(share_acs5,            share_model_redis_pct01_infl, use = "pairwise"),
+            cor_acs5_log = cor(share_model_redis_pct, share_model_redis_pct01_infl, use = "pairwise"))
+  # True -- they are often clearly better. This is never mind the fact that the 
+  # slopes of the former are also closer to 1.
+```
+```{r how does the adjusted values compare with the original, eval = developer_mode}
+check_redis_sae %>% 
+  ggplot(aes(x = share_model_trunc,
+             y = share_model_redis_pct)) +
+  geom_45() + 
+  geom_point(alpha = 0.1) +
+  geom_smooth() +
+  facet_wrap(~vc_value)
+  # In short -- on average, they're close to the 45
+
+```
+
+```{r examine distributions and correlations of original and final SAE vs acs5}
+comp_plot <- function(field1, field2) {
+  check_redis_sae %>% 
+  filter(!is.na(get(field1)),
+         !is.na(get(field2))) %>% 
+  ggplot(aes(x = get(field1),
+             y = get(field2))) +
+  geom_45() + 
+  geom_point(alpha = 0.1) +
+  geom_smooth() + 
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(x = field1, y = field2) +
+  facet_wrap(~vc_value)
+}
+
+comp_plot("share_acs5", "share_model_trunc")
+comp_plot("share_acs5", "share_model_redis_pct")
+comp_plot("share_acs5", "share_model_redis_pct01_infl")
+comp_plot("share_acs5", "share_acs5_redis_pct01_infl")
+comp_plot("share_acs5_redis_pct01_infl", "share_acs5_redis_pct01_infl")
+
+check_redis_sae %>% 
+  group_by(vc_value) %>% 
+  summarize(cor_acs5_sae  = cor(share_acs5, share_model_trunc,            use = "pairwise") %>% round(3),
+            cor_acs5_pct = cor(share_acs5, share_model_redis_pct, use = "pairwise") %>% round(3),
+            cor_acs5_infl = cor(share_acs5, share_model_redis_pct01_infl, use = "pairwise") %>% round(3),
+            cor_acs5_acs5 = cor(share_acs5, share_acs5_redis_pct01_infl, use = "pairwise") %>% round(3),
+            
+            var_acs5 = varNA(share_acs5) %>% round(3),
+            var_sae  = varNA(share_model_trunc) %>% round(3),
+            var_pct = varNA(share_model_redis_pct) %>% round(3),
+            var_infl = varNA(share_model_redis_pct01_infl) %>% round(3),
+            var_acs5_infl = varNA(share_acs5_redis_pct01_infl) %>% round(3)) %>% 
+  ungroup()
+  # Shows that correlations have dropped somewhat with each manipulation, but 
+  # the variances are substantially more realistic, which is critical
+  # Note -- these comparisons don't capture the greater alignment with ACS 1
+```
+
+```{r check final accordance with PUMA-level statistics, eval = developer_mode}
+# Here, we calculate population-weighted averages, for comparison with PUMA-level
+# averages directly from the ACS 1
+est_vs_acs1 <- 
+  check_redis_sae %>% 
+  ungroup() %>%
+  select(GEOID, PUMA, vc_value, pop, share_acs1 = acs1_5pct_pct, 
+         share_acs5, share_model_trunc, share_model_redis_pct,
+         share_model_redis_pct01_infl, share_acs5_redis_pct01_infl) %>% 
+  pivot_longer(cols = -c(GEOID, PUMA, vc_value, pop, share_acs1),
+               names_to = "method",
+               values_to = "estimate") %>% 
+  group_by(PUMA, vc_value, method) %>% 
+  summarize(
+    # Checking: this should be unique
+    share_acs1 = unique(share_acs1),
+    
+    estimate_puma = weighted.mean(x = estimate, w = pop)
+    ) %>% 
+  mutate(
+    method = factor(method,
+                    levels = c("share_acs5", 
+                               "share_model_trunc", 
+                               "share_model_redis_pct",
+                               "share_model_redis_pct01_infl",
+                               "share_acs5_redis_pct01_infl"))
+  )
+
+ggplot(est_vs_acs1,
+       aes(x = share_acs1,
+           y = estimate_puma,
+           color = method)) +
+  geom_45() + 
+  geom_point() + 
+  geom_smooth() +
+  facet_grid(vc_value ~ method) +
+  theme(legend.position = "bottom")
+
+  # ACS5 (red) is inconsistent -- which makes sense because they are lagged!
+  # The original SAE estimates (green) show clear compression
+  # The raw redistributed estimates (blue) are highly consistent for each band
+  # The truncated/reinflated estimates (purple) are also highly consistent for
+  #   each band, but of course also respect 0% floor and 100% ceiling for each 
+  #   tract. Seem that this advantage did not create problems for PUMA-level 
+  #   aggregates.
+
+```
+
+
+#### Compare Tract-Level SAE Estimates to the ACS 5-year
+
+
+```{r compare measure variance in acs5 vs sae by PUMA, eval = developer_mode}
+var_prop_acs5_sae <- 
+  sae_results_incpov_ctrls_100_05$sae_out %>% 
+  filter(vc_value == "0%-100%") %>% 
+  mutate(acs5_pov = incpov_lt6_r0to50_est + incpov_lt6_r50to100_est) %>% 
+  group_by(PUMA) %>% 
+  summarize(var_acs5_pov = varNA(acs5_pov),
+            var_sae_pov  = varNA(share_model_trunc),
+            avg_acs5_pov = meanNA(acs5_pov),
+            avg_sae_pov  = meanNA(share_model_trunc)) %>% 
+  mutate(ratio_var_acs5_sae = var_acs5_pov / var_sae_pov)
+
+ggplot(var_prop_acs5_sae,
+       aes(x = reorder(PUMA, ratio_var_acs5_sae),
+           y = ratio_var_acs5_sae)) + 
+  geom_bar(stat = "identity") +
+  geom_hline(yintercept = 1, 
+             color = "red") +
+  labs(x = "PUMA",
+       y = "Ratio of ACS5 Variance to SAE") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+ggplot(var_prop_acs5_sae,
+       aes(x = avg_acs5_pov,
+           y = ratio_var_acs5_sae,
+           label = PUMA)) + 
+  geom_point() + 
+  geom_text(vjust = 1) +
+  labs(x = "ACS5 Poverty Rate",
+       y = "Ratio of ACS5 Variance to SAE") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+  
+ggplot(var_prop_acs5_sae,
+       aes(x = avg_acs5_pov,
+           y = avg_sae_pov,
+           label = PUMA)) + 
+  geom_point() + 
+  geom_45() +
+  geom_text(vjust = 1) +
+  labs(title = "Comparison of PUMA-Level ACS5 and SAE Estimates (Simple averages)",
+         x = "ACS5 Poverty Rate",
+       y = "SAE Poverty Rate") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+  # NOTE -- this isn't what we're worried about. We're worried about the ACS1 comparison.
+  # See e.g. acs1_child[between(AGEP, 0, 5), j = sum(PWGTP[fam_incpov_ratio_cat_by100 == "0%-100%"])/sum(PWGTP), by = PUMA]
+```
+
 
 <!-- #### Adjust SAE Estimates to Match PUMA-level Aggregates -->
 

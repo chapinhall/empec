@@ -37,16 +37,27 @@ if ("my_county" %in% objects()) {
 
 <!-- ### Load Geographic Crosswalks ------------------------------------------->
 
-```{r prepare ACS 5-year crosswalk data}
+```{r prepare geographic crosswalk data}
+if (base_year <= 2021) {
+  xwalk_source <- "https://www2.census.gov/geo/docs/maps-data/data/rel/2010_Census_Tract_to_2010_PUMA.txt"
+  # We use 2010 crosswalks even up through 2021 because that is the geographic units 
+  # utilized by 2021 ACS1 microdata (i.e. 2010 vintage PUMAs). 
+  # See this reference for various connections between data release and 
+  # vintage of related geographic boundaries:
+  #   https://www.census.gov/programs-surveys/acs/geography-acs/geography-boundaries-by-year.2021.html#list-tab-626530102
+} else {
+  xwalk_source <- "https://www2.census.gov/geo/docs/maps-data/data/rel2020/2020_Census_Tract_to_2020_PUMA.txt"
+}
+
 geo_crosswalk_puma <-
-  fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/2020_Census_Tract_to_2020_PUMA.txt") %>% 
+  fread(xwalk_source) %>% 
     
     # for reference, this is the 2020 tract-to-PUMA crosswalk. While ACS5 data
     # from 2020 is available and uses this, the ACS1 data pull from 2021 uses
     # 2010 PUMA definitions. Temporarily, we are planning to continue to work on
     # a 2010 basis by pulling ACS5 data from 2019
     # 2010 crosswalk
-    # "https://www2.census.gov/geo/docs/maps-data/data/rel/2010_Census_Tract_to_2010_PUMA.txt"
+    # 
   .[STATEFP == my_state_fip] %>% 
   # /!\ Am not aware of the significance of the FIP versus CE suffix. It's an 
   # assumption that there's no consequence to dropping the distinction
@@ -163,7 +174,7 @@ for (geo in c("puma20", "zcta520")) {
     unzip(glue("{input_path}tl_{tiger_year}_{my_state_fip}_{geo}.zip"),
           exdir = str_replace(input_path, "\\/$", ""))
     pumaShp <- st_read(glue("{input_path}tl_{tiger_year}_{my_state_fip}_puma20.shp"))
-  } else if (geo == "zcta520" && !exists("zctaShpShp")) {
+  } else if (geo == "zcta520" && !exists("zctaShp")) {
     download_filename <- glue("us_zcta520")
     download.file(url      = glue("{census_path}tl_{tiger_year}_us_zcta520.zip"),
                   destfile = glue("{input_path}{download_filename}.zip"))
@@ -181,22 +192,36 @@ tractShp <-
          COUNTYFIP = COUNTYFP,
          TRACTFIP  = TRACTCE)
 
-pumaShp <- 
-  pumaShp %>%
-  rename(STATEFIP  = STATEFP20,
-         PUMA      = PUMACE20,
-         GEOID     = GEOID20)
+if (base_year <= 2021) {
+  pumaShp <- 
+    pumaShp %>%
+    rename(STATEFIP  = STATEFP10,
+           PUMA      = PUMACE10,
+           GEOID     = GEOID10)  
+  
+  zctaShp <-
+    zctaShp %>% 
+    rename(ZCTA      = ZCTA5CE10,
+           GEOID     = GEOID10)
+} else {
+  pumaShp <- 
+    pumaShp %>%
+    rename(STATEFIP  = STATEFP20,
+           PUMA      = PUMACE20,
+           GEOID     = GEOID20)
+
+  zctaShp <-
+    zctaShp %>% 
+    rename(ZCTA      = ZCTA5CE20,
+           GEOID     = GEOID20)
+    
+}
 
 countyShp <-
   countyShp %>% 
   rename(STATEFIP  = STATEFP,
          COUNTYFIP = COUNTYFP,
          County    = NAME)
-
-zctaShp <-
-  zctaShp %>% 
-  rename(ZCTA      = ZCTA5CE20,
-         GEOID     = GEOID20)
 ```
 
 
@@ -250,13 +275,13 @@ if (exists("my_aux_geo")) {
   # Plot overlap to examine any potential issues
   if (FALSE) {
     ggplot() +
-      geom_sf(data = auxShp %>% filter(str_detect(NAME, "District 299")),
-              color = "green", 
-              fill = NA, 
-              linewidth = 1) + 
       geom_sf(data = tractShp %>% filter(COUNTYFIP == "031"), 
               color = "red",   
               fill = NA) +
+      geom_sf(data = auxShp,
+              color = "green", 
+              fill = NA, 
+              linewidth = 1) + 
       theme_void()
   }
   

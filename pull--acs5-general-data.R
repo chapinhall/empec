@@ -19,6 +19,12 @@ source(glue("{code_path}settings--main.R"))
 source(glue("{code_path}settings--profile.R"))
 source(glue("{code_path}method--general-helper-functions.R"))
 
+my_state_fip <- 
+  fips_codes %>% 
+  filter(state == my_state_abbr) %>% 
+  pull(state_code) %>% 
+  unique()
+
 # Set local variable values
 
 update_meta <- TRUE
@@ -489,16 +495,16 @@ meta_renames_C15002 <-
   separate(label, into=c("est", "count", "gender", "educraw"), sep = "!!") %>% 
   filter(!is.na(gender) &  !is.na(concept)) %>%
   mutate(raceeth = 
-           case_when(str_detect(concept, "INDIAN")          ~ "amind",
-                     str_detect(concept, "ASIAN")           ~ "as",
-                     str_detect(concept, "BLACK.+ALONE")    ~ "bl",
-                     str_detect(concept, "\\(HISPANIC")     ~ "h",
-                     str_detect(concept, "ISLANDER")        ~ "pacisl",
-                     str_detect(concept, "OTHER")           ~ "oth",
-                     str_detect(concept, "TWO OR MORE")     ~ "mult",
-                     str_detect(concept, "WHITE ALONE\\)")  ~ "wh",
-                     str_detect(concept, "WHITE.+NOT HISP") ~ "wh_nonh",
-                     concept=="SEX BY EDUCATIONAL ATTAINMENT FOR THE POPULATION 25 YEARS AND OVER" ~ "all"),
+           case_when(str_detect(str_to_upper(concept), "INDIAN")          ~ "amind",
+                     str_detect(str_to_upper(concept), "ASIAN")           ~ "as",
+                     str_detect(str_to_upper(concept), "BLACK.+ALONE")    ~ "bl",
+                     str_detect(str_to_upper(concept), "\\(HISPANIC")     ~ "h",
+                     str_detect(str_to_upper(concept), "ISLANDER")        ~ "pacisl",
+                     str_detect(str_to_upper(concept), "OTHER")           ~ "oth",
+                     str_detect(str_to_upper(concept), "TWO OR MORE")     ~ "mult",
+                     str_detect(str_to_upper(concept), "WHITE ALONE\\)")  ~ "wh",
+                     str_detect(str_to_upper(concept), "WHITE.+NOT HISP") ~ "wh_nonh",
+                     str_to_upper(concept)=="SEX BY EDUCATIONAL ATTAINMENT FOR THE POPULATION 25 YEARS AND OVER" ~ "all"),
          educ = 
            case_when(str_detect(educraw, "High school graduate")               ~ "hsgrad", 
                      str_detect(educraw, "Bachelor's degree or higher")        ~ "coll", 
@@ -946,7 +952,9 @@ acs_incpov_age_myranges <-
             unite_fpls("r100to199", c("r100to124", "r125to149", "r150to174", "r175to184", "r185to199")),
             unite_fpls("r100to199", c("r100to124", "r125to149", "r150to174", "r175to184", "r185to199")),
             unite_fpls("r200to299", c("r200to299")),
-            unite_fpls("r300plus",  c("r300to399", "r400to499", "r500plus")))
+            unite_fpls("r300to399", c("r300to399")),
+            unite_fpls("r200to399", c("r200to299", "r300to399")),
+            unite_fpls("r400plus",  c("r400to499", "r500plus")))
 
 acs_incpov_age_out <- 
   acs_incpov_age_myranges %>% 
@@ -1276,13 +1284,23 @@ for (gender_value in c("Female", "Male")) {
                         "Male"   = "m")
     
   # Extract female race/ethnicity -by- education category variables.
-    
+  
   acs_educfem <-
     bind_rows(acs5_C15002) %>% # acs1_C15002, 
     filter(gender == gender_value) %>%
-    gather(stat, val, est, moe) %>%
+    pivot_longer(cols = c(est, moe),
+                 names_to = "stat",
+                 values_to = "val") %>%
     unite(colname, raceeth, educ, stat) %>%
-    spread(colname, val)
+    pivot_wider(names_from = colname, 
+                values_from = val)
+    
+  # acs_educfem <-
+  #   bind_rows(acs5_C15002) %>% # acs1_C15002, 
+  #   filter(gender == gender_value) %>%
+  #   gather(stat, val, est, moe) %>%
+  #   unite(colname, raceeth, educ, stat) %>%
+  #   spread(colname, val)
   
   # Construct "all" variables for each race (sum across education categories). 
   # I construct these from scratch instead of using the

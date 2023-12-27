@@ -139,9 +139,9 @@ add_agg_level <- function(ests, agg_level) {
 agg_tracts_up <- function(ests, agg_level) {
   ests %>%
     add_agg_level(agg_level) %>% 
-    .[j = .(count        = sum(pop_count*share*geo_part),
+    .[j = .(count        = sumNA(pop_count*share*geo_part),
             count_se     = se_sum(se_product(pop_count*geo_part, share, pop_count_se*geo_part, share_se)),
-            pop_count    = sum(pop_count*geo_part),
+            pop_count    = sumNA(pop_count*geo_part),
             pop_count_se = se_sum(pop_count_se*geo_part)),
       by = c(agg_level, "age", "pd", "outcome_var")] %>% 
     mutate(share    = count / pop_count,
@@ -150,19 +150,23 @@ agg_tracts_up <- function(ests, agg_level) {
 ```
 
 ```{r implement various levels of geographic aggregation}
+# Note -- ZCTA and "aux" calculations may produce a "Detected an unexpected
+# many-to-many relationship between `x` and `y`." This is expected, given 
+# how this is a feature of crossing geographies.
+
 nowcast_agg_tract <- agg_tracts_up(nowcast_elig_counts_final, "GEOID")
 nowcast_agg_zip   <- agg_tracts_up(nowcast_elig_counts_final, "ZCTA")
 nowcast_agg_cty   <- agg_tracts_up(nowcast_elig_counts_final, "County")
 
 if (exists("my_aux_geo")) {
-  nowcast_agg_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  #/!\Warning: Detected an unexpected many-to-many relationship between `x` and `y`.
+  nowcast_agg_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  
 }
 ```
 
 ```{r produce simple output of the aggregates}
 my_write.csv <- function(x, suffix) {
   write.csv(x, 
-            file = glue("{output_path}Simple elig output by age, period, and outcome -- {suffix}.csv"),
+            file = glue("{output_path}Simple elig output by age, period, and outcome -- {suffix}_{my_output_tag}.csv"),
             row.names = FALSE)
 }
 

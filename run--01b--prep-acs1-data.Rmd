@@ -36,6 +36,20 @@ if (!file.exists(acs1_save_file)) {
 acs1[j = PUMA := str_pad(PUMA, width = 5, side = "left", pad = "0")]
 ```
 
+```{r develop fields for the relationship variable depending on its source}
+if (base_year <= 2018) {
+  acs1[j = cRel := 
+         case_when(rel_var == 00 ~ "Head",
+                   rel_var == 01 ~ "Spouse",
+                   TRUE ~ "Other relationship")]
+} else {
+  acs1[j = cRel := 
+         case_when(rel_var == 20 ~ "Head",
+                   rel_var %in% c(21, 23) ~ "Spouse",
+                   TRUE ~ "Other relationship")]
+}
+```
+
 
 ### Sample Restrictions
 
@@ -44,6 +58,13 @@ ACS 1-Year microdata for `r base_year` are downloaded from the [Census Applicati
 ```{r subset microdata}
 # TYPE (Census) -- 1 - Housing unit, 2 - group quarters
 # Sample restricted to housing unit only
+
+my_state_fip <- 
+  fips_codes %>% 
+  filter(state == my_state_abbr) %>% 
+  pull(state_code) %>% 
+  unique()
+
 acs1 <- 
   acs1[TYPE %in% c(1) &
          ST == my_state_fip &
@@ -62,14 +83,14 @@ if (exists("my_county")) {
 ```{r view variables relevant to head-of-household coding, results = "asis", eval = developer_mode}
 if (print_documentation) {
   my_pums %>% 
-    filter(var_code %in% c("RELSHIPP", "SCHL", "INDP", "RAC2P", "HISP")) %>% 
+    filter(var_code %in% c(rel_var, "SCHL", "INDP", "RAC2P", "HISP")) %>% 
     kable()
 }
 ```
 
 ```{r investigate the number of households without a householder, eval = developer_mode}
 acs1[by = .(YEAR, SERIALNO),
-     j  = .(has_hoh = maxNA(RELSHIPP == 20))] %>% 
+     j  = .(has_hoh = maxNA(cRel == "Head"))] %>% 
   summary()
 ```
 
@@ -80,7 +101,7 @@ Although not currently used in this analysis, this codebase develops indicators 
 # Note: for households that contain multiple families, this method may produce inaccurate results (i.e., head of household may be unrelated to child in multi-family households).
 acs1_hoh <- 
   acs1 %>%
-  .[RELSHIPP == 20] %>%
+  .[cRel == "Head"] %>%
   .[, `:=`(hoh_educ = 
              case_when(between(SCHL,  2, 15) ~ "less_hs", 
                        between(SCHL, 16, 17) ~ "hs", 
@@ -103,7 +124,7 @@ acs1_hoh <-
 ```{r view variables relevant to constructing household-level measures, eval = developer_mode, results = "asis"}
 if (print_documentation) {
   my_pums %>% 
-    filter(var_code %in% c("RELSHIPP", "SCH", "ESR")) %>%
+    filter(var_code %in% c(rel_var, "SCH", "ESR")) %>%
     kable()
 }
 ```
@@ -124,9 +145,9 @@ An additional set of indicators is built using all information about household m
 
 acs1_hh <-
   acs1 %>% 
-  .[i = RELSHIPP %in% c(20,21,23), # subset to only householder and spouse records
+  .[i = cRel %in% c("Head", "Spouse"), # subset to only householder and spouse records
     by = .(YEAR, SAMPLE, SERIALNO),
-    j = .(spouse_present = maxNA(RELSHIPP %in% c(21,23)), # This corresponds to spouse
+    j = .(spouse_present = maxNA(cRel == "Spouse"),
           all_work_sch   = minNA(ESR %in% 1:2 | SCH %in% 2:3))] # corresponds to working, or in school
 
   # /!\ Not built, but possibly of interest may be gender of households, and
@@ -138,7 +159,7 @@ acs1_hh <-
 # Allow examination of cases
 if (FALSE) {
   check <- 
-    merge(acs1[j = .(YEAR, SERIALNO, RELSHIPP, SEX, AGEP, SCH, ESR)],
+    merge(acs1[j = .(YEAR, SERIALNO, cRel, SEX, AGEP, SCH, ESR)],
           acs1_hh[j = .(YEAR, SERIALNO, spouse_present, all_work_sch)],
           all = TRUE) %>% 
     .[order(SERIALNO, YEAR)]
@@ -193,11 +214,11 @@ acs1_child <-
                        RAC2P == 2 ~ "black",
                        TRUE ~ "other_multiple"),
            child_hispanic = 1*(HISP != 1),
-           fam_incpov_ratio_cat_mix     = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 3.00, 4.00)),
+           fam_incpov_ratio_cat_mix     = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 4.00)),
            fam_incpov_ratio_cat_hs_ccdf = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 1.00, local_ccdf_thresh/100, 3.50, 5.00)),
-           fam_incpov_ratio_cat_to185   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 3.00, 4.00)),
+           fam_incpov_ratio_cat_to185   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 4.00)),
            fam_incpov_ratio_cat_by50    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 0.5)),
-           fam_incpov_ratio_cat_by75    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.75, 1.50, 2.25, 3.00, 4.00)),
+           fam_incpov_ratio_cat_by75    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.75, 1.50, 2.25, 4.00)),
            fam_incpov_ratio_cat_by100   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 1.0)),
            obs_weight = PWGTP)] %>% 
   .[j = `:=`(work_spouse_status = paste(ifelse(all_work_sch   == 1, "WorkElig",      "NotWorkElig"),
@@ -217,18 +238,94 @@ acs1_child <-
                                            sep = "_"))]
 ```
 
+```{r check on small cells in the partitions constructed above, eval = developer_mode}
+# /!\ Note: this needs to be checked carefully for each given setting, because
+# the choices here may need to be adjusted based on the data
+partition_vars <- 
+  str_subset(cn(acs1_child), "fam_incpov.+cat|work_spouse|work_incpov")
+for (pv in partition_vars) {
+  my_plot <- 
+    acs1_child %>% 
+    filter(between(AGEP, 0, 5)) %>% 
+    group_by_at(c(pv, "PUMA")) %>% 
+    summarize(n = n()) %>% 
+    ggplot(aes(x = n,
+               color = get(pv))) +
+    geom_density(linewidth = 1) +
+    geom_vline(xintercept = 10) +
+    scale_x_continuous(limits = c(0, 50)) +
+    labs(title = pv) +
+    theme(axis.text = element_text(angle = 90))
+  print(ggplotly(my_plot, tooltip = "color"))
+  #print(my_plot)
+}
+```
+
+
+```{r combine cells from the above constructions to eliminate small cells}
+# /*\ This is something that should be freshly checked as part of each setting
+# Developer note: as a rough guide, we look to combine cells that have most
+# of their density below cell sizes of 10. An exception to this is that we keep
+# `fam_incpov_ratio_cat_mix` which has a cell of 50-100% FPL which we have
+# generally found to be small, because it is primarily used to generate estimates
+# for 0-50% only, with `fam_incpov_ratio_cat_by100` used as the baseline for 
+# other baseline and now-cast estimates.
+
+# While these are all judgment calls, their validity can be assessed by the
+# diagnostics produced in the `02a` script which compares the SAE estimates versus
+# ACS 1-year values at the PUMA level.
+
+acs1_child <- 
+  acs1_child %>% 
+  mutate(
+    work_incpov_mix = 
+           case_when(
+             str_detect(work_incpov_statushs,
+                        #glue("NotWorkElig_([^0%])")) ~ "NotWorkElig_100%_500%",
+                          # Note that this regular expression matches strings
+                          # that start with "NotWorkElig" and do *not* follow with 0%
+                          # in practice, this groups all larger cells
+                        glue("NotWorkElig_(0%|100%)")) ~ 
+                          glue("NotWorkElig_0%_{local_ccdf_thresh}%"),
+             str_detect(work_incpov_statushs,
+                        glue("NotWorkElig_[^(0%|100%)]")) ~
+                          glue("NotWorkElig_{local_ccdf_thresh}_500%"),
+             TRUE ~ work_incpov_statushs))
+  # Note that we intentionally leave "WorkElig_0%_100%" as an often-smaller
+  # cell because it represents an important single quantity of children in
+  # families that are simultaneously HS and CCDF eligible
+
+if (FALSE) {
+  my_plot <- 
+    acs1_child %>% 
+    filter(between(AGEP, 0, 5)) %>% 
+    group_by(work_incpov_mix, PUMA) %>% 
+    summarize(n = n()) %>% 
+    ggplot(aes(x = n,
+               color = work_incpov_mix)) +
+    geom_density() +
+    geom_vline(xintercept = 10) +
+    scale_x_continuous(limits = c(0, 50))
+    
+  print(ggplotly(my_plot, tooltip = "color"))
+}
+```
+
+
 ```{r check puma-level patterns in various eligibility status}
 elig_stats_puma <- 
   acs1_child %>% 
-  .[between(AGEP, 0, 5),
-    j = .(pct_le50_elig  = meanNA(fam_incpov_ratio_cat_mix == "0%-50%"),
-          pct_le100_elig = meanNA(fam_incpov_ratio_cat_by100 == "0%-100%"),
-          # /*\ Note that choice of these cutpoints may need to tailored to 
-          # income threshold values that differ from 225%
-          pct_le225_elig = meanNA(fam_incpov_ratio_cat_by75 %in% c("0%-75%", "75%-150%", "150%-225%")),
-          pct_ccdf_elig  = meanNA(work_incpov_status75 %in% c("WorkElig_0%-75%", "WorkElig_75%-150%", "WorkElig_150%-225%")),
-          pct_work_elig_if_le225  = meanNA(all_work_sch[fam_incpov_ratio_cat_by75 %in% c("0%-75%", "75%-150%", "150%-225%")])),
-    by = PUMA] 
+  filter(between(AGEP, 0, 5)) %>% 
+  mutate(ccdf_inc_elig = fam_incpov_ratio_cat_hs_ccdf %in% 
+                           c("0%-100%", glue("100%-{local_ccdf_thresh}%")),
+         ccdf_elig     = str_detect(work_incpov_statushs, "^WorkElig_(0%|100%)")) %>% 
+  group_by(PUMA) %>% 
+  summarize(
+    pct_le50_elig   = meanNA(fam_incpov_ratio_cat_mix == "0%-50%"),
+    pct_le100_elig  = meanNA(fam_incpov_ratio_cat_by100 == "0%-100%"),
+    pct_leCcdf_elig = meanNA(ccdf_inc_elig),
+    pct_ccdf_elig   = meanNA(ccdf_elig),
+    pct_work_elig_if_incLe225 = meanNA(all_work_sch[ccdf_inc_elig]))
 ```
 
 ```{r}
@@ -249,18 +346,9 @@ ggplot(elig_stats_puma,
 
 
 ```{r examine puma-level correspondence between income eligibility and work eligibility}
-
-workelig_and_incelig_by_puma <- 
-  acs1_child %>% 
-  .[between(AGEP, 0, 5),
-    j = .(pct_incelig = meanNA(fam_incpov_ratio_cat_by75 %in% c("0%-75%", "75%-150%", "150%-225%")),
-          pct_workelig = meanNA(all_work_sch),
-          n = .N),
-    by = .(PUMA)] #, age = ifelse(AGEP <= 5, "0to5", "6to12"))]
-
-ggplot(workelig_and_incelig_by_puma,
-       aes(x = pct_incelig, 
-           y = pct_workelig
+ggplot(elig_stats_puma,
+       aes(x = pct_leCcdf_elig, 
+           y = pct_work_elig_if_incLe225
            #,color = age
            )) +
   geom_point() + 
@@ -284,12 +372,12 @@ ggplot(workelig_and_incelig_by_puma,
 ```{r examine layers of eligibility}
 elig_stats_puma_stack <-
   elig_stats_puma %>% 
-  mutate(pct_ccdf_only = pct_ccdf_elig,
-         pct_le225_nonccdf = pct_le225_elig - pct_ccdf_elig) %>% 
+  mutate(pct_ccdf_only     = pct_ccdf_elig,
+         pct_le225_nonccdf = pct_leCcdf_elig - pct_ccdf_elig) %>% 
   pivot_longer(cols = -c(PUMA))
 
 elig_stats_puma_stack %>% 
-  filter(name %like% "pct_ccdf_elig|pct_le225_elig|pct_work_elig_if") %>%
+  filter(name %like% "pct_ccdf_elig|pct_leCcdf_elig|pct_work_elig_if") %>%
   group_by(PUMA) %>% 
   mutate(ccdf_val = value[name == "pct_ccdf_elig"]) %>%  # pct_work_elig_if_le225
   ungroup() %>% 
@@ -328,14 +416,17 @@ gc()
 # with by-hand pulls of ACS data from ipums.org. If of interest outside of the original
 # IL-based application, the income threshold may need modification.
 (puma_agg <- 
-   acs1_child[between(AGEP, 0, 5),
-              .(sample_n = .N,
-                n = sum(PWGTP),
-                  n_lt225fpl         =   comma(sum(PWGTP[fam_incpov_ratio <= 2.25])),
-                pct_lt225fpl         = percent(sum(PWGTP[fam_incpov_ratio <= 2.25]) / sum(PWGTP), accuracy = 0.01),
-                  n_lt225fpl_worksch =   comma(sum(PWGTP[fam_incpov_ratio <= 2.25 & all_work_sch == 1])),
-                pct_lt225fpl_worksch = percent(sum(PWGTP[fam_incpov_ratio <= 2.25 & all_work_sch == 1]) / sum(PWGTP), accuracy = 0.01)),
-              by = PUMA] %>% 
+   acs1_child %>% 
+   filter(between(AGEP, 0, 5)) %>% 
+   group_by(PUMA) %>% 
+   mutate(faminc_lt_thresh = fam_incpov_ratio <= local_ccdf_thresh/100,
+          workelig = all_work_sch == 1) %>% 
+   summarize(sample_n = n(),
+             n = sum(PWGTP),
+             n_ltCcdfThresh         =   comma(sum(PWGTP[])),
+             pct_ltCcdfInc          = percent(sum(PWGTP[faminc_lt_thresh]) / sum(PWGTP), accuracy = 0.01),
+             n_ltCcdfInc_workElig   =   comma(sum(PWGTP[faminc_lt_thresh & workelig])),
+             pct_ltCcdfInc_workElig = percent(sum(PWGTP[faminc_lt_thresh & workelig]) / sum(PWGTP), accuracy = 0.01)) %>% 
    arrange(PUMA))
 
 if (FALSE) {
@@ -345,16 +436,16 @@ if (FALSE) {
 
 ```{r calculate selected statistics at the PUMA level with standard errors to facilitate later checks}
 # Function to calculate poverty rates
-acs1_child_mod <- 
+acs1_child <- 
   acs1_child %>% 
-  .[j = child_agegroup_combo := 
-      case_when(child_agegroup %in% c("0to2", "3to5") ~ "0to5",
-                TRUE ~ as.character(child_agegroup)) %>% 
-      factor(levels = c(setdiff(levels(child_agegroup), 
-                                c("0to2", "3to5")),
-                        "0to5")) %>% 
-      fct_relevel("0to5")] %>% 
-  .[order(child_agegroup_combo, PUMA)]
+  mutate(child_agegroup_combo = 
+           case_when(child_agegroup %in% c("0to2", "3to5") ~ "0to5",
+                     TRUE ~ as.character(child_agegroup)) %>% 
+           factor(levels = c(setdiff(levels(child_agegroup), 
+                                     c("0to2", "3to5")),
+                             "0to5")) %>% 
+           fct_relevel("0to5")) %>% 
+  arrange(child_agegroup_combo, PUMA)
 
 calc_acs1_puma_pov <- function(my_data, indices) {
   # Perform stratified bootstrap sampling of the data, with age and PUMA
@@ -368,17 +459,109 @@ calc_acs1_puma_pov <- function(my_data, indices) {
     pull(pct_pov)
 }
 
-acs1_boot <- boot::boot(acs1_child_mod, calc_acs1_puma_pov, R = 200)
+acs1_boot <- boot::boot(acs1_child, calc_acs1_puma_pov, R = 200)
 acs1_puma_stats <- 
   cbind(acs1_boot$data[j = .(child_agegroup_combo, PUMA)] %>% unique(),
         data.table(pct_pov       = acs1_boot$t0,
                    pct_pov_check = apply(acs1_boot$t, 2, mean)),
                    pct_pov_se    = sqrt(apply(acs1_boot$t, 2, var)))
 ```
+## Pull Relevant ACS 1-Year Data Aggregate Tables
+
+```{r}
+# Auto-pulls of ACS1 aggregate data is yielding some NA values for estimates
+# Other attempts to automatically pull PUMA-level data in batches from the Census
+# (https://data.census.gov/) produced the same error. Only when PUMAs were 
+# pulled manually, individually 
+
+acs1_tables <- 
+  get_acs(geography = "puma", 
+          state     = my_state_abbr,
+          county    = ifelse(exists("my_county"), my_county, NULL),
+          survey    = "acs1",
+          table     = "B17024",
+          year      = base_year)
+
+acs1_tables_labeled <- 
+  label_acs(acs1_tables,
+            year = base_year,
+            survey = "acs1")  
+
+# /!\ The API pulls of ACS1 aggregate tables is resulting in NAs. These code 
+# chunks reflect ad hoc, manual pulls of individually pulled problematic PUMAs 
+# to avoid these missings
+if (base_year == 2022) {
+  acs1_tables_labeled <-
+    openxlsx::read.xlsx(glue("{input_path}acs_puma_cook_b17024_2022.xlsx"),
+                        sheet = "in") %>%
+    merge(acs1_tables_labeled %>% select(variable, label) %>% unique(),
+          by = "variable",
+          all.x = TRUE)
+} else if (base_year == 2018) {
+  acs1_tables_labeled <-
+    read.csv(glue("{input_path}acs_pov_estimates_2018.csv"),
+             stringsAsFactors = FALSE) %>%
+    mutate(estimate = as.numeric(str_replace_all(estimate, ",", "")),
+           moe      = as.numeric(str_replace_all(moe,      ",", ""))) %>% 
+    merge(acs1_tables_labeled %>% select(variable, label) %>% unique(),
+          by = "variable",
+          all.x = TRUE)
+}
+
+acs1_5pct_puma <- 
+  acs1_tables_labeled %>% 
+  mutate(age = 
+           case_when(str_detect(label, "Under 6") ~ "lt6",
+                     str_detect(label, "6 to 11") ~ "6to11"),
+         faminc = 
+           label %>% 
+           str_replace(".+Under \\.50", "lt50") %>% 
+           str_replace(".+!(\\d?\\.\\d+) to (\\d?\\.\\d+)", "\\1to\\2") %>% 
+           str_replace(".+5.00 and over", "ge500") %>% 
+           str_replace_all("\\.", ""),
+         faminc = ifelse(faminc == label, "tot", faminc)) %>% 
+  filter(!is.na(age)) %>% 
+  rename(est = estimate) %>% 
+  pivot_longer(cols = c(est, moe)) %>% 
+  unite("meas", name, faminc) %>% 
+  select(-label, -variable, -NAME) %>% 
+  pivot_wider(names_from = "meas",
+              values_from = "value") %>% 
+  
+  # Recreate a range of values to accord with our income-to-poverty categories
+  mutate(acs1_agg_0_50_n     = est_lt50,
+         acs1_agg_0_100_n    = est_lt50 + est_50to74 + est_75to99,
+         acs1_agg_50_100_n   =            est_50to74 + est_75to99,
+         acs1_agg_100_200_n  = est_100to124 + est_125to149 + est_150to174 +
+                               est_175to184 + est_185to199,
+         acs1_agg_200_300_n  = est_200to299,
+         acs1_agg_300_400_n  = est_300to399,
+         acs1_agg_200_400_n  = est_200to299 + est_300to399,
+         acs1_agg_400_n      = est_400to499 + est_ge500,
+         
+         acs1_agg_0_50_pct     = acs1_agg_0_50_n    / est_tot,
+         acs1_agg_0_100_pct    = acs1_agg_0_100_n   / est_tot,
+         acs1_agg_50_100_pct   = acs1_agg_50_100_n  / est_tot,
+         acs1_agg_100_200_pct  = acs1_agg_100_200_n / est_tot,
+         acs1_agg_200_300_pct  = acs1_agg_200_300_n / est_tot,
+         acs1_agg_300_400_pct  = acs1_agg_300_400_n / est_tot,
+         acs1_agg_200_400_pct  = acs1_agg_200_400_n / est_tot,
+         acs1_agg_400_pct      = acs1_agg_400_n     / est_tot,
+         
+         PUMA = str_replace(GEOID, glue("^{my_state_fip}"), "")) %>% 
+  select(-matches("^(est|moe)"))
+
+if (FALSE) {
+  acs1_5pct_puma %>% 
+    filter(PUMA == "03167") %>% 
+    pivot_longer(cols = -c(GEOID, PUMA, age))  
+}
+```
 
 
 ```{r}
 save(acs1_child,
      acs1_puma_stats,
+     acs1_5pct_puma,
      file = glue("{output_path}acs1_data_{my_output_tag}.Rda"))
 ```
