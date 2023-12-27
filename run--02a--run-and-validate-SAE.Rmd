@@ -187,7 +187,7 @@ incpov_ranges_for_estimation <- c("0to50", "50to100", "100to199", "200to299")
 # c("WorkElig_0%-75%", "WorkElig_75%-150%", "WorkElig_150%-225%")` could be
 # added to make a direct comparison.
 
-# Our current specification of `work_incpov_statushs` embeds this alignment 
+# Our current specification of `work_incpov_mix` embeds this alignment 
 # by adding the income threshold directly, in addition to the 100% for Head Start
 
 work_incpov_spec_field <- "work_incpov_mix"
@@ -319,68 +319,67 @@ run_saes_byCtrls <- function(vul_vars, sae_input_data, my_controls) {
 
 
 ```{r run SAE method}
-if (rerun_sae) {
- 
-  parallelize_sae <- TRUE
+
+parallelize_sae <- TRUE
+
+if (parallelize_sae) {
   
-  if (parallelize_sae) {
+  runlist <- 
+    list(sae_results_incpov_simple_05     = list(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_simple_05),
+         sae_results_incpov_simple_612    = list(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_simple_612),
+         sae_results_incpov_ctrls_mix_05  = list(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_added_2534_05),
+         sae_results_incpov_ctrls_mix_612 = list(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_added_2534_612),
+         sae_results_incpov_ctrls_100_05  = list(incpov_spec_field_100,  acs1_child05_sae,  sae_controls_added_2534_05),
+         sae_results_incpov_ctrls_100_612 = list(incpov_spec_field_100,  acs1_child612_sae, sae_controls_added_2534_612),
+         sae_results_ccdf_wk_pov_05       = list(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534_05),
+         sae_results_ccdf_wk_pov_612      = list(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534_612),
+         sae_results_ccdf_wk_sp_05        = list("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534_05))
+  
+  # Code to recruit (almost) as many core processors as are available (but not more than we need)
+  cores <- detectCores() - 1 # not to overload your computer
+  cores <- min(cores, length(runlist))
+  cl <- makeCluster(cores) 
+  registerDoParallel(cl)
+  
+  sae_results <- foreach (r = seq_along(runlist)) %dopar% {
+    source("settings--main.R")
     
-    runlist <- 
-      list(sae_results_incpov_simple_05     = list(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_simple_05),
-           sae_results_incpov_simple_612    = list(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_simple_612),
-           sae_results_incpov_ctrls_mix_05  = list(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_added_2534_05),
-           sae_results_incpov_ctrls_mix_612 = list(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_added_2534_612),
-           sae_results_incpov_ctrls_100_05  = list(incpov_spec_field_100,  acs1_child05_sae,  sae_controls_added_2534_05),
-           sae_results_incpov_ctrls_100_612 = list(incpov_spec_field_100,  acs1_child612_sae, sae_controls_added_2534_612),
-           sae_results_ccdf_wk_pov_05       = list(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534_05),
-           sae_results_ccdf_wk_pov_612      = list(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534_612),
-           sae_results_ccdf_wk_sp_05        = list("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534_05))
-    
-    # Code to recruit (almost) as many core processors as are available (but not more than we need)
-    cores <- detectCores() - 1 # not to overload your computer
-    cores <- min(cores, length(runlist))
-    cl <- makeCluster(cores) 
-    registerDoParallel(cl)
-    
-    sae_results <- foreach (r = seq_along(runlist)) %dopar% {
-      source("settings--main.R")
-      
-      run_saes_byCtrls(runlist[[r]][[1]], 
-                       runlist[[r]][[2]],
-                       runlist[[r]][[3]])
-    }
-    stopCluster(cl)
-    
-    # Separate parallelized results to conform to downstream code
-    # /!\ Note: arguably, it'd be wise to update the downstream code to conform
-    # to the list format output by parallelization
-    for (r in seq_along(sae_results)) {
-      assign(names(runlist)[r],
-             sae_results[[r]])
-    }
-    
-  } else {
-    sae_results_incpov_simple_05     <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_simple_05)
-    sae_results_incpov_simple_612    <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_simple_612)
-    sae_results_incpov_ctrls_mix_05  <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_added_2534_05)
-    sae_results_incpov_ctrls_mix_612 <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_added_2534_612)
-    sae_results_incpov_ctrls_100_05  <- run_saes_byCtrls(incpov_spec_field_100,  acs1_child05_sae,  sae_controls_added_2534_05)
-    sae_results_incpov_ctrls_100_612 <- run_saes_byCtrls(incpov_spec_field_100,  acs1_child612_sae, sae_controls_added_2534_612)
-    sae_results_ccdf_wk_pov_05       <- run_saes_byCtrls(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534_05)
-    sae_results_ccdf_wk_pov_12       <- run_saes_byCtrls(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534_612)
-    sae_results_ccdf_wk_sp_05        <- run_saes_byCtrls("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534_05)
+    run_saes_byCtrls(runlist[[r]][[1]], 
+                     runlist[[r]][[2]],
+                     runlist[[r]][[3]])
+  }
+  stopCluster(cl)
+  
+  # Separate parallelized results to conform to downstream code
+  # /!\ Note: arguably, it'd be wise to update the downstream code to conform
+  # to the list format output by parallelization
+  for (r in seq_along(sae_results)) {
+    assign(names(runlist)[r],
+           sae_results[[r]])
   }
   
-  specs <- c("incpov_simple_05", 
-             "incpov_simple_612",
-             "incpov_ctrls_mix_05",
-             "incpov_ctrls_mix_612",
-             "incpov_ctrls_100_05",
-             "incpov_ctrls_100_612",
-             "ccdf_wk_sp_05",
-             "ccdf_wk_pov_05",
-             "ccdf_wk_pov_612") 
+} else {
+  sae_results_incpov_simple_05     <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_simple_05)
+  sae_results_incpov_simple_612    <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_simple_612)
+  sae_results_incpov_ctrls_mix_05  <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child05_sae,  sae_controls_added_2534_05)
+  sae_results_incpov_ctrls_mix_612 <- run_saes_byCtrls(incpov_spec_field_mix,  acs1_child612_sae, sae_controls_added_2534_612)
+  sae_results_incpov_ctrls_100_05  <- run_saes_byCtrls(incpov_spec_field_100,  acs1_child05_sae,  sae_controls_added_2534_05)
+  sae_results_incpov_ctrls_100_612 <- run_saes_byCtrls(incpov_spec_field_100,  acs1_child612_sae, sae_controls_added_2534_612)
+  sae_results_ccdf_wk_pov_05       <- run_saes_byCtrls(work_incpov_spec_field, acs1_child05_sae,  sae_controls_added_2534_05)
+  sae_results_ccdf_wk_pov_12       <- run_saes_byCtrls(work_incpov_spec_field, acs1_child612_sae, sae_controls_added_2534_612)
+  sae_results_ccdf_wk_sp_05        <- run_saes_byCtrls("work_spouse_status",   acs1_child05_sae,  sae_controls_added_2534_05)
 }
+
+specs <- c("incpov_simple_05", 
+           "incpov_simple_612",
+           "incpov_ctrls_mix_05",
+           "incpov_ctrls_mix_612",
+           "incpov_ctrls_100_05",
+           "incpov_ctrls_100_612",
+           "ccdf_wk_sp_05",
+           "ccdf_wk_pov_05",
+           "ccdf_wk_pov_612") 
+
 ```
 
 #### Compare Direct versus FH Output Estimates
