@@ -233,6 +233,46 @@ geo_crosswalk <-
         all.x = TRUE)
 ```
 
+```{r construct school district files}
+if (my_aux_geo_desc == "School District" & !exists("my_aux_geo")) {
+  # Download school district file from Census using tigris package
+  el <- school_districts(state = {my_state_fip}, type = 'elementary', year = tiger_year)
+  sc <- school_districts(state = {my_state_fip}, type = 'secondary',  year = tiger_year)
+  un <- school_districts(state = {my_state_fip}, type = 'unified',    year = tiger_year)
+  
+  # Clean data
+  sd <- 
+    bind_rows(el, sc, un)
+  rm(el, sc, un)
+  sd <- sd %>%
+    rename(school = NAME)
+  
+  # Display them
+  ggplot() + 
+    geom_sf(data = sd,
+            fill = NA) +
+    theme_void()
+  
+  # Check Size
+  object.size(sd) %>% format(unit = "Mb")
+  if (FALSE) {
+    sd <- st_simplify(sd, dTolerance = 500) #dTolerance needs to be decimal degrees to run this
+    object.size(sd) %>% format(unit = "Mb")
+  }
+  
+  # Write an output shapefile
+  st_write(sd, glue("{input_path}{my_state_abbr}_combined_schooldistricts.shp"),
+           delete_layer = TRUE)
+  
+  my_aux_geo <- glue("{input_path}{my_state_abbr}_combined_schooldistricts.shp") #school district
+  
+  # 2. Name of the field within the shapefile with the desired label for each geography
+  my_aux_geo_field <- "school"
+  
+  # 3. Descriptive label to give to the auxiliary field, e.g. "Community Area"
+  my_aux_geo_desc <- "School District"
+}
+```
 
 ```{r load and feed in any auxiliary geographies}
 
@@ -273,17 +313,38 @@ if (exists("my_aux_geo")) {
   }
   
   # Plot overlap to examine any potential issues
-  if (FALSE) {
-    ggplot() +
-      geom_sf(data = tractShp %>% filter(COUNTYFIP == "031"), 
-              color = "red",   
-              fill = NA) +
-      geom_sf(data = auxShp,
-              color = "green", 
-              fill = NA, 
-              linewidth = 1) + 
-      theme_void()
-  }
+  ggplot() +
+    geom_sf(data = tractShp %>% filter(COUNTYFIP == "005"), #005 is Cumberland county, where Portland (largest population) is located.
+            color = "red",   
+            fill = "red") +
+    geom_sf(data = auxShp,
+            color = "green", 
+            fill = NA, 
+            linewidth = 1) + 
+    theme_void()
+  
+  # Plot overlap to examine any potential issues for 5 municipalities/SDs
+  ggplot() +
+    geom_sf(data = auxShp %>% filter(school == "Portland"),
+            color = "red",   
+            fill = "red") +
+    geom_sf(data = auxShp %>% filter(school == "Lewiston"),
+            color = "yellow",   
+            fill = "yellow") +
+    geom_sf(data = auxShp %>% filter(school == "Auburn"),
+            color = "blue",   
+            fill = "blue") +
+    geom_sf(data = auxShp %>% filter(school == "Bangor"),
+            color = "green",   
+            fill = "green") +
+    geom_sf(data = auxShp %>% filter(school == "Sanford"),
+            color = "purple",   
+            fill = "purple") +
+    geom_sf(data = auxShp,
+            color = "black",   
+            fill = NA,
+            linewidth = 0.2) +
+    theme_void()
   
   # Subset intersected geographies to those with areas that are within 2 orders of
   # magnitude of the largest. This is primarily to rule out idiosyncratic overlaps
@@ -344,6 +405,7 @@ leaflet_base_map %>%
                       "PUMAs", 
                       my_aux_geo_desc),
     options = layersControlOptions(collapsed = FALSE))
+
 ```
 
 
