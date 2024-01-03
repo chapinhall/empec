@@ -24,7 +24,7 @@ my_output_tag <- "<run tag>"
 
 # Indicate base year of analysis
 base_year <- 2022 # This will drive the pull of ACS 1-year data
-acs5_year <- 2021 # This will drive the pull of ACS 5-year data
+acs5_year <- 2022 # This will drive the pull of ACS 5-year data
 
 # Provide the names of the CPS data extract to be used in the script
 # `run--01c--prep-cps-data.Rmd`. Include the file name but not the file extension.
@@ -80,7 +80,6 @@ my_state_abbr <- "xx"
 # 62999--it's necessary to specify `zcta_starts <- c("60", "61", "62")` and
 # not simply `zcta_starts <- "600"`
 zcta_starts <- c("XX", "XX", "XX")
-
 
 # (Optional) -- If choosing to focus analysis on a single county, uncomment the
 #   following line and provide its name. Note that providing even just "Cook"
@@ -199,7 +198,7 @@ These files can be run manually, but are generally set up to be run automaticall
 ## Run Scripts
 
 * `run--00--main-doc.Rmd` -- run and incorporate all following scripts into a main document
-* `run--01a--prep-geo-data.Rmd` -- this auto-pulls shape files from the Census TIGER service based on state--and if specified, county--indications in the `settings--profile.R` script, and produces useful cross-walks between tracts and PUMA, zip codes, and (if specified) custom geographies
+* `run--01a--prep-geo-data.Rmd` -- this auto-pulls shape files from the Census TIGER service based on state--and if specified, county--indications in the `settings--profile.R` script, and produces useful cross-walks between tracts and PUMA, zip codes, school districts, and (if specified) custom geographies
 * `run--01b--prep-acs1-data.Rmd` -- reads pulls of ACS1 microdata and develops necessary structures for use in the Small Area Estimation method
 * `run--01c--prep-cps-data.Rmd` -- reads pulls of CPS microdata (instructions provided above) and develops necessary structures for use in the "now-casting" method
 * `run--01d--prep-acs5-data.Rmd` -- adds onto the output from the `pull--acs5-general-data.R` script, adding some additional fields, and aggregating calculations and standard errors up to the PUMA level

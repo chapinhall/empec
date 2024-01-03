@@ -23,9 +23,6 @@ readRenviron("~/.Renviron")
 # Check to see that the expected key is output in your R console
 Sys.getenv("census_api_key")
 
-#Change to most recently available ACS data
-acs5_year <- {acs5_year}
-acs1_year <- base_year
 ```
 
 ```{r identify relevant fips codes for population pulls}
@@ -45,10 +42,11 @@ if ("my_county" %in% objects()) {
 }
 ```
 
-# Introduction
+### Estimating Overall Population Counts for Young Children
 
-This code pulls together data from the 2020 Census redistricting files, 2010 SF1 Census files, and
-2016-2020 ACS to get population by age group to use in projecting population counts for young children through 2022.
+This code pulls together data from the [2020 Census redistricting files](https://api.census.gov/data/2020/dec/pl.html), 2010 SF1 Census files, and `r glue('{acs5_year-4}-{acs5_year}')` ACS 5-year to get population by age group to use in projecting population counts for young children through 2022.
+
+<!-- * For a really helpful video on pulling redistricting data see - https://www.census.gov/library/video/2021/adrm/accessing-2020-census-redistricting-data-through-the-census-data-api-tables-and-group-calls.html -->
 
 2020 Population
 
@@ -57,100 +55,171 @@ This code pulls together data from the 2020 Census redistricting files, 2010 SF1
 * This is a temporary solution until 2020 Census individual age data is released
 
 2010 Population
+
 * Pull 2010 Census data by age and group by 0-2, 3-4, 5, 6-12, 13-17 at the block level
 * Use 2010 to 2020 GEOID crosswalk to update to 2020 tracts
 
-## Data Documentation
 
-* Find redistricting tables available on https://api.census.gov/data/2020/dec/pl.html
-* For a really helpful video on pulling redistricting data see - https://www.census.gov/library/video/2021/adrm/accessing-2020-census-redistricting-data-through-the-census-data-api-tables-and-group-calls.html
-
-
-### Tables and Variables Wanted
-
-* P1 = RACE
-  + P1_001N=Total
-
-* P3 = RACE FOR THE POPULATION 18 YEARS AND OVER
-  + P3_001N = Total
-
-## 2020 Redistricting Data
+#### 2020 Redistricting Data
 
 Pull redistricting data from the desired geography
 
-```{r pull data}
-census_vars_2020 <- c("P1_001N", "P3_001N")
+```{r pull data from 2020 PL 94-171 Redistricting Data}
+#tract level
+#population
 if (exists("my_county_fip")) {
   county_arg <- as.numeric(my_county_fip)
 } else {
   county_arg <- NULL
 }
 
-pop_tract_2020 <- 
+var_pl_2020 <- load_variables(2020, dataset = "pl")
+
+var_pl_2020 <-
+  var_pl_2020 %>%
+  filter(name %in% c("P1_001N", # Table P1 reflects RACE, and field P1_001N represents Total
+                     "P3_001N"  # Table P3 reflects RACE FOR THE POPULATION 18 YEARS AND OVER, and field P3_001N represents Total
+                     ))
+
+pop_tract_2020_redis <- 
   get_decennial(
     geography = "tract",
-    variables = census_vars_2020,
+    variables = var_pl_2020$name,
     year = 2020,
+    sumfile = "pl",
     state = my_state_fip,
     county = county_arg,
-    geometry = FALSE) 
+    geometry = FALSE) %>%
+  merge(var_pl_2020 %>% select(-label, -concept),
+        by.x = "variable",
+        by.y = "name",
+        all = TRUE)
 
 ```
 
-### Rename variables
-
-```{r recode, echo = FALSE}
-#First split GEOID 17031810400 - most of this tract falls in Norwood Park.
-pop_tract_2020 <- 
-  pop_tract_2020 %>%
-  mutate(age = ifelse(str_extract(variable, "^.{2}")=="P1", "Total Population",
-               ifelse(str_extract(variable, "^.{2}")=="P3", "18 Plus", NA))) %>%
+```{r rename 2020 field and calculate lt 18 overall population, echo = FALSE}
+pop_tract_2020_redis <- 
+  pop_tract_2020_redis %>%
+  mutate(age = ifelse(str_extract(variable, "^.{2}") == "P1", "Total Population",
+               ifelse(str_extract(variable, "^.{2}") == "P3", "18 Plus", NA))) %>%
   select(-variable, -NAME) %>%
   pivot_wider(names_from = age,
               values_from = value) %>% 
   mutate(totallt18_2020 = `Total Population`-`18 Plus`)
 
 # Examine structure
-head(pop_tract_2020)
+if (FALSE) {
+  head(pop_tract_2020_rd)
+}
 ```
 
-### Pull most recent ACS 5-Yr data for age less than 18
+```{r pull data from 2020 DHC}
+#Load variables for 2020 DHC
+var_dhc_2020 <- load_variables(2020, dataset = "dhc")
 
-* B01001_001 = Total population
+#Filter variables
+var_dhc_2020 <- 
+  var_dhc_2020 %>% 
+  filter(str_detect(name, "P14")) %>% 
+  mutate(age = str_extract(label, "\\d+"),
+         age = as.numeric(age) - str_detect(label, "Under"),
+         sex = case_when(str_detect(label, "Female") ~ "female",
+                         str_detect(label, "Male")   ~ "male",
+                         TRUE                        ~ "all")) %>% 
+  filter(age %in% 0:17,
+         !(sex == "all"))
 
-Age groups are pulled from table B09001 Population Under 18 Years by Age
+#Block-level pop count by age
+pop_block_2020_dhc <-
+  get_decennial(
+    geography = "block",
+    variables = var_dhc_2020$name,
+    year = 2020,
+    sumfile = "dhc",
+    state  = my_state_fip,
+    county = county_arg,
+    geometry = F) %>% 
+  merge(var_dhc_2020 %>% select(-label, -concept),
+        by.x = "variable",
+        by.y = "name",
+        all = TRUE)
 
-* B09001_002 = Total In households
-* B09001_003 = Under 3 years
-* B09001_004 = 3 and 4 years
-* B09001_005 = 5 years
-* B09001_006 = 6 to 8 years
-* B09001_007 = 9 to 11 years
-* B09001_008 = 12 to 14 years
-* B09001_009 = 15 to 17 years
+#Tract-level pop count by age
+pop_tract_2020_dhc <-
+  get_decennial(
+    geography = "tract",
+    variables = var_dhc_2020$name,
+    year = 2020,
+    sumfile = "dhc",
+    state  = my_state_fip,
+    county = county_arg,
+    geometry = F) %>% 
+  merge(var_dhc_2020 %>% select(-label, -concept),
+        by.x = "variable",
+        by.y = "name",
+        all = TRUE)
+# Table ID starting with `P`   is available at the as low as block-level
+# Table ID starting with `PCT` is available at the as low as tract-level
+# P14:   Count by single-year age for the population under 20 years (available at the block/tract level)
+# PCT12: Count by single-year age for the total population (available at the tract level); values are equivalent to P14 at the tract level
 
-```{r pull ACS data on age breakdowns}
-census_vars_acs5 <- 
-  c("B09001_002",
-    "B09001_003",
-    "B09001_004",
-    "B09001_005",
-    "B09001_006",
-    "B09001_007",
-    "B09001_008",
-    "B09001_009")
+```
+
+```{r compare tract-level data from PL RD and DHC}
+#aggregate single-year age tract-level pop counts
+pop_tract_2020_dhc_test <-
+  pop_tract_2020_dhc %>%
+  group_by(GEOID) %>%
+  summarise(totallt18_2020 = sum(value)
+            
+            )
+  aggregate(value ~ GEOID, data = pop_tract_2020_dhc, FUN = sum) %>%
+  rename(total_0_17_2020_dhc = value)
+
+comp <- 
+  merge(pop_tract_2020_redis, 
+        pop_tract_2020_dhc_test, 
+        by = "GEOID",
+        suffixes = c("_redis", "_dhc"))
+
+# Examine the differences
+summary(comp$totallt18_2020_redis)
+summary(comp$totallt18_2020_dhc)
+
+ggplot(comp,
+       aes(x = totallt18_2020_redis,
+           y = totallt18_2020_dhc)) +
+  geom_point(alpha = 0.3) 
+
+rm(comp)
+```
+
+```{r pull ACS 5-year data on age breakdowns}
+var_acs5 <- load_variables(acs5_year, dataset = "acs5")
+
+#Filter variables
+#Age groups are pulled from ACS 5-year table B09001 Population Under 18 Years by Age
+var_acs5 <- 
+  var_acs5 %>% 
+  filter(str_detect(name, "B09001")) %>% 
+  mutate(inhh = str_extract(label, "In households")) %>% 
+  filter(!is.na(inhh))
 
 pop_by_age_acs5 <- 
   get_acs(geography = "tract",
-          variables = census_vars_acs5,
+          variables = var_acs5$name,
           state = my_state_fip,
           county = county_arg,
-          year = acs5_year)
+          year = acs5_year) %>%
+  merge(var_acs5 %>% select(-geography, -inhh),
+        by.x = "variable",
+        by.y = "name",
+        all = TRUE)
 ```
 
 Group ages into groups of 0-2, 3-4, 5, 6-11, and 12-17.
 
-```{r Rename variables and sum by age group}
+```{r combine acs5 variables into custom age groups}
 pop_by_agegroup_acs5 <- 
   pop_by_age_acs5 %>%
   mutate(variable = recode(variable,
@@ -162,20 +231,22 @@ pop_by_agegroup_acs5 <-
                            "B09001_007" = "pop_611",
                            "B09001_008" = "pop_1217",
                            "B09001_009" = "pop_1217")) %>%
-  group_by(GEOID,variable) %>%
+  group_by(GEOID, variable) %>%
   summarise(estimate = sum(estimate),
-            moe = moe_sum(moe = moe,
-                          estimate = estimate))
+            moe      = moe_sum(moe = moe,
+                               estimate = estimate))
 
 # Examine structure
-head(pop_by_agegroup_acs5)
+if (FALSE) {
+  head(pop_by_agegroup_acs5)  
+}
 
 check2 <-
   pop_by_agegroup_acs5 %>%
   ungroup() %>% 
-  summarise(total  = sum(estimate[variable=="total"]),
-            pop_02 = sum(estimate[variable=="pop_02"]),
-            pop_34 = sum(estimate[variable=="pop_34"]))%>%
+  summarise(total  = sum(estimate[variable == "total"]),
+            pop_02 = sum(estimate[variable == "pop_02"]),
+            pop_34 = sum(estimate[variable == "pop_34"]))%>%
   mutate(percent_0004 = (pop_02 + pop_34)/total*100 %>% round(1))
 
 ```
@@ -203,8 +274,20 @@ pop_agegroup_pcts_acs5 <-
          per1217_moe = moe_prop(estimate_pop_1217, estimate_total, moe_pop_1217, moe_total),
          
          #Here we are doing a crude cut of the data to get our desired age groups of 6-12 and 13-17
-         cut_1217     = estimate_pop_1217 / 6,
-         cut_1217_moe = per1217_moe / 6,
+         cut_1217          = estimate_pop_1217 / 6,
+         
+         # Note for apportioning moe, that the total noise is proportional to 
+         # variances, and not moe --
+         #   var(a1 + a2 + ... + aN) 
+         #     = var(a1) + var(a2) + ... var(aN) 
+         #     = N*var(a1) if variances are assumed the same (and correlation = 0)
+         # Thus, we need to convert MOE calculations to variances to apportion,
+         # and then convert them back
+         per1217_se        = per1217_moe / qnorm(0.95), # note: qnorm(0.95) ~== 1.645
+         per1217_var       = per1217_se^2,
+         cut_1217_var      = per1217_var / 6,
+         cut_1217_moe      = sqrt(cut_1217_var) * qnorm(0.95),
+         
          estimate_pop_612  = estimate_pop_611  + cut_1217,
          estimate_pop_1317 = estimate_pop_1217 - cut_1217,
          moe_pop_612       = per611_moe        + cut_1217_moe,
@@ -278,6 +361,35 @@ pop_age_groups_2020 <-
                            "5"    = 3,
                            "612"  = 4,
                            "1317" = 5))
+```
+
+```{r compare pop est by age groups from ACS5+RD vs. DHC, echo = FALSE, message = FALSE}
+pop_age_groups_2020_dhc <-
+  pop_tract_2020_by_age %>% 
+  select(-variable, NAME) %>%
+  mutate(agegroup = 
+           case_when(between(age,  0,  2) ~ "02",
+                     between(age,  3,  4) ~ "34",
+                     age == 5             ~ "5",
+                     between(age,  6, 12) ~ "612",
+                     between(age, 13, 17) ~ "1317")) %>% 
+  group_by(GEOID, agegroup) %>%
+  summarise(value = sum(value))
+  
+comp_dhc_redis_acs5 <- 
+  merge(pop_age_groups_2020_dhc,
+        pop_age_groups_2020 %>% rename(value = est_2020),
+        by = c("GEOID", "agegroup"),
+        suffixes = c("_dhc", "_redis_acs5"))
+
+ggplot(comp_dhc_redis_acs5,
+       aes(x = value_redis_acs5,
+           y = value_dhc)) +
+  geom_abline() + 
+  geom_point(alpha = 0.3) +
+  geom_smooth()
+
+rm(comp_dhc_redis_acs5)
 ```
 
 ## 2010 Census Population Data
@@ -418,12 +530,31 @@ pop_bg_2010 <-
 
 
 ```{r develop 2010 block group to 2020 tract crosswalk, echo = FALSE, message = FALSE}
-# See https://www.nhgis.org/geographic-crosswalks#from-block-group-parts
+# See https://www.nhgis.org/geographic-crosswalks#from-block-groups
+# Download crosswalks from 2010 block groups to 2020 census tracts
+# url: https://data2.nhgis.org/crosswalks/nhgis_bg2010_tr2020.zip 
 # It's necessary to sign in to download
 
-crosswalk <- 
-  read_nhgis(glue("{input_path}nhgis_bg2010_tr2020_{my_state_fip}.zip")) %>% 
-  select(bg_GEOID = bg2010ge, GEOID20 = tr2020ge, wt_pop)
+crosswalk <-
+  read_nhgis(glue("{input_path}nhgis_bg2010_tr2020.zip")) %>% 
+  select(bg_GEOID = bg2010ge, GEOID20 = tr2020ge, wt_pop) %>%
+  mutate(statefip = as.character(substr(GEOID20, 1,2))) %>%
+  filter(statefip == {my_state_fip})
+
+# In the future, crosswalk may be downloaded using IPUMS API
+if (FALSE) {
+  bg2010_tr2020 <- define_extract_nhgis(
+  description = "bg2010_tr2020",
+  datasets = ds_spec(
+    "bg2010_tr2020",
+    data_tables = "",
+    geog_levels = ""
+    )
+  )
+  submit_extract(bg2010_tr2020, api_key = {ipums_key})
+  ipums.wait_for_extract(bg2010_tr2020)
+  ipums.download_extract(bg2010_tr2020)
+}
 
 options(scipen=999)
 ```

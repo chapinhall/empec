@@ -73,17 +73,25 @@ geo_crosswalk_puma <-
 
 geo_crosswalk_zcta <-
   fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_tract20_natl.txt") %>%
-  #.[STATE == my_state_fip] %>% 
-  .[j = GEOID_TRACT_20 := as.character(GEOID_TRACT_20)] %>%
-  .[str_detect(GEOID_ZCTA5_20, glue("^({paste(zcta_starts, collapse = '|')})"))] %>%
-  .[str_detect(GEOID_TRACT_20, glue("^{my_state_fip}"))] %>%
   rename(GEOID = GEOID_TRACT_20,
          ZCTA  = GEOID_ZCTA5_20) %>% 
+  mutate(ZCTA          = str_pad(ZCTA,  width = 5,  side = "left", pad = "0"),
+         GEOID         = str_pad(GEOID, width = 11, side = "left", pad = "0"),  #GEOID: 11-digit (concatenation of state, county, place, and tract)
+         STATEFIP      = substr(GEOID, 1,2),
+         AREALAND_PART = as.numeric(AREALAND_PART)) %>%
+  #restrict to my_state_fip
+  .[STATEFIP == my_state_fip] %>%
+  #restrict to zcta_starts -- to get rid of some errors/NA's
+  .[str_detect(ZCTA, glue("^({paste(zcta_starts, collapse = '|')})"))] %>%
   .[j = TRLANDPCT := AREALAND_PART / sum(AREALAND_PART),
-    by = GEOID]
+    by = GEOID] %>%
+  select(-STATEFIP)
     # See next chunk for defense/exploration of this approach for building a field
     # to apportion tract counts to ZCTAs
   # Source: https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.2020.html#zcta
+
+#Warning: NAs produced by integer64 overflow
+print(colSums(is.na(geo_crosswalk_zcta)))
 
 geo_crosswalk <-
   merge(geo_crosswalk_puma,
