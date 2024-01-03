@@ -3,6 +3,12 @@
 # Due to potential name conflicts (e.g. often with select() or filter()), the
 # data manipulation packages--notably dplyr--are loaded last to ensure that
 # their versions of these functions are not masked
+
+# Start by installing a package to help search for whether already-installed
+# packages are the most recent
+install.packages("pkgsearch")
+library(pkgsearch)
+
 packages.list <- 
   c("knitr", "ggplot2", "Rcpp", "Hmisc", "VGAM", "stringr", "glmnet", "censusapi",
     "plotly", "crosstalk", "DT", "kableExtra", "sae", "emdi", "glue", "forcats", 
@@ -11,8 +17,20 @@ packages.list <-
     "xlsx", "tidycensus", "fredr", "ipumsr", "tsibble", "forecast", "fable", 
     "boot", "ggtext", "data.table", "tidyr", "dplyr", "scales", "janitor", "R.utils")
 
+ips <- as.data.frame(installed.packages())
+
 for (p in packages.list) {
-  if (!p %in% installed.packages()[, "Package"]) install.packages(p)
+  # Check if the package is installed. If not, install it.
+  # If so, check whether it is the most recent version of the package.
+  if (!p %in% ips[, "Package"]) {
+    install.packages(p)
+  } else {
+    p_ver <- ips[ips$Package == p, "Version"]
+    p_srch <- pkg_search(p)
+    cran_ver <- p_srch[p_srch$package == p, "version"]
+    if (p_ver != cran_ver) install.packages(p)
+  }
+  
   # Load the package quietly
   suppressPackageStartupMessages(library(p, 
                                          character.only = TRUE,
