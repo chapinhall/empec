@@ -383,7 +383,7 @@ ggplot(aux_lvl_ests_long,
            position = position_dodge(width = 0.5)) +
   scale_fill_manual(name = "",
                     breaks = c("ccdf_share_pre", "ccdf_share_post"),
-                    labels = c("2021", "Sept-Nov 2022"),
+                    labels = c("{base_year}", "{date_range}"),
                     values = chHexs[c(2, 4)]) +
   scale_y_continuous(labels = percent) +
   labs(title = case_when(my_output_tag == "IL" ~ "CCAP Eligibility Generally Declines, but Unevenly Across SDAs",
