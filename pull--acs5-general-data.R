@@ -666,6 +666,7 @@ if (update_acs_pulls) {
     acs5_tables %>% 
     str_replace("[A-I]$", "") %>% 
     unique()
+  source <- "acs5"
   
   for (tablenum in source_tables){
     
@@ -1581,6 +1582,6 @@ acs_final5 <-
   acs_final %>%
   filter(source == "acs5")
 
-save(acs_final5, 
-     file = glue("{output_path}acs5_variables.Rda"))
+#save(acs_final5, 
+#     file = glue("{output_path}acs5_variables.Rda"))
 write.csv(acs_final5, glue("{output_path}acs5_variables_{my_output_tag}.csv"))
