@@ -75,14 +75,14 @@ geo_crosswalk_zcta <-
   fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_tract20_natl.txt") %>%
   rename(GEOID = GEOID_TRACT_20,
          ZCTA  = GEOID_ZCTA5_20) %>% 
-  mutate(ZCTA          = str_pad(ZCTA,  width = 5,  side = "left", pad = "0"),
+  mutate(#ZCTA          = str_pad(ZCTA,  width = 5,  side = "left", pad = "0"),
          GEOID         = str_pad(GEOID, width = 11, side = "left", pad = "0"),  #GEOID: 11-digit (concatenation of state, county, place, and tract)
          STATEFIP      = substr(GEOID, 1,2),
          AREALAND_PART = as.numeric(AREALAND_PART)) %>%
   #restrict to my_state_fip
   .[STATEFIP == my_state_fip] %>%
   #restrict to zcta_starts -- to get rid of some errors/NA's
-  .[str_detect(ZCTA, glue("^({paste(zcta_starts, collapse = '|')})"))] %>%
+  .[ZCTA %in% {zcta_min}:{zcta_max}] %>%
   .[j = TRLANDPCT := AREALAND_PART / sum(AREALAND_PART),
     by = GEOID] %>%
   select(-STATEFIP)
