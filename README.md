@@ -73,15 +73,15 @@ fred_key <- "xxx"
 # Provide your state's two character postal code
 my_state_abbr <- "xx"
 
-# Here, specify the starting digits for zip codes for your select region
+# Here, specify the starting and ending digits for zip codes for your select region
 # Values can be looked up on this webpage: https://codigo-postal.co/en-us/usa/
 # Note that `0` should be dropped for those zip codes starting with `0`s
 # Example 1) for IL where ZIP range is 60001 to 62999, set the following
 # zcta_min <- 60001
 # zcta_max <- 62999
 # Example 2) for ME where ZIP ranges from 03901 to 04992, set the following
-# zcta_min <- 3901
-# zcta_max <- 4992
+# zcta_min <- 03901
+# zcta_max <- 04992
 zcta_min <- 
 zcta_max <- 
 
