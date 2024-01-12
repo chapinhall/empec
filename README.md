@@ -75,11 +75,15 @@ my_state_abbr <- "xx"
 
 # Here, specify the starting digits for zip codes for your select region
 # Values can be looked up on this webpage: https://codigo-postal.co/en-us/usa/
-# Note that these codes treat zip codes as if they were character strings, and
-# not numeric. Thus, to identify Illinois zip codes--which range from 60001 to
-# 62999--it's necessary to specify `zcta_starts <- c("60", "61", "62")` and
-# not simply `zcta_starts <- "600"`
-zcta_starts <- c("XX", "XX", "XX")
+# Note that `0` should be dropped for those zip codes starting with `0`s
+# Example 1) for IL where ZIP range is 60001 to 62999, set the following
+# zcta_min <- 60001
+# zcta_max <- 62999
+# Example 2) for ME where ZIP ranges from 03901 to 04992, set the following
+# zcta_min <- 3901
+# zcta_max <- 4992
+zcta_min <- 
+zcta_max <- 
 
 # (Optional) -- If choosing to focus analysis on a single county, uncomment the
 #   following line and provide its name. Note that providing even just "Cook"
