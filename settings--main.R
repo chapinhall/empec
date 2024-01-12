@@ -17,24 +17,15 @@ packages.list <-
     "xlsx", "tidycensus", "fredr", "ipumsr", "tsibble", "forecast", "fable", 
     "boot", "ggtext", "data.table", "tidyr", "dplyr", "scales", "janitor", "R.utils")
 
-ips <- as.data.frame(installed.packages())
-
 for (p in packages.list) {
-  # Check if the package is installed. If not, install it.
-  # If so, check whether it is the most recent version of the package.
-  if (!p %in% ips[, "Package"]) {
-    install.packages(p)
-  } else {
-    p_ver <- ips[ips$Package == p, "Version"]
-    p_srch <- pkg_search(p)
-    cran_ver <- p_srch[p_srch$package == p, "version"]
-    if (p_ver != cran_ver) install.packages(p)
+  if (!p %in% installed.packages()[, "Package"]) {
+    suppressMessages(install.packages(p))
   }
   
   # Load the package quietly
-  suppressPackageStartupMessages(library(p, 
-                                         character.only = TRUE,
-                                         verbose = FALSE))
+  suppressMessages(library(p, 
+                           character.only = TRUE,
+                           verbose = FALSE))
 }
 devtools::install_github("CT-Data-Haven/cwi")
 library(cwi)
