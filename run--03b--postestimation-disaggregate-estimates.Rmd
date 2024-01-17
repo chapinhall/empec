@@ -171,6 +171,7 @@ agg_tracts_up <- function(ests, agg_level) {
 nowcast_agg_tract <- agg_tracts_up(nowcast_elig_counts_final, "GEOID")
 nowcast_agg_zip   <- agg_tracts_up(nowcast_elig_counts_final, "ZCTA")
 nowcast_agg_cty   <- agg_tracts_up(nowcast_elig_counts_final, "County")
+nowcast_agg_sd    <- agg_tracts_up(nowcast_elig_counts_final, "School")
 
 if (exists("my_aux_geo")) {
   nowcast_agg_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  
@@ -187,6 +188,7 @@ my_write.csv <- function(x, suffix) {
 my_write.csv(nowcast_agg_tract, "by tract")
 my_write.csv(nowcast_agg_zip,   "by zcta")
 my_write.csv(nowcast_agg_cty,   "by county")
+my_write.csv(nowcast_agg_sd,    "by school districts")
 
 if (exists("my_aux_geo")) {
   my_write.csv(nowcast_agg_aux, glue("by {my_aux_geo_desc}"))
@@ -591,6 +593,14 @@ for (out_var in c("ccdf", "le100", "le200")) {
   
   static_map_level_diff(estimates = nowcast_agg_cty %>% filter(age == "age_0to5"),
                         geo_level = "County",
+                        outcome = out_var,
+                        field_desc = out_var_desc,
+                        save_map = TRUE, 
+                        #val_limits = c(0, 0.6),
+                        show_legend = TRUE)
+  
+  static_map_level_diff(estimates = nowcast_agg_sd %>% filter(age == "age_0to5"),
+                        geo_level = "School",
                         outcome = out_var,
                         field_desc = out_var_desc,
                         save_map = TRUE, 
