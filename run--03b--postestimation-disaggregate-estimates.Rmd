@@ -24,13 +24,14 @@ calc_breakdown <- function(acs1_outcome_sub, outcome_var) {
   acs1_age_breakdown <-
     acs1_outcome_sub %>% 
     filter(child_agegroup %in% c("0to2", "3to5")) %>% 
-    mutate(child_agegroup = paste0("age_", child_agegroup)) %>% 
+    mutate(child_agegroup = glue("age_{child_agegroup}")) %>% 
     group_by(child_agegroup) %>% 
     summarize(n = sum(PWGTP)) %>% 
     mutate(pct_age_of_lt5 = n / sum(n),
            outcome_var = outcome_var)
 }
 
+# /!\ Simplify the filtering conditions to use the incpov field
 age_breakdown_byoutcome <-
  bind_rows(
    calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_mix   == "0%-50%"),
@@ -44,12 +45,25 @@ age_breakdown_byoutcome <-
    calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by75  %in% c("0%-75%", "75%-150%", "150%-225%")), 
                   "incpov_le225_post_adj"),
    calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 %in% c("0%-100%", "100%-200%", "200%-300%", "300%-400%")), 
-                  "incpov_le400_post_adj"),
-   calc_breakdown(acs1_child %>% filter(work_incpov_statushs %in% c("WorkElig_0%-100%", glue("WorkElig_100%-{local_ccdf_thresh}%"))),
-                  "ccdf_elig_tight_inc_adj")
+                  "incpov_le400_post_adj")
    )
 
 ```
+
+
+```{r add breakdowns for all relevant ccdf sensitivities}
+
+for (ccdf_spec in str_subset(nowcast_parallel_counts$outcome_var, "ccdf_elig_incratio")) {
+  
+    age_breakdown_byoutcome <- 
+      bind_rows(age_breakdown_byoutcome,
+                calc_breakdown(acs1_child %>% filter(get(ccdf_spec) == TRUE),
+                               ccdf_spec))
+    
+  } 
+```
+
+
 
 ```{r merge and disaggregate tract-level estimates}
 # Round age values to ensure adding-up
@@ -218,13 +232,17 @@ write_agg_output <- function(x, agg_level, sheet_name, add, out_label) {
     mutate(Age = str_replace(age, "age_(\\d+)to(\\d+)", "Age \\1-\\2"),
            
            #Outcome = str_replace(outcome_var, "^([a-z]+)_.+", "\\1"),
-           Outcome = case_when(str_detect(outcome_var, "^ccdf") ~ glue("{local_ccdf_name_short}-Elig"),
-                               str_detect(outcome_var, "_le50_")  ~ "Below 50% FPL",
-                               str_detect(outcome_var, "_le100_") ~ "Below 100% FPL",
-                               str_detect(outcome_var, "_le185_") ~ "Below 185% FPL",
-                               str_detect(outcome_var, "_le200_") ~ "Below 200% FPL",
-                               str_detect(outcome_var, "_le225_") ~ "Below 225% FPL",
-                               str_detect(outcome_var, "_le400_") ~ "Below 400% FPL"),
+           Outcome = 
+             case_when(str_detect(outcome_var, "^ccdf") ~ 
+                         str_replace(outcome_var, 
+                                     "ccdf_elig_incratio_(\\d+)",
+                                     glue("{local_ccdf_name_short} - \\1%")),
+                       str_detect(outcome_var, "_le50_")  ~ "Below 50% FPL",
+                       str_detect(outcome_var, "_le100_") ~ "Below 100% FPL",
+                       str_detect(outcome_var, "_le185_") ~ "Below 185% FPL",
+                       str_detect(outcome_var, "_le200_") ~ "Below 200% FPL",
+                       str_detect(outcome_var, "_le225_") ~ "Below 225% FPL",
+                       str_detect(outcome_var, "_le400_") ~ "Below 400% FPL"),
            
            # Calculate bounds, and round
            count_lb = round(count + qnorm(.1)*count_se),
@@ -281,26 +299,35 @@ write_agg_output <- function(x, agg_level, sheet_name, add, out_label) {
 
 
 ```{r write various levels of geographic aggregation out to file for ccdf}
-write_agg_output(x = nowcast_agg_zip %>% filter(outcome_var %like% "ccdf"), 
-                 agg_level = "ZCTA",   
-                 sheet_name = "Zip Code", 
-                 add = FALSE,
-                 out_label = local_ccdf_name_short)
 
-write_agg_output(x = nowcast_agg_cty %>% filter(outcome_var %like% "ccdf"), 
-                 agg_level = "County", 
-                 sheet_name = "County",
-                 add = TRUE,
-                 out_label = local_ccdf_name_short)
-
-if (exists("my_aux_geo")) {
-  nowcast_ests_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  
-  write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "ccdf"),
-                   agg_level = "aux_geo_label",
-                   sheet_name = my_aux_geo_desc, 
+for (ccdf_spec in str_subset(nowcast_elig_counts_final$outcome_vars, "ccdf_elig_incratio_")) {
+  my_out_label <- 
+    str_replace(ccdf_spec,
+                "ccdf_elig_incratio_(\\d+)",
+                "{local_ccdf_name_short} - \\1%")
+  
+  write_agg_output(x = nowcast_agg_zip %>% filter(outcome_var == ccdf_spec), 
+                   agg_level = "ZCTA",   
+                   sheet_name = "Zip Code", 
+                   add = FALSE,
+                   out_label = my_out_label)
+  
+  write_agg_output(x = nowcast_agg_cty %>% filter(outcome_var == ccdf_spec),
+                   agg_level = "County", 
+                   sheet_name = "County",
                    add = TRUE,
-                   out_label = local_ccdf_name_short)
+                   out_label = my_out_label)
+  
+  if (exists("my_aux_geo")) {
+    nowcast_ests_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  
+    write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var == ccdf_spec),
+                     agg_level = "aux_geo_label",
+                     sheet_name = my_aux_geo_desc, 
+                     add = TRUE,
+                     out_label = my_out_label)
+  }
 }
+
 ```
 
 ```{r write various levels of geographic aggregation out to file for le50 100 and 200}
@@ -326,37 +353,48 @@ if (exists("my_aux_geo")) {
 ```
 
 
-```{r optionally add other custom aggregations, eval = str_detect(my_output_tag, "^IL")}
-# Adding reporting by an additional level of aggregation for just Illinois
+```{r optionally add other custom aggregations}
 
-# See this website reference for how counties are grouped within payment regions:
-#   https://www.dhs.state.il.us/page.aspx?item=121213
-
-map_county_to_payreg <- function(cty) {
-  case_when(str_detect(cty, "Cook|DeKalb|DuPage|Kane|Kendall|Lake|McHenry") ~ "Group 1A Counties",
-            str_detect(cty, "Boone|Champaign|Kankakee|Madison|McLean|Monroe|Ogle|Peoria|Rock Island|Sangamon|St\\. Clair|Tazewell|Whiteside|^Will$|Winnebago|Woodford") ~ "Group 1B Counties",
-            TRUE ~ "Group 2 Counties")
+if (str_detect(my_output_tag, "^IL")) {
+  # Adding reporting by an additional level of aggregation for just Illinois
+  
+  # See this website reference for how counties are grouped within payment regions:
+  #   https://www.dhs.state.il.us/page.aspx?item=121213
+  
+  map_county_to_payreg <- function(cty) {
+    case_when(str_detect(cty, "Cook|DeKalb|DuPage|Kane|Kendall|Lake|McHenry") ~ "Group 1A Counties",
+              str_detect(cty, "Boone|Champaign|Kankakee|Madison|McLean|Monroe|Ogle|Peoria|Rock Island|Sangamon|St\\. Clair|Tazewell|Whiteside|^Will$|Winnebago|Woodford") ~ "Group 1B Counties",
+              TRUE ~ "Group 2 Counties")
+  }
+  
+  nowcast_elig_counts_final_aug <- 
+    nowcast_elig_counts_final %>% 
+    merge(geo_crosswalk[j = .(GEOID, County)] %>% unique(),
+          by = "GEOID",
+          all.x = TRUE) %>% 
+    mutate(payment_reg = map_county_to_payreg(County))
+  if (FALSE) {
+    nowcast_elig_counts_final_aug %>% 
+      dplyr::select(payment_reg, County) %>% 
+      unique() %>% 
+      arrange(payment_reg, County)
+  }
+  
+  nowcast_agg_pay <- agg_tracts_up(nowcast_elig_counts_final_aug, "payment_reg") %>% arrange(payment_reg)
+  
+  for (ccdf_spec in str_subset(nowcast_elig_counts_final$outcome_vars, "ccdf_elig_incratio_")) {
+    my_out_label <- 
+      str_replace(ccdf_spec,
+                  "ccdf_elig_incratio_(\\d+)",
+                  "{local_ccdf_name_short} - \\1%")
+    
+    write_agg_output(x = nowcast_agg_pay %>% filter(outcome_var == ccdf_spec), 
+                     agg_level = "payment_reg", 
+                     sheet = "Payment Region", 
+                     add = TRUE,
+                     out_label = my_out_label)
+  }
 }
-
-nowcast_elig_counts_final_aug <- 
-  nowcast_elig_counts_final %>% 
-  merge(geo_crosswalk[j = .(GEOID, County)] %>% unique(),
-        by = "GEOID",
-        all.x = TRUE) %>% 
-  mutate(payment_reg = map_county_to_payreg(County))
-if (FALSE) {
-  nowcast_elig_counts_final_aug %>% 
-    dplyr::select(payment_reg, County) %>% 
-    unique() %>% 
-    arrange(payment_reg, County)
-}
-
-nowcast_agg_pay <- agg_tracts_up(nowcast_elig_counts_final_aug, "payment_reg") %>% arrange(payment_reg)
-write_agg_output(x = nowcast_agg_pay %>% filter(outcome_var %like% "ccdf"), 
-                 agg_level = "payment_reg", 
-                 sheet = "Payment Region", 
-                 add = TRUE,
-                 out_label = local_ccdf_name_short)
 ```
 
 ### Examine Final Estimates
@@ -383,7 +421,7 @@ ggplot(aux_lvl_ests_long,
            position = position_dodge(width = 0.5)) +
   scale_fill_manual(name = "",
                     breaks = c("ccdf_share_pre", "ccdf_share_post"),
-                    labels = c("{base_year}", "{date_range}"),
+                    labels = c("2021", "Sept-Nov 2022"),
                     values = chHexs[c(2, 4)]) +
   scale_y_continuous(labels = percent) +
   labs(title = case_when(my_output_tag == "IL" ~ "CCAP Eligibility Generally Declines, but Unevenly Across SDAs",
@@ -590,7 +628,7 @@ comp_out <-
 
   ggplot(comp_out,
          aes(x = incpov_le225_post_adj,
-             y = ccdf_elig_tight_inc_adj)) +
+             y = get(glue("ccdf_elig_incratio_{local_ccdf_incratio_base}")))) +
   geom_point() +
   geom_abline()
   

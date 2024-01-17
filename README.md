@@ -82,8 +82,8 @@ my_state_abbr <- "xx"
 # Example 2) for ME where ZIP ranges from 03901 to 04992, set the following
 # zcta_min <- 3901
 # zcta_max <- 4992
-zcta_min <- 
-zcta_max <- 
+zcta_min <-
+zcta_max <-
 
 # (Optional) -- If choosing to focus analysis on a single county, uncomment the
 #   following line and provide its name. Note that providing even just "Cook"
@@ -113,11 +113,35 @@ zcta_max <-
 
 ### Set Local CCDF Parameters --------------------------------------------------
 
-# Specify name and rules for local CCDF program: abbrev, long name, and income
-# threshold as a % of the Federal Poverty Line (e.g. a value of 225 for 225% of FPL)
+# Specify name of the local CCDF program, in both long and short forms:
 local_ccdf_name_short <- "<local abbreviation for childcare subsidy, if not 'CCDF'>"
 local_ccdf_name_long  <- "<local name for childcare subsidy>"
-local_ccdf_thresh <- <numeric value for income-to-poverty line threashold for initial CCDF eligibility>
+
+# Specify one or more cutpoints--e.g. representing the current and other proposed
+# threshold(s)--using either a single value or the `c`ombination function `c()`
+local_ccdf_incratio_cuts <- 225
+# or alternatively, replace the above with the following, for multiple
+# local_ccdf_incratio_cuts <- c(185, 225, 275)
+
+# It is also necessary to provide a single default choice among these cutpoints
+# as a choice for baseline, as the `local_ccdf_incratio_base` variable
+local_ccdf_incratio_base <- 225
+
+# The default threshold value is the Federal Poverty Line (FPL), which is already
+# present in the Census data. If a custom threshold is desired, such as state
+# median income, then it must be provided here as table named `custom_income_thresh`
+# with fields:
+#  - "fam_size", and
+#  - "inc_thresh"
+# This can be done by uncommenting and modifying the following code:
+#  custom_income_thresh <-
+#    tribble(~fam_size, ~inc_thresh,
+#                    1, <income threshold for 1 family member>,
+#                    2, <income threshold for 2 family members>,
+#                    ...)
+#
+# If this table is not provided, then the default of FPL will be used.
+
 
 ### Set Other Run Parameters ---------------------------------------------------
 
@@ -171,7 +195,7 @@ The following fields were pulled:
 	- WORK: EMPSTAT, LABFORCE, OCC, IND, CLASSWKR
 	- EDUCATION: EDUC, SCHLCOLL
 	- TECHNICAL: PERNUM, WTFINL, FAMID
-* PERSON (included under "ANNUAL SOCIAL & ECONOMIC SUPPLEMENT (ASEC)")	
+* PERSON (included under "ANNUAL SOCIAL & ECONOMIC SUPPLEMENT (ASEC)")
 	- INCOME: INCTOT, INCWAGE, INCUNEMP
 	- POVERTY: POVERTY
 

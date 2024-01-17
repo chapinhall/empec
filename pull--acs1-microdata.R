@@ -117,5 +117,5 @@ acs1 <-
   ) %>% 
   data.table()
 
-write.csv(acs1, file = glue("{input_path}census_acs1_{base_year}.csv"))
+write.csv(acs1, file = glue("{input_path}census_acs1_{base_year}_{my_output_tag}.csv"))
 

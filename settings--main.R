@@ -33,6 +33,11 @@ library(cwi)
 # Suppress warnings from dplyr::summarise() with group_by()s
 options(dplyr.summarise.inform = FALSE)
 
+# Do not use scientific notation in output
+options(scipen = 999)
+
+# Custom functions
+
 meanNA <- function(x, ...) mean(x = x[!is.infinite(x)], ..., na.rm = TRUE)
  sumNA <- function(x, ...)  sum(x = x[!is.infinite(x)], ..., na.rm = TRUE)
  minNA <- function(x, ...)  min(x = x[!is.infinite(x)], ..., na.rm = TRUE)

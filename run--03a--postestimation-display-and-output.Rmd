@@ -31,22 +31,18 @@ if (str_detect(my_output_tag, "IL2022")) {
   # up-to-date estimates as possible
   nowcast_selected_sens <-
     nowcast_out[cps_geo_subsample == "none" & 
-                cps_base_recency == "most_recent"] %>% 
-    mutate(age = str_extract(sae_spec, "\\d+$"),
-           age = case_when(age == "05"  ~ "age_0to5",
-                           age == "612" ~ "age_6to12"),
-           sae_spec = str_replace(sae_spec, "_\\d+$", ""))  
+                cps_base_recency  == "most_recent"]
 } else if (str_detect(my_output_tag, "Cook|Chi")) {
   # Rationale is we are focused on a metro areas, and we want estimates for 2022
   # that are parallel to 2021, given that this method is part of a sequence of
   # a sequence of annual reports
   nowcast_selected_sens <-
     nowcast_out[cps_geo_subsample == "metros" & 
-                cps_base_recency == "allbase"] %>% 
-    mutate(age = str_extract(sae_spec, "\\d+$"),
-           age = case_when(age == "05"  ~ "age_0to5",
-                           age == "612" ~ "age_6to12"),
-           sae_spec = str_replace(sae_spec, "_\\d+$", ""))
+                cps_base_recency  == "allbase"]
+} else if (str_detect(my_output_tag, "Dirigo")) {
+  nowcast_selected_sens <-
+    nowcast_out[cps_geo_subsample == "none" & 
+                cps_base_recency  == "most_recent"]
 }
 ```
 
@@ -106,26 +102,37 @@ nowcast_parallel_incpov_le400 <-
          str_detect(sae_spec, "incpov_ctrls_100")) %>% 
   mutate(base_share = share_0_100 + share_100_200 + share_200_300 + share_300_400)
 
-nowcast_parallel_ccdf_elig <- 
-  nowcast_parallel_setup %>% 
-  filter(outcome_var == "ccdf_elig_tight_inc_adj",
-         str_detect(sae_spec, "ccdf_wk_pov")) %>% 
-  mutate(base_share = share_WorkElig_0_100 + get(glue("share_WorkElig_100_{local_ccdf_thresh}")))
+bind_list <- 
+  list(nowcast_parallel_incpov_le50,
+       nowcast_parallel_incpov_le100,
+       nowcast_parallel_incpov_le185,
+       nowcast_parallel_incpov_le200,
+       nowcast_parallel_incpov_le225,
+       nowcast_parallel_incpov_le400)
 
 ```
+
+```{r add all relevant ccdf sensitivities}
+
+for (ccdf_spec in str_subset(nowcast_parallel_setup$outcome_var, "ccdf_elig_incratio")) {
+  sensitivity_to_add <- 
+    nowcast_parallel_setup %>% 
+    filter(outcome_var == ccdf_spec,
+           str_detect(sae_spec, "ccdf_wk_pov")) %>% 
+    mutate(base_share = NA)
+  
+  bind_list <- append(bind_list, sensitivity_to_add)
+}
+
+```
+
 
 
 ```{r combined the parallel constructions for base (sae) and nowcast}
 
 # Generate parallel base/nowcast constructions wide by base/now measures 
 nowcast_parallel_preshape <- 
-  bind_rows(nowcast_parallel_incpov_le50,
-            nowcast_parallel_incpov_le100,
-            nowcast_parallel_incpov_le185,
-            nowcast_parallel_incpov_le200,
-            nowcast_parallel_incpov_le225,
-            nowcast_parallel_incpov_le400,
-            nowcast_parallel_ccdf_elig) %>% 
+  bind_rows(bind_list) %>% 
   dplyr::select(GEOID, outcome_var, age, base_share, base_share_se, nowcast_share, nowcast_share_se) %>% 
   # /!\ ** This unique() should not be necessary. However, it's occurring because
   # there are duplicates resulting from a merge of the crosswalk file, due to
@@ -235,7 +242,6 @@ comp_nowcast_vs_sae <- function(share_ests, title, xlab, ylab, save_tag) {
 }
 ```
 
-
 ```{r compare now-cast vs SAE for deep poverty}
 comp_nowcast_vs_sae(share_ests = share_pre_post %>% filter(str_detect(outcome_var, "incpov_le50")),
                     title = case_when(my_output_tag == "IL" ~ "Tract-Level Now-Cast Estimates are Generally Above Baseline",
@@ -255,7 +261,7 @@ comp_nowcast_vs_sae(share_ests = share_pre_post %>% filter(str_detect(outcome_va
 ```
 
 ```{r compare now-cast vs SAE for CCAP}
-comp_nowcast_vs_sae(share_ests = share_pre_post %>% filter(str_detect(outcome_var, "ccdf_elig")),
+comp_nowcast_vs_sae(share_ests = share_pre_post %>% filter(str_detect(outcome_var, local_ccdf_incratio_base)),
                     title = case_when(my_output_tag == "IL" ~ "Tract-Level Now-Cast Estimates are Generally Above Baseline",
                                       TRUE ~ ""),
                     xlab = glue("Baseline (SAE) - {base_year}"),

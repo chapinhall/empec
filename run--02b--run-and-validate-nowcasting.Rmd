@@ -233,10 +233,7 @@ cps_transition_ccdf <-
                        #stratum_vars = "child_agegroup",
                        vulnerability_vars = c("fam_incpov_ratio_cat_by100_adj",
                                               "fSpouse_present"), 
-                       outcome_vars = c("ccdf_elig_tight_inc",
-                                        "ccdf_elig_tight_inc_adj",
-                                        "ccdf_elig_loose_inc",
-                                        "ccdf_elig_loose_inc_adj"))
+                       outcome_vars = glue("ccdf_elig_incratio_{local_ccdf_incratio_base}"))
 
 visualize_cps_transitions(trans_calcs = cps_transition_ccdf, 
                           vul_vars = c("fam_incpov_ratio_cat_by100_adj",
@@ -253,15 +250,12 @@ visualize_cps_transitions(trans_calcs = cps_transition_ccdf,
 ```{r calculate CPS transitions into CCDF by income and workforce eligibility}
 cps_transition_ccdf <- 
   calc_cps_transitions(base_data = cps_child_base[YEAR == 2019 & METRO %in% 2:4] %>% 
-                                     .[j = fCcdf_elig_tight := c("Not Working Elig (base)", 
+                                     .[j = fCcdf_elig := c("Not Working Elig (base)", 
                                                                  "Working Elig (base)")[1 +ccdf_elig_tight]],
                        #stratum_vars = "child_agegroup",
                        vulnerability_vars = c("fam_incpov_ratio_cat_by100_adj",
                                               "fCcdf_elig_tight"), 
-                       outcome_vars = c("ccdf_elig_tight_inc",
-                                        "ccdf_elig_tight_inc_adj",
-                                        "ccdf_elig_loose_inc",
-                                        "ccdf_elig_loose_inc_adj"))
+                       outcome_vars = glue("ccdf_elig_incratio_{local_ccdf_incratio_base}"))
 
 visualize_cps_transitions(trans_calcs = cps_transition_ccdf, 
                           vul_vars = c("fam_incpov_ratio_cat_by100_adj",
@@ -517,7 +511,7 @@ estimate_transition_counts <- function(sae_spec_name, share_calc_var, outcome_va
     
     # Extract all incpov information if present
     vIncpov <- str_extract_all(vc_val, "\\d+|ccdf") %>% unlist()
-    vIncpov[vIncpov == "ccdf"] <- as.character(local_ccdf_thresh)
+    vIncpov[vIncpov == "ccdf"] <- as.character(local_ccdf_incratio_base)
     vIncpov <- as.numeric(vIncpov)
     
     transition_data <- 
@@ -550,7 +544,7 @@ estimate_transition_counts <- function(sae_spec_name, share_calc_var, outcome_va
     
     vc_val <- "share_WorkElig_100_ccdf"
     # <run the above>
-    transition_data[j = .N, by = .(fn = share_WorkElig_100_ccdf, hand = 1*(ccdf_elig_loose)*between(fam_incpov_ratio_b, 1, local_ccdf_thresh/100))] %>% unique()
+    transition_data[j = .N, by = .(fn = share_WorkElig_100_ccdf, hand = 1*(ccdf_elig_loose)*between(fam_incpov_ratio_b, 1, local_ccdf_incratio_base/100))] %>% unique()
     
     vc_val <- "share_NotWorkElig_400"
     # <run the above>
@@ -641,8 +635,7 @@ for (cps_recency in c("most_recent", "allbase")) {
                           "incpov_le185_post_adj", 
                           "incpov_le200_post_adj", 
                           "incpov_le225_post_adj", 
-                          "incpov_le400_post_adj", 
-                          "ccdf_elig_tight_inc_adj")
+                          "incpov_le400_post_adj")
         
         # The new strategy of using ACS1 means and ACS5 variance to redistribute
         # the sae calculations is only available so far for income-to-poverty
@@ -655,7 +648,7 @@ for (cps_recency in c("most_recent", "allbase")) {
         share_calc_var_use <- "share_acs5_redis_mult_wgt01_infl"
 
       } else if (str_detect(sae_spec, "^ccdf")) {
-        outcome_vars <- "ccdf_elig_tight_inc_adj"
+        outcome_vars <- str_subset(cn(cps_reg_use), "ccdf_elig_incratio_")
         share_calc_var_use <- 
           ifelse(use_only_sae_model_estimates,
                  "share_model_trunc",
@@ -698,6 +691,17 @@ for (cps_recency in c("most_recent", "allbase")) {
 
 nowcast_betas_out <- data.table(nowcast_betas_out)
 ```
+
+```{r reorganize metadata in the nowcast output}
+nowcast_out <- 
+  nowcast_out %>% 
+  mutate(age = str_extract(sae_spec, "\\d+$"),
+         age = case_match(age,
+                          "05"  ~ "age_0to5",
+                          "612" ~ "age_6to12"),
+         sae_spec = str_replace(sae_spec, "_\\d+$", ""))
+```
+
 
 ```{r save final results from now-casting}
 # Pull out key information of now-casting output from the larger set of output
@@ -845,7 +849,7 @@ compare_betas(
 
 compare_betas(
   betas = filter(nowcast_betas_out,
-                 outcome_var       == "ccdf_elig_tight_inc_adj",
+                 outcome_var       == glue("ccdf_elig_incratio_{local_ccdf_incratio_base}"),
                  sae_spec          == "ccdf_wk_pov_05",
                  cps_geo_subsample == "none",
                  trans_spec        == "cond"),
@@ -918,7 +922,7 @@ plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" &
 ```
 
 ```{r compare SAE specifications for CCAP prediction}
-plot_trans_sensitivity_comp(nowcast_out[outcome_var == "ccdf_elig_tight_inc_adj"],
+plot_trans_sensitivity_comp(nowcast_out[outcome_var == glue("ccdf_elig_incratio_{local_ccdf_incratio_base}")],
                             comp_col = "sae_spec",
                             base_val = "ccdf_wk_pov_05") +
   labs(title = case_when(my_output_tag == "IL" ~ "For CCDF Eligibility, Work and Spouse Specification consistently produces lower estimates",

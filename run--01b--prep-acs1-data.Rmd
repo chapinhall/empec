@@ -24,7 +24,7 @@ my_pums <-
          survey == "acs1") %>% 
   select(var_code, var_label, level, val_min, val_max, val_label)
 
-acs1_save_file <- glue("{input_path}census_acs1_{base_year}.csv")
+acs1_save_file <- glue("{input_path}census_acs1_{base_year}_{my_output_tag}.csv")
 if (!file.exists(acs1_save_file)) {
   source("pull--acs1-microdata.R")
 } else {
@@ -144,9 +144,11 @@ An additional set of indicators is built using all information about household m
 # SCH -- 0 - N/A (less than 3 yrs old), 1 - No, has not attended in the last 3 months, 2 - Yes, public school or public college, 3 - Yes, private school or college or home school
 
 acs1_hh <-
-  acs1 %>% 
+  copy(acs1) %>% 
+  .[j = fam_size := .N,
+    by = .(YEAR, SAMPLE, SERIALNO)] %>% 
   .[i = cRel %in% c("Head", "Spouse"), # subset to only householder and spouse records
-    by = .(YEAR, SAMPLE, SERIALNO),
+    by = .(YEAR, SAMPLE, SERIALNO, fam_size),
     j = .(spouse_present = maxNA(cRel == "Spouse"),
           all_work_sch   = minNA(ESR %in% 1:2 | SCH %in% 2:3))] # corresponds to working, or in school
 
@@ -205,7 +207,7 @@ acs1_child <-
         by = c("YEAR", "SAMPLE", "SERIALNO"), 
         all.x = TRUE) %>%
   merge(acs1_hh,
-        by = c("YEAR", "SERIALNO"),
+        by = c("YEAR", "SAMPLE", "SERIALNO"),
         all.x = TRUE) %>% 
   .[, fam_incpov_ratio := POVPIP / 100] %>% 
   .[, `:=`(child_agegroup = bin_age(AGEP),
@@ -215,7 +217,7 @@ acs1_child <-
                        TRUE ~ "other_multiple"),
            child_hispanic = 1*(HISP != 1),
            fam_incpov_ratio_cat_mix     = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 4.00)),
-           fam_incpov_ratio_cat_hs_ccdf = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 1.00, local_ccdf_thresh/100, 3.50, 5.00)),
+           fam_incpov_ratio_cat_hs_ccdf = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 1.00, local_ccdf_incratio_base/100, 3.50, 5.00)),
            fam_incpov_ratio_cat_to185   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 4.00)),
            fam_incpov_ratio_cat_by50    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 0.5)),
            fam_incpov_ratio_cat_by75    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.75, 1.50, 2.25, 4.00)),
@@ -237,6 +239,52 @@ acs1_child <-
                                            fam_incpov_ratio_cat_hs_ccdf,
                                            sep = "_"))]
 ```
+
+```{r merge in the custom income thresholds if specified}
+if (exists("custom_income_thresh")) {
+  # Check that all family sizes present in the data are represented in the custom
+  # spec file
+  if (!maxNA(acs1_child$fam_size) %in% custom_income_thresh$fam_size) {
+    
+    warning(glue("The `custom_income_thresh` table does not contain all family ",
+                 "sizes present in the ACS 1-year microdata. It must reflect ",
+                 "family sizes up through {maxNA(acs1_child$fam_size)}.")) 
+  }
+  
+  acs1_child <- 
+    acs1_child %>% 
+    merge(custom_income_thresh,
+          by = "fam_size",
+          all.x = TRUE) %>% 
+    .[j = incratio_thresh := FINCP / inc_thresh]
+}
+```
+
+```{r generate ccdf eligibility flags}
+# Generate multiple flags of CCDF eligibility at the potentially-multiple
+# income-to-threshold ratios specified
+
+# Note: these are used in 03b to generate PUMA-level age breakdowns within
+# eligibility status
+
+# Determine which income ratio to use, based on whether custom values were specified
+if (exists("custom_income_thresh")) {
+  acs1_child[j = my_incratio := incratio_thresh]
+} else {
+  acs1_child[j = my_incratio := fam_incpov_ratio]
+}
+
+# Generate one eligibility field for each cutpoint specified
+acs1_child <-
+  acs1_child %>% 
+  .[j = paste0("ccdf_elig_incratio_", local_ccdf_incratio_cuts) :=
+      lapply(local_ccdf_incratio_cuts, 
+             function(x) {
+               1*all_work_sch*(my_incratio <= x/100)
+             })]
+  
+```
+
 
 ```{r check on small cells in the partitions constructed above, eval = developer_mode}
 # /!\ Note: this needs to be checked carefully for each given setting, because
@@ -286,10 +334,10 @@ acs1_child <-
                           # that start with "NotWorkElig" and do *not* follow with 0%
                           # in practice, this groups all larger cells
                         glue("NotWorkElig_(0%|100%)")) ~ 
-                          glue("NotWorkElig_0%_{local_ccdf_thresh}%"),
+                          glue("NotWorkElig_0%_{local_ccdf_incratio_base}%"),
              str_detect(work_incpov_statushs,
                         glue("NotWorkElig_[^(0%|100%)]")) ~
-                          glue("NotWorkElig_{local_ccdf_thresh}_500%"),
+                          glue("NotWorkElig_{local_ccdf_incratio_base}_500%"),
              TRUE ~ work_incpov_statushs))
   # Note that we intentionally leave "WorkElig_0%_100%" as an often-smaller
   # cell because it represents an important single quantity of children in
@@ -317,7 +365,7 @@ elig_stats_puma <-
   acs1_child %>% 
   filter(between(AGEP, 0, 5)) %>% 
   mutate(ccdf_inc_elig = fam_incpov_ratio_cat_hs_ccdf %in% 
-                           c("0%-100%", glue("100%-{local_ccdf_thresh}%")),
+                           c("0%-100%", glue("100%-{local_ccdf_incratio_base}%")),
          ccdf_elig     = str_detect(work_incpov_statushs, "^WorkElig_(0%|100%)")) %>% 
   group_by(PUMA) %>% 
   summarize(
@@ -419,7 +467,7 @@ gc()
    acs1_child %>% 
    filter(between(AGEP, 0, 5)) %>% 
    group_by(PUMA) %>% 
-   mutate(faminc_lt_thresh = fam_incpov_ratio <= local_ccdf_thresh/100,
+   mutate(faminc_lt_thresh = fam_incpov_ratio <= local_ccdf_incratio_base/100,
           workelig = all_work_sch == 1) %>% 
    summarize(sample_n = n(),
              n = sum(PWGTP),
@@ -477,7 +525,7 @@ acs1_puma_stats <-
 acs1_tables <- 
   get_acs(geography = "puma", 
           state     = my_state_abbr,
-          county    = ifelse(exists("my_county"), my_county, NULL),
+          county    = unlist(ifelse(exists("my_county"), my_county, list(NULL))),
           survey    = "acs1",
           table     = "B17024",
           year      = base_year)
@@ -486,27 +534,6 @@ acs1_tables_labeled <-
   label_acs(acs1_tables,
             year = base_year,
             survey = "acs1")  
-
-# /!\ The API pulls of ACS1 aggregate tables is resulting in NAs. These code 
-# chunks reflect ad hoc, manual pulls of individually pulled problematic PUMAs 
-# to avoid these missings
-if (base_year == 2022) {
-  acs1_tables_labeled <-
-    openxlsx::read.xlsx(glue("{input_path}acs_puma_cook_b17024_2022.xlsx"),
-                        sheet = "in") %>%
-    merge(acs1_tables_labeled %>% select(variable, label) %>% unique(),
-          by = "variable",
-          all.x = TRUE)
-} else if (base_year == 2018) {
-  acs1_tables_labeled <-
-    read.csv(glue("{input_path}acs_pov_estimates_2018.csv"),
-             stringsAsFactors = FALSE) %>%
-    mutate(estimate = as.numeric(str_replace_all(estimate, ",", "")),
-           moe      = as.numeric(str_replace_all(moe,      ",", ""))) %>% 
-    merge(acs1_tables_labeled %>% select(variable, label) %>% unique(),
-          by = "variable",
-          all.x = TRUE)
-}
 
 acs1_5pct_puma <- 
   acs1_tables_labeled %>% 
