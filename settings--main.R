@@ -6,8 +6,8 @@
 
 # Start by installing a package to help search for whether already-installed
 # packages are the most recent
-install.packages("pkgsearch")
-library(pkgsearch)
+# install.packages("pkgsearch")
+# library(pkgsearch)
 
 packages.list <- 
   c("knitr", "ggplot2", "Rcpp", "Hmisc", "VGAM", "stringr", "glmnet", "censusapi",
@@ -27,8 +27,6 @@ for (p in packages.list) {
                            character.only = TRUE,
                            verbose = FALSE))
 }
-devtools::install_github("CT-Data-Haven/cwi")
-library(cwi)
 
 # Suppress warnings from dplyr::summarise() with group_by()s
 options(dplyr.summarise.inform = FALSE)

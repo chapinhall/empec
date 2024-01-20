@@ -530,6 +530,9 @@ acs1_tables <-
           table     = "B17024",
           year      = base_year)
 
+devtools::install_github("CT-Data-Haven/cwi")
+library(cwi)
+
 acs1_tables_labeled <- 
   label_acs(acs1_tables,
             year = base_year,

@@ -114,14 +114,14 @@ bind_list <-
 
 ```{r add all relevant ccdf sensitivities}
 
-for (ccdf_spec in str_subset(nowcast_parallel_setup$outcome_var, "ccdf_elig_incratio")) {
+for (ccdf_spec in unique(str_subset(nowcast_parallel_setup$outcome_var, "ccdf_elig_incratio"))) {
   sensitivity_to_add <- 
     nowcast_parallel_setup %>% 
     filter(outcome_var == ccdf_spec,
            str_detect(sae_spec, "ccdf_wk_pov")) %>% 
     mutate(base_share = NA)
   
-  bind_list <- append(bind_list, sensitivity_to_add)
+  bind_list <- append(bind_list, list(sensitivity_to_add))
 }
 
 ```
@@ -159,7 +159,8 @@ pop_by_age_long <-
   mutate(age = str_replace(name, "_count", ""),
          pd = case_when(year == base_year     ~ "base",
                         year == base_year + 1 ~ "nowcast")) %>% 
-  rename(pop_count = value) %>%
+  rename(pop_count = value,
+         GEOID = GEOID_TR20) %>%
   # /!\ Here again is where we need to bring in a proper standard error for
   # population count estimates
   mutate(pop_count_se = 0) %>% 
@@ -261,7 +262,7 @@ comp_nowcast_vs_sae(share_ests = share_pre_post %>% filter(str_detect(outcome_va
 ```
 
 ```{r compare now-cast vs SAE for CCAP}
-comp_nowcast_vs_sae(share_ests = share_pre_post %>% filter(str_detect(outcome_var, local_ccdf_incratio_base)),
+comp_nowcast_vs_sae(share_ests = share_pre_post %>% filter(str_detect(outcome_var, glue("{local_ccdf_incratio_base}$"))),
                     title = case_when(my_output_tag == "IL" ~ "Tract-Level Now-Cast Estimates are Generally Above Baseline",
                                       TRUE ~ ""),
                     xlab = glue("Baseline (SAE) - {base_year}"),
@@ -326,7 +327,7 @@ plot_elig_diff_vs_char(outcome_string = "incpov_le100",
 ```
 
 ```{r}
-plot_elig_diff_vs_char(outcome_string = "ccdf_elig",
+plot_elig_diff_vs_char(outcome_string = glue("ccdf_elig_incratio_{local_ccdf_incratio_base}"),
                        outcome_desc   = glue("{local_ccdf_name_short} Eligibility"), 
                        char_field     = "raceeth_wh_nonh_est",
                        char_desc      = "% White Non-Hisp in Tract",

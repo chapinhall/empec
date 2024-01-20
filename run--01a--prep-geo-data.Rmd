@@ -242,44 +242,24 @@ geo_crosswalk <-
 ```
 
 ```{r construct school district files}
-if (my_aux_geo_desc == "School District" & !exists("my_aux_geo")) {
-  # Download school district file from Census using tigris package
-  el <- school_districts(state = {my_state_fip}, type = 'elementary', year = tiger_year)
-  sc <- school_districts(state = {my_state_fip}, type = 'secondary',  year = tiger_year)
-  un <- school_districts(state = {my_state_fip}, type = 'unified',    year = tiger_year)
-  
-  # Clean data
-  sd <- 
-    bind_rows(el, sc, un)
-  rm(el, sc, un)
-  sd <- sd %>%
-    rename(school = NAME)
-  
-  # Display them
-  ggplot() + 
-    geom_sf(data = sd,
-            fill = NA) +
-    theme_void()
-  
-  # Check Size
-  object.size(sd) %>% format(unit = "Mb")
-  if (FALSE) {
-    sd <- st_simplify(sd, dTolerance = 500) #dTolerance needs to be decimal degrees to run this
-    object.size(sd) %>% format(unit = "Mb")
-  }
-  
-  # Write an output shapefile
-  st_write(sd, glue("{input_path}{my_state_abbr}_combined_schooldistricts.shp"),
-           delete_layer = TRUE)
-  
-  my_aux_geo <- glue("{input_path}{my_state_abbr}_combined_schooldistricts.shp") #school district
-  
-  # 2. Name of the field within the shapefile with the desired label for each geography
-  my_aux_geo_field <- "school"
-  
-  # 3. Descriptive label to give to the auxiliary field, e.g. "Community Area"
-  my_aux_geo_desc <- "School District"
-}
+# Download school district file from Census using tigris package
+elShp <- school_districts(state = {my_state_fip}, type = 'elementary', year = tiger_year)
+scShp <- school_districts(state = {my_state_fip}, type = 'secondary',  year = tiger_year)
+unShp <- school_districts(state = {my_state_fip}, type = 'unified',    year = tiger_year)
+
+# Clean data
+sdShp <- 
+  bind_rows(elShp %>% mutate(level = "elementary"), 
+            scShp %>% mutate(level = "secondary"), 
+            unShp %>% mutate(level = "unified")) %>% 
+  rename(school = NAME)
+rm(elShp, scShp, unShp)
+
+# Display them
+ggplot() + 
+  geom_sf(data = sdShp,
+          aes(fill = level)) +
+  theme_void()
 ```
 
 ```{r load and feed in any auxiliary geographies}

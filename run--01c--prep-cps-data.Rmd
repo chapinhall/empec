@@ -361,8 +361,8 @@ cps_pov <-
              # Develop categories of household income to align with those in ACS1, which define the SAE targets
              fam_incpov_ratio_cat_byMix       = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.00, 2.00, 4.00)),
              fam_incpov_ratio_cat_byMix_adj   = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.00, 2.00, 4.00)),
-             fam_incpov_ratio_cat_hs_ccdf     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 1.00, local_ccdf_thresh/100, 3.50, 5.00)),
-             fam_incpov_ratio_cat_hs_ccdf_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 1.00, local_ccdf_thresh/100, 3.50, 5.00)),
+             fam_incpov_ratio_cat_hs_ccdf     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 1.00, local_ccdf_incratio_base/100, 3.50, 5.00)),
+             fam_incpov_ratio_cat_hs_ccdf_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 1.00, local_ccdf_incratio_base/100, 3.50, 5.00)),
              fam_incpov_ratio_cat_to185       = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.25, 1.85, 4.00)),
              fam_incpov_ratio_cat_to185_adj   = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.25, 1.85, 4.00)),
              fam_incpov_ratio_cat_by50        = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = seq(0, 4, by = 0.50)),
@@ -612,28 +612,6 @@ rm(cps_pov, cps_timing)
 gc()
 ```
 
-```{r if requested -- build ccdf eligibility flags relative to custom thresholds}
-if (exists("custom_income_thresh")) {
-  
-  # Check that all family sizes present in the data are represented in the custom
-  # spec file
-  if (!maxNA(cps_pov$fam_size) %in% custom_income_thresh$fam_size) {
-    
-    warning(glue("The `custom_income_thresh` table does not contain all family ",
-                 "sizes present in the Current Population Survey microdata. It ",
-                 "must reflect family sizes up through `maxNA(cps_pov$fam_size)`")) 
-  }
-  
-  cps_pov <- 
-    cps_pov %>% 
-    merge(custom_income_thresh,
-          by = "fam_size",
-          all.x = TRUE) %>% 
-    .[j = incratio_thresh := faminc_adj / inc_thresh]
-}
-```
-
-
 ```{r merge ccdf family measures into income}
 
 # Determine which income ratio to use, based on whether custom values were specified
@@ -739,20 +717,20 @@ cps_child_base <-
           "has_schage_kid_base",
           "n_kids_le5",
           "spouse_present",
+          "ccdf_elig_tight", "ccdf_elig_loose",
           "faminc_adj",                   "fam_incpov_ratio",
           "fam_incpov_ratio_cat_by50",    "fam_incpov_ratio_cat_by50_adj", 
           "fam_incpov_ratio_cat_by75",    "fam_incpov_ratio_cat_by75_adj",
           "fam_incpov_ratio_cat_by100",   "fam_incpov_ratio_cat_by100_adj",
           "fam_incpov_ratio_cat_to185",   "fam_incpov_ratio_cat_to185_adj",
-          "fam_incpov_ratio_cat_hs_ccdf", "fam_incpov_ratio_cat_hs_ccdf_adj",
-          str_subset(cn(cps_elig), "ccdf_elig_incratio_")),
+          "fam_incpov_ratio_cat_hs_ccdf", "fam_incpov_ratio_cat_hs_ccdf_adj"),
     with = FALSE] %>% 
   .[j = `:=`(fSpouse_present = 
                factor(spouse_present,
                       levels = 0:1, 
                       labels = c("No Spouse Present, Base",
                                  "Spouse Present, Base")),
-             child_agegroup = bin_age(AGE))]
+             child_agegroup = bin_age(AGE))] %>% 
   merge(cps_base_hoh,
         by = "CPSID",
         all.x = TRUE)
@@ -784,6 +762,7 @@ cps_post <-
            j = c("CPSID",
                  "YEAR", "MONTH", "HWTFINL", 'is_validation',
                  "faminc_adj", "fam_incpov_ratio",
+                 "EMPSTAT",
                  "fam_incpov_ratio_le.5",
                  "fam_incpov_ratio_le.5_adj",
                  "fam_incpov_ratio_le1",

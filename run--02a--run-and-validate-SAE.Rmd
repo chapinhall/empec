@@ -67,13 +67,13 @@ Next, we examine effectively the same distribution, but with more detail below 1
 show_acs1_cat_density("fam_incpov_ratio_cat_mix", "Income-to-Poverty with Detail Below Poverty")
 ```
 
-Below, we see the size of the sample partitioned jointly by household work eligibility for CCDF, and income-to-poverty bands that are somewhat larger and chosen to align with the CCDF income threshold of `r local_ccdf_thresh`% of FPL. Although there is no requirement in either the SAE or nowcasting methods to have this alignment, this specification will allow for later direct comparison of SAE estimates of CCDF eligibility for the base year `r base_year` and the nowcast estimates.
+Below, we see the size of the sample partitioned jointly by household work eligibility for CCDF, and income-to-poverty bands that are somewhat larger and chosen to align with the CCDF income threshold of `r local_ccdf_incratio_base`% of FPL. Although there is no requirement in either the SAE or nowcasting methods to have this alignment, this specification will allow for later direct comparison of SAE estimates of CCDF eligibility for the base year `r base_year` and the nowcast estimates.
 
 ```{r examine overall distribution of ACS1 sample with detail below poverty}
 # Here is the density tailored to the local ccdf threshold
 
 show_acs1_cat_density("work_incpov_mix", 
-                      glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+                      glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_incratio_base}% FPL"))
 
 ```
 
@@ -110,7 +110,7 @@ show_acs1_cat_density_by_puma("fam_incpov_ratio_cat_mix", "Income-to-Poverty Rat
 # presumably would be.
 
 show_acs1_cat_density_by_puma("work_incpov_mix", 
-                                glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+                                glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_incratio_base}% FPL"))
 ```
 
 ### Examine pattern contrasts between ACS1 and ACS5 measures
@@ -262,7 +262,7 @@ pop_by_age_base <-
   filter(year == base_year) %>% 
   # Rename population values to avoid conflict with equivalent ACS5 counts, which
   # are for the prior 5 year period, not estimated for the base year as these are
-  select(GEOID, 
+  select(GEOID = GEOID_TR20, 
           age_0to5_count_base =  age_0to5_count, 
          age_6to12_count_base = age_6to12_count)
 
@@ -935,6 +935,7 @@ acs5_incpov_cat_var <-
 pop_long <- 
   pop_by_age %>% 
   #filter(year == base_year) %>% 
+  rename(GEOID = GEOID_TR20) %>% 
   pivot_longer(cols = -c(GEOID, year)) %>% 
   mutate(age = str_replace(name, ".+_(\\d+to\\d+).+", "\\1")) %>% 
   select(GEOID, year, age, pop = value)
@@ -1676,6 +1677,7 @@ ggplotly(plot_puma_aggs_pcts, tooltip = "group")
 
 puma_agg_pop <- 
   pop_by_age %>% 
+  rename(GEOID = GEOID_TR20) %>% 
   merge(geo_crosswalk[j = .(GEOID, PUMA = as.numeric(PUMA))] %>% unique(),
         by = "GEOID") %>% 
   as.data.table() %>% 

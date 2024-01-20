@@ -53,7 +53,7 @@ age_breakdown_byoutcome <-
 
 ```{r add breakdowns for all relevant ccdf sensitivities}
 
-for (ccdf_spec in str_subset(nowcast_parallel_counts$outcome_var, "ccdf_elig_incratio")) {
+for (ccdf_spec in unique(str_subset(nowcast_parallel_counts$outcome_var, "ccdf_elig_incratio"))) {
   
     age_breakdown_byoutcome <- 
       bind_rows(age_breakdown_byoutcome,
@@ -75,7 +75,7 @@ nowcast_parallel_counts <-
 # Prep overall population for under 5 breakdown
 pop_by_age_under5 <- 
   pop_by_age %>% 
-  select(GEOID, year, age_0to2 = age_0to2_count, age_3to5 = age_3to5_count) %>% 
+  select(GEOID = GEOID_TR20, year, age_0to2 = age_0to2_count, age_3to5 = age_3to5_count) %>% 
   pivot_longer(cols = matches("age"),
                names_to = "child_agegroup",
                values_to = "pop_count")
@@ -171,7 +171,7 @@ agg_tracts_up <- function(ests, agg_level) {
 nowcast_agg_tract <- agg_tracts_up(nowcast_elig_counts_final, "GEOID")
 nowcast_agg_zip   <- agg_tracts_up(nowcast_elig_counts_final, "ZCTA")
 nowcast_agg_cty   <- agg_tracts_up(nowcast_elig_counts_final, "County")
-nowcast_agg_sd    <- agg_tracts_up(nowcast_elig_counts_final, "School")
+#nowcast_agg_sd    <- agg_tracts_up(nowcast_elig_counts_final, "School")
 
 if (exists("my_aux_geo")) {
   nowcast_agg_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  
@@ -188,7 +188,7 @@ my_write.csv <- function(x, suffix) {
 my_write.csv(nowcast_agg_tract, "by tract")
 my_write.csv(nowcast_agg_zip,   "by zcta")
 my_write.csv(nowcast_agg_cty,   "by county")
-my_write.csv(nowcast_agg_sd,    "by school districts")
+#my_write.csv(nowcast_agg_sd,    "by school districts")
 
 if (exists("my_aux_geo")) {
   my_write.csv(nowcast_agg_aux, glue("by {my_aux_geo_desc}"))
@@ -302,33 +302,33 @@ write_agg_output <- function(x, agg_level, sheet_name, add, out_label) {
 
 ```{r write various levels of geographic aggregation out to file for ccdf}
 
-for (ccdf_spec in str_subset(nowcast_elig_counts_final$outcome_vars, "ccdf_elig_incratio_")) {
-  my_out_label <- 
-    str_replace(ccdf_spec,
-                "ccdf_elig_incratio_(\\d+)",
-                "{local_ccdf_name_short} - \\1%")
+# for (ccdf_spec in unique(str_subset(nowcast_elig_counts_final$outcome_var, "ccdf_elig_incratio_"))) {
+  # my_out_label <- 
+  #   str_replace(ccdf_spec,
+  #               "ccdf_elig_incratio_(\\d+)",
+  #               "{local_ccdf_name_short} - \\1%")
   
-  write_agg_output(x = nowcast_agg_zip %>% filter(outcome_var == ccdf_spec), 
+  write_agg_output(x = nowcast_agg_zip %>% filter(outcome_var %like% "ccdf_elig_incratio_"), 
                    agg_level = "ZCTA",   
                    sheet_name = "Zip Code", 
                    add = FALSE,
-                   out_label = my_out_label)
+                   out_label = local_ccdf_name_short)
   
-  write_agg_output(x = nowcast_agg_cty %>% filter(outcome_var == ccdf_spec),
+  write_agg_output(x = nowcast_agg_cty %>% filter(outcome_var %like% "ccdf_elig_incratio_"),
                    agg_level = "County", 
                    sheet_name = "County",
                    add = TRUE,
-                   out_label = my_out_label)
+                   out_label = local_ccdf_name_short)
   
   if (exists("my_aux_geo")) {
     nowcast_ests_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  
-    write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var == ccdf_spec),
+    write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var  %like% "ccdf_elig_incratio_"),
                      agg_level = "aux_geo_label",
                      sheet_name = my_aux_geo_desc, 
                      add = TRUE,
-                     out_label = my_out_label)
+                     out_label = local_ccdf_name_short)
   }
-}
+# }
 
 ```
 
@@ -439,9 +439,55 @@ ggplot(aux_lvl_ests_long,
 
 #### Compare Estimates At Different Levels of Aggregation
 
-```{r}
+```{r examine the dispersion across }
 
+nowcast_agg_zip %>% 
+  .[outcome_var %like% "ccdf_elig" & pd == "nowcast"] %>% 
+  ggplot(aes(x = share,
+             color = str_replace(outcome_var, ".+_(\\d+)$", "\\1%"))) +
+  geom_density() +
+  facet_wrap(~ age) +
+  scale_x_continuous(labels = percent) +
+  scale_color_discrete(name = "Income Eligibility Threshold") +
+  labs(x = "% CCDF Eligibility") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
 ```
+
+
+```{r check that estimated eligibility is properly ordered across multiple ccdf income cutpoints, results = 'asis'}
+if (exists("custom_income_thresh")) {
+  
+  cat("#### Compare Estimates Across CCDF Income Cutpoints\n\n")  
+  
+  
+  
+  plot_data <- 
+    nowcast_agg_zip %>% 
+    .[outcome_var %like% "ccdf_elig" & pd == "nowcast"] %>% 
+    .[j = order := min(share),
+      by = ZCTA]
+  
+  get_zcta_order <- function(z) plot_data[ZCTA == z, min(share)] 
+  
+  my_plot <- 
+    ggplot(plot_data,
+           aes(x = reorder(ZCTA, order),
+               y = share,
+               color = str_replace(outcome_var, ".+_(\\d+)$", "\\1%"))) +
+    geom_point() + 
+    geom_line() +
+    facet_wrap(~ age) +
+    scale_y_continuous(labels = percent) +
+    scale_color_discrete(name = "Income Eligibility Threshold") +
+    labs(x = "ZCTAs, in order of lowest income threshold") +
+    theme(legend.position = "bottom",
+          axis.text.x = element_blank())
+  
+  print(my_plot)
+}
+```
+
 
 
 #### Map Levels and Differences
