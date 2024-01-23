@@ -224,84 +224,121 @@ if (year(date1) == year(date2)) {
 
 
 ```{r function to output excel sheets for various levels of geographic aggregation}
-write_agg_output <- function(x, agg_level, sheet_name, add, out_label) {
+write_agg_output <- function(outcomes_regex, agg_levels, out_label) {
 
   ccdf_income_thresh_label <- 
     ifelse(exists("local_custom_thresh_label"),
            local_custom_thresh_label,
            "FPL")
   
-  add_sheet <-
-    copy(x) %>% 
-    arrange(agg_level) %>% 
-    setnames(agg_level, sheet_name) %>% 
-    filter(pd == "nowcast") %>% 
-    # convert age to narrative
-    mutate(Age = str_replace(age, "age_(\\d+)to(\\d+)", "Age \\1-\\2"),
-           
-           #Outcome = str_replace(outcome_var, "^([a-z]+)_.+", "\\1"),
-           Outcome = 
-             case_when(str_detect(outcome_var, "^ccdf") ~ 
-                         str_replace(outcome_var, 
-                                     "ccdf_elig_incratio_(\\d+)",
-                                     glue("{local_ccdf_name_short} - \\1% {ccdf_income_thresh_label}")),
-                       str_detect(outcome_var, "_le50_")  ~ "Below 50% FPL",
-                       str_detect(outcome_var, "_le100_") ~ "Below 100% FPL",
-                       str_detect(outcome_var, "_le185_") ~ "Below 185% FPL",
-                       str_detect(outcome_var, "_le200_") ~ "Below 200% FPL",
-                       str_detect(outcome_var, "_le225_") ~ "Below 225% FPL",
-                       str_detect(outcome_var, "_le400_") ~ "Below 400% FPL"),
-           
-           # Calculate bounds, and round
-           count_lb = round(count + qnorm(.1)*count_se),
-           count_ub = round(count + qnorm(.9)*count_se),
-           count    = round(count),
-           pop_count = round(pop_count), # This is in order to get "round" values of share
-           
-           # (Re)calculate share to be consistent with the rounded counts.
-           # This is most significant for small geographies, where counts may
-           # be small--and thus likely a familiar percentage, or even 0
-           share = (count / pop_count) %>% replace_na(0),
-           share_se = se_proportion(count, pop_count, count_se, pop_count_se),
-           share_lb = pmax(share + qnorm(.1)*share_se, 0) %>% replace_na(0),
-           share_ub = pmin(share + qnorm(.9)*share_se, 1) %>% replace_na(0)) %>% 
-    dplyr::select(-count_se, -share_se, -pop_count, -pop_count_se) %>% 
-    pivot_longer(cols = matches("(count|share)(_|$)")) %>% 
-    mutate(stat = case_when(name %like% "count" ~ "#",
-                            name %like% "share" ~ "%"),
-           calc = case_when(name %like% "_lb" ~ ", lower bound",
-                            name %like% "_ub" ~ ", upper bound",
-                            TRUE ~ ""),
-           
-           label = glue("{Age} {Outcome}, {date_range} -- {stat}{calc}")) %>% 
-    dplyr::select(-age, -pd, -outcome_var, -Age, -Outcome, -name, -stat, -calc) %>% 
-    pivot_wider(names_from = label,
-                values_from = value)
+  wb <- openxlsx::createWorkbook()
   
-  # Mothballed syntax for `xlsx`, for which we couldn't resolve an error
-  xlsx::write.xlsx(as.data.frame(add_sheet),
-                   file = glue("{output_path}{out_label} eligibility estimates by geography - {my_output_tag}.xlsx"),
-                   row.names = FALSE,
-                   sheetName = sheet_name,
-                   append = add)
+  if (exists("excel_front_page_file")) {
+    addWorksheet(wb, "Front page")
+    xlsx::write.xlsx(get(excel_front_page_file), 
+                     wb, 
+                     sheetName = "Front Page")
+  }
   
-  # Experimental code with `openxlsx`, which has the potential to automate output
-  # formatting
-  # workbook_name <- glue("{output_path}{out_label} eligibility estimates by geography - {my_output_tag}.xlsx")
-  # if (!add) {
-  #   openxlsx::write.xlsx(add_sheet,
-  #                        file = workbook_name,
-  #                        rowNames = FALSE,
-  #                        sheetName = sheet_name)
-  # } else {
-  #   wb <- openxlsx::read.xlsx(workbook_name)
-  #   openxlsx::addWorksheet(wb,
-  #                          sheetName = sheet_name)
-  #   openxlsx::writeData(wb,
-  #                       sheet = sheet_name,
-  #                       x = add_sheet,
-  #                       rowNames = FALSE)
-  # }
+  for (lvl in agg_levels) {
+    add_sheet <-
+      copy(lvl[["agg_table"]]) %>% 
+      arrange(get(lvl[["agg_field"]])) %>% 
+      setnames(lvl[["agg_field"]], lvl[["sheet_name"]]) %>% 
+      filter(pd == "nowcast") %>% 
+      # convert age to narrative
+      mutate(Age = str_replace(age, "age_(\\d+)to(\\d+)", "Age \\1-\\2"),
+             
+             #Outcome = str_replace(outcome_var, "^([a-z]+)_.+", "\\1"),
+             Outcome = 
+               case_when(str_detect(outcome_var, "^ccdf") ~ 
+                           str_replace(outcome_var, 
+                                       "ccdf_elig_incratio_(\\d+)",
+                                       glue("{local_ccdf_name_short} - \\1% {ccdf_income_thresh_label}")),
+                         str_detect(outcome_var, "_le50_")  ~ "Below 50% FPL",
+                         str_detect(outcome_var, "_le100_") ~ "Below 100% FPL",
+                         str_detect(outcome_var, "_le185_") ~ "Below 185% FPL",
+                         str_detect(outcome_var, "_le200_") ~ "Below 200% FPL",
+                         str_detect(outcome_var, "_le225_") ~ "Below 225% FPL",
+                         str_detect(outcome_var, "_le400_") ~ "Below 400% FPL"),
+             
+             # Calculate bounds, and round
+             count_lb = round(count + qnorm(.1)*count_se),
+             count_ub = round(count + qnorm(.9)*count_se),
+             count    = round(count),
+             pop_count = round(pop_count), # This is in order to get "round" values of share
+             
+             # (Re)calculate share to be consistent with the rounded counts.
+             # This is most significant for small geographies, where counts may
+             # be small--and thus likely a familiar percentage, or even 0
+             share = (count / pop_count) %>% replace_na(0),
+             share_se = se_proportion(count, pop_count, count_se, pop_count_se),
+             share_lb = pmax(share + qnorm(.1)*share_se, 0) %>% replace_na(0),
+             share_ub = pmin(share + qnorm(.9)*share_se, 1) %>% replace_na(0)) %>% 
+      dplyr::select(-count_se, -share_se, -pop_count, -pop_count_se) %>% 
+      pivot_longer(cols = matches("(count|share)(_|$)")) %>% 
+      mutate(stat = case_when(name %like% "count" ~ "#",
+                              name %like% "share" ~ "%"),
+             calc = case_when(name %like% "_lb" ~ ", lower bound",
+                              name %like% "_ub" ~ ", upper bound",
+                              TRUE ~ ""),
+             
+             label = glue("{Age} {Outcome}, {date_range} -- {stat}{calc}")) %>% 
+      dplyr::select(-age, -pd, -outcome_var, -Age, -Outcome, -name, -stat, -calc) %>% 
+      pivot_wider(names_from = label,
+                  values_from = value)
+    
+    openxlsx::addWorksheet(wb, 
+                           sheetName = lvl[["sheet_name"]])
+    
+    # Write the data to the new sheet
+    writeDataTable(wb, 
+                   sheet = lvl[["sheet_name"]], 
+                   x = add_sheet,
+                   colNames = TRUE, 
+                   rowNames = FALSE,
+                   tableStyle = "TableStyleMedium2")
+    
+    # Format specified columns as percentage
+    addStyle(wb, 
+             sheet = lvl[["sheet_name"]], 
+             style = createStyle(numFmt = "0.0%"), 
+             cols = str_which(cn(add_sheet), "-- %"),
+             rows = 1:nrow(add_sheet),
+             gridExpand = TRUE)
+    
+    # Wrap text for header row
+    addStyle(wb, 
+             sheet = lvl[["sheet_name"]], 
+             style = createStyle(wrapText = TRUE), 
+             cols = 1:ncol(add_sheet),
+             rows = 1,
+             gridExpand = TRUE)
+    
+    # Freeze the top row and leftmost column
+    freezePane(wb,
+               sheet = lvl[["sheet_name"]],
+               firstRow = TRUE,
+               firstCol = TRUE)
+    
+    # Set column widths
+    setColWidths(wb, 
+                 sheet = lvl[["sheet_name"]], 
+                 cols = 2:ncol(add_sheet), 
+                 widths = 18)
+    
+    # Group and hide columns corresponding to upper and lower bounds
+    groupColumns(wb,
+                 sheet = lvl[["sheet_name"]],
+                 cols = str_which(cn(add_sheet), "bound$"),
+                 hidden = TRUE)
+  }
+  
+  openxlsx::saveWorkbook(
+    wb, 
+    file = glue("{output_path}{out_label} eligibility estimates by geography - {my_output_tag}.xlsx"),
+    overwrite = TRUE
+  )
 }
 ```
 
@@ -310,26 +347,24 @@ write_agg_output <- function(x, agg_level, sheet_name, add, out_label) {
 
 outcomes_out_regex <- "ccdf_elig_incratio_|incpov_le(100|200)"
 
-write_agg_output(x = nowcast_agg_zip %>% filter(outcome_var %like% outcomes_out_regex), 
-                 agg_level = "ZCTA",   
-                 sheet_name = "Zip Code", 
-                 add = FALSE,
-                 out_label = local_ccdf_name_short)
-
-write_agg_output(x = nowcast_agg_cty %>% filter(outcome_var %like% outcomes_out_regex),
-                 agg_level = "County", 
-                 sheet_name = "County",
-                 add = TRUE,
-                 out_label = local_ccdf_name_short)
+lAgg_for_output <- 
+  list(list(agg_table = nowcast_agg_zip,
+            agg_field = "ZCTA",
+            sheet_name = "Zip Code"),
+       list(agg_table = nowcast_agg_cty,
+            agg_field = "County",
+            sheet_name = "County"))
 
 if (exists("my_aux_geo")) {
-  nowcast_ests_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  
-  write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var  %like% outcomes_out_regex),
-                   agg_level = "aux_geo_label",
-                   sheet_name = my_aux_geo_desc, 
-                   add = TRUE,
-                   out_label = local_ccdf_name_short)
+  lAgg_for_output[length(lAgg_for_output)+1] <- 
+    list(agg_table = nowcast_agg_aux,
+         agg_field = "aux_geo_label",
+         sheet_name = my_aux_geo_desc)
 }
+
+write_agg_output(outcomes_regex = outcomes_out_regex,
+                 agg_levels = lAgg_for_output,
+                 out_label = local_ccdf_name_short)
 
 ```
 
@@ -476,7 +511,7 @@ if (exists("custom_income_thresh")) {
            aes(x = reorder(ZCTA, order),
                y = share,
                color = str_replace(outcome_var, ".+_(\\d+)$", "\\1%"))) +
-    geom_point() + 
+    geom_point(alpha = 0.2) + 
     geom_line() +
     facet_wrap(~ age) +
     scale_y_continuous(labels = percent) +
