@@ -226,6 +226,11 @@ if (year(date1) == year(date2)) {
 ```{r function to output excel sheets for various levels of geographic aggregation}
 write_agg_output <- function(x, agg_level, sheet_name, add, out_label) {
 
+  ccdf_income_thresh_label <- 
+    ifelse(exists("local_custom_thresh_label"),
+           local_custom_thresh_label,
+           "FPL")
+  
   add_sheet <-
     copy(x) %>% 
     arrange(agg_level) %>% 
@@ -239,7 +244,7 @@ write_agg_output <- function(x, agg_level, sheet_name, add, out_label) {
              case_when(str_detect(outcome_var, "^ccdf") ~ 
                          str_replace(outcome_var, 
                                      "ccdf_elig_incratio_(\\d+)",
-                                     glue("{local_ccdf_name_short} - \\1%")),
+                                     glue("{local_ccdf_name_short} - \\1% {ccdf_income_thresh_label}")),
                        str_detect(outcome_var, "_le50_")  ~ "Below 50% FPL",
                        str_detect(outcome_var, "_le100_") ~ "Below 100% FPL",
                        str_detect(outcome_var, "_le185_") ~ "Below 185% FPL",
