@@ -1,0 +1,482 @@
+---
+title: "Estimation of Tract-by-Year Sociodemographics with Census Data -- a Monte Carlo Study"
+author: "Nick Mader"
+date: "r format(Sys.time(), '%b/%d/%Y')"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(data.table)
+#library(momentfit)
+```
+
+# Model
+
+Let $\theta_gt$ represent a given characteristic describing a population local to geography $g$ at time $t$. A motivating example is the number of children in families that qualify for Head Start in a given Census tract, for a given year.
+
+Given available Census data, we establish a series of conditions that these $\theta_gt$s meet. 
+
+## Moment Conditions
+
+The following moment conditions anchor the estimation of tract-by-year estimates of our community characteristics of interest.
+
+### Adding Up Across Geographies
+
+A first moment condition arises from an adding up condition, where the $\theta_gt$s add up across geographies to match an aggregate geographic total at a given time. ACS 1-year data on PUMAs, which are larger geographic areas containing many Census tracts. Let $g$ index geographies ${1,...,G}$. Then,
+
+$$\sum_{g=1,...,G} \theta_{gt} = X_{Gt}$$
+
+### Averaging Across Years
+
+A second set of moment conditions arise from averaging, where the $\theta_gt$s average across $s$ year spans to equal a reporting statistic that is averaged across time, for a given small geography. ACS 5-year data are reported for Census tracts and of course have $s=5$. Then,
+
+$$\frac{1}{s}\sum_{i = t-s+1}^{t} \theta_{gi} = \bar{x}_{gt}$$
+
+where $\bar{x}_{gt}$ represents $s$ year average data across a span whose final year is $t$.
+
+### Following Conditional Transitions
+
+A third set of moment conditions represent transitions between values in adjacent years. This posits that local trends are generally reflective of macroeconomic trends for households in similar economic and geographic circumstances. The basic monthly data for all households entering the Current Population Survey in a given year is used to examine their likelihood of transitioning to another status in the year ahead. A linear probability model is estimated from those transitions in order to provide transition parameters that are applicable to the community-level.
+
+Suppose that individual transitions are given by the following linear model
+
+$$x_{it+1} = \lambda x_{it} + \epsilon_{it}$$
+
+where individual values are draws from their community $x_{it}=\theta_{gt}+\nu_i+\eta_{t}$. Thus:
+
+$$\theta_{gt+1} + \nu_i + \eta_{t+1} = \lambda\theta_{gt} + \nu_i + \eta_{t} + \epsilon_{it}$$
+
+and 
+
+$$E[\theta_{gt+1}|\theta_{gt}] = \lambda E[\theta_{gt}]$$
+
+We can use linear estimation of equation XX to obtain a consistent estimate of $\hat{lambda}$ to use in equation XX.
+
+
+
+
+### Initial Conditions
+
+While the "Conditional Transitions" moments connect each tract's estimate of a give year to the year before it, the initial year itself must be anchored to some additional condition. For this we 
+
+
+## Identification
+
+For $t=1,...,T$ and $G$ geographies, and a single indicators, there are $T \times G$ parameters to estimate.
+
+Across the above conditions, there are:
+
+* $T$ adding up conditions
+* $G \times (T-s+1)$ average-across conditions
+* $G \times (T-1)$ transition conditions
+
+Assuming that $T\geq s$, the total number of conditions is $G \times (2T - s) + T \geq G \times T + T > G\times T$, so that our parameter set is overidentified by the available conditions.
+
+In estimation, we thus use Generalized Method of Moments estimation, where weights are not drawn from the moment variation obtained from a first step, but rather directly from the data given that the variation in moments is available directly from sampling variation known of the ACS 1-year (adding up) and 5-year surveys (averaging across) and estimation error using the CPS.
+
+<!-- /!\ In the transition moments, the variance of epsilon is at the individual level. That can be adjusted to apply to community averages, as in the variance calculations above. However, there needs to be more thinking about how to represent the fact that there is spatial heterogeneity in both intercepts (the nu) and slopes. Consider estimating a mixed effects model with the CPS. -->
+
+
+# Data Generation
+
+To test recovery of our statistical estimates, we design a Monte Carlo experiment loosely calibrated off of realistic counts.
+
+```{r set parameters}
+G <- 45
+T <- 8
+extra_init <- 10 
+  # use this many time periods to set dynamics ahead of the years used for 
+  # observation. This is, in effect, the "burn in" period for data setup.
+stopifnot(T >= 5)
+span_length <- 5
+beta <- 0.8
+se_sum   <- 0.05*G           # This is error added to the sum across geos, in year
+se_avg   <- 0.05*span_length # This is error added to the average across years
+se_trans <- 0.10             # This is error added to the predicted transition
+```
+
+
+```{r generate true data}
+gen_true_data <- 
+  function(
+    G          = 45,   # Number of smaller geographies in the larger
+    A          = 8,    # Number of time periods (A for anos) involved in analysis
+    extra_init = 10,   # Added "burn-in" time periods part of generating data
+    beta       = 0.8,  # Slope parameter governing transitions from one period's value to the next
+    sd_trans   = 0.10, # std dev of unobservables of the transition equation
+    seed       = NULL  # if requested, set a seed
+) {
+    
+  if(!is.null(seed)) set.seed(seed)
+    
+  # Initialize eventual estimates object
+  thetas_g.t <- NULL
+  
+  # Initialize estimates for t = 0
+  theta_t <- rnorm(G)
+  thetas_g.t <- theta_t
+  
+  # Loop across time 
+  for (t in 1:(extra_init + A)) {
+    theta_t <- beta*theta_t + rnorm(G, sd = sd_trans)
+    thetas_g.t <- cbind(thetas_g.t, theta_t)
+  }
+  
+  # Set data names
+  thetas_g.t <-
+    thetas_g.t %>% 
+    as.data.frame() %>% 
+    setnames(as.character(0:(extra_init+A)))
+  
+  # Keep only thetas within our sample window (i.e. discarding initialized periods)
+  thetas_g.t <- 
+    select(thetas_g.t, one_of(as.character((extra_init + 1):(extra_init + A))))
+  
+  # Reshape the data to long form
+  thetas_gt <- 
+    thetas_g.t %>%
+    mutate(g = 1:G) %>%
+    pivot_longer(cols = -g, # pivot down every column but the geographic indicator
+                 names_to = "time",
+                 values_to = "theta_gt") %>%
+    mutate(time = as.numeric(time) - extra_init) %>%
+    data.table()
+  
+  out <- list(out = thetas_gt,
+              params = c("G" = G,
+                         "T" = T,
+                         "extra_init" = extra_init,
+                         "beta" = beta,
+                         "sd_trans" = sd_trans,
+                         "seed" = seed))
+  
+  return(out)
+}
+```
+
+```{r add error to draws of observed data}
+draw_obs_data <- 
+  function(se_est,          # Standard error of each theta given sample variation
+           span_length = 5, # Number of years that are averaged together
+           seed = NULL,     # Set a seed if desired
+           ...) {
+    
+    if(!is.null(seed)) set.seed(seed)
+    
+    # Generate true parameters
+    data_gen <- gen_true_data(seed = seed, ...)
+    thetas_gt_true <- data_gen$out
+    
+    # Add noise to true parameters to reflect true sample noise
+    thetas_gt <- 
+      thetas_gt_true %>% 
+      mutate(x_gt = theta_gt + rnorm(n(), 
+                                     sd = se_est))
+    
+    # Sum estimates to get year-level estimates
+    thetas_sumup <- 
+      thetas_gt[j = .(x_Gt = sum(x_gt)),
+                by = time]
+    
+    # Calculate averages across span
+    thetas_avgx <- NULL
+    for (i in span_length:max(thetas_gt_true$time)) {
+      thetas_avgx <- 
+        bind_rows(thetas_avgx,
+                  thetas_gt[time %in% (i - span_length + 1):i,
+                            .(time = i,
+                              x_gs = mean(x_gt)),
+                            by = g])
+    }
+    
+    # Generate a long-form data.table object with index for use in moment
+    # calculation operations
+    ix_gt <- 
+      copy(thetas_gt) %>% 
+      rename(theta0 = theta_gt) %>% 
+      .[j = theta0 := 0] 
+    
+    # Produce output
+    out <- list(thetas_gt    = thetas_gt,
+                thetas_sumup = thetas_sumup,
+                thetas_avgx  = thetas_avgx,
+                ix_gt        = ix_gt,
+                params       = c(data_gen$params, "s" = span_length))
+    return(out)
+  }
+```
+
+
+```{r attempt to draw data}
+x   <- draw_obs_data(se_est = 0.1)
+toy <- draw_obs_data(A = 2,
+                     G = 2,
+                     span_length = 2,
+                     extra_init = 0,
+                     se_est = 0.1)
+```
+
+```{r compare true vs noise-added parameters}
+x$thetas_gt %>% 
+  ggplot(aes(x = theta_gt,
+             y = x_gt)) +
+  geom_point() +
+  geom_hline(yintercept = 0,
+             color = "gray") +
+  geom_vline(xintercept = 0,
+             color = "gray") +
+  geom_abline(color = "blue") +
+  labs(x = "True parameters",
+       y = "Parameters with noise added") +
+  theme_minimal()
+```
+
+```{r visualize paths of true parameters across time}
+
+g_sample <- sample(x$thetas_gt$g, 6)
+
+x$thetas_gt %>% 
+  melt(id.vars = c("g", "time")) %>% 
+  .[g %in% g_sample & between(time, max(time)-x$params[["s"]] + 1, max(time))] %>% 
+  ggplot(aes(x = time,
+             y = value,
+             color = factor(variable),
+             group = factor(variable))) +
+  geom_hline(data = x$thetas_avgx[g %in% g_sample & time == max(time)],
+             aes(yintercept = x_gs),
+             color = "orange") +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  scale_color_discrete(name = "") +
+  facet_wrap(~ g,
+             ncol = 3) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+```
+
+
+# Moment generation
+
+R's [`momentfit` package](https://cran.r-project.org/web/packages/momentfit/vignettes/gmmS4.pdf) is used to implement our method of moments. In terminology of that package, Functions `fct` and `dfct` can be used to return vectors of moment conditions, and the gradient of those moments with respect to the parameters. The `momentModel()` syntax can be used to return solutions.
+
+The vector of estimated parameters `theta0` is, by requirement, a vector, with $T \times G$ elements, ordered $t=1,...,T$ for $g=1$, and then for $g=2$, etc.
+
+`momentfit` requires moment functions to return vectors of length $q$, and gradient functions to return matrices that are $q x k$, i.e. which have rows corresponding to the moments, and columns corresponding to parameters. We have $q = T + G(T-s) + G(T-1)$ moment conditions, and $k = G \times T$ parameters.
+
+We organize generation of these moments and gradients by each type of moment condition, and then produce a final function to run and stack each.
+
+## Useful Functions
+
+The GMM function will work with thetas organized in a single (long) vector certain operations will benefit from being able to reshape these values We intend to organize these as $\theta_{gt}: \theta_{11} ... \theta_{1T}, \theta_{21}... \theta_{2T}, ... ..., \theta_{G1} ... \theta_{GT}$. That is, time recycles faster than geography.
+
+```{r reshape thetas as either matrix or data table}
+reshape_thetas_mat_g.t <- function(theta, G, A) {
+  # This function reshapes the vector of thetas into a matrix of size GxT
+  matrix(theta, G, A, byrow = TRUE)
+}
+
+reshape_thetas_dt_g.t <- function(ix_gt, theta) {
+  ix_gt[j = thetas := theta] %>% 
+    dcast(g ~ time,
+          value.var = thetas)
+}
+```
+
+
+## Functions for Calculating Moments and Gradients
+
+### Summing Up Moments
+
+These moment conditions are derived from the fact that our estimated parameter counts can be added up to match statistics reported for larger geographies at each point in time. Each moment condition thus takes the form of $\Sigma_g\theta_{gt}-\bar{x_t} = 0$. We have $T$ of these moment conditions.
+
+The gradient has the shape $T \times (TG)$ where each row is a binary indicator for whether the corresponding $\theta_tg$ is included in the row sum. That is, $1$ if the $t$ is the same as the row, $0$ otherwise.
+
+```{r functions generate sumup moments and gradients using data.table}
+sumup_moment_dt <- function(theta, x) {
+  x$ix_gt %>% 
+    .[j = theta0 := theta] %>% 
+    .[j = sum(theta0),
+      by = time] %>% 
+    pull(V1) %>% 
+    as.vector() - x$thetas_sumup$x_Gt
+}
+
+# Because the sum-up moments are a simple, linear function of the parameters,
+# the gradient is constant with respect to both the current parameters and data
+# Thus, we pre-calculate that gradient and simply return it when the gradient
+# function is called
+
+# /!\ Need to think of a way to embed this within our structures, given that it
+# obeys the particular structure of the data, but where we shouldn't need to 
+# recalculate it. This will be particularly consequential when we go to production
+# when we have many large geographies with different numbers of small geographies
+# (though the time points should be consistent)
+
+# We calculate the gradient long-form (which makes sense with the data.table format)
+# and then transpose to get the qxk structure
+
+sumup_grad_dt <- function(x) {
+  x$ix_gt %>% 
+    .[j = lapply(1:max(time), function(x) 1*(time == x))] %>% 
+    t()  
+}
+
+sumup_grad_t.tg <- sumup_grad_dt(x)
+
+sumup_grad_dt <- function(theta, x) {
+  sumup_grad_t.tg
+}
+```
+
+```{r generate sumup moments using matrix operations, eval = FALSE}
+# /!\ This is old -- it's related to a time when `thetas_g.t` was the only
+# data structure input
+sums_Tx1 <- sapply(thetas_g.t, sum) + rnorm(T, sd = se_sum)
+
+# This produces T moments, corresponding to the total of geo values within at given time.
+sumup_moment_mat <- function(theta, x) {
+  reshape_thetas_mat(theta, G, T) %>% 
+    sapply(sum) - 
+    sums_Tx1
+}
+
+# Useful for the gradient -- this creates an indicator vector with a 1 in the
+# ith place of a vector of length l
+e <- function(i, l) {
+  vec <- rep(0, l)
+  vec[i] <- 1
+  vec
+}
+
+# This generates a T x (GxT) matrix corresponding to how each column influences
+# the sum corresponding to the row
+sumup_grad_mat <- matrix(0, T, G*T)
+for (q in 1:T) {
+  sumup_grad[q,] <- rep(-e(q, G), T)
+}
+```
+
+
+### Average Across Moments
+
+These moment conditions are derived from the fact that our estimated parameter can be averaged within given time spans to match statistics reported for each smaller geography.
+
+Each moment condition thus takes the form of $\frac{1}{s}\Sigma_{i=t-s+1}^{t}\theta_{gi} - \bar{x}_{gt} = 0$. We have $G \times (T-s)$ of these moment conditions. 
+
+```{r generate the average across moment using data.table functions}
+avgx_moment_dt <- function(theta, x) {
+  s     <- x$params[["s"]]
+  A     <- x$params[["T"]]
+  x$ix_gt %>% 
+    .[j = theta0 := theta] %>% 
+    .[j = lapply(s:A, 
+                 function(i) sum(theta0[time %in% (i-s+1):i])),
+      by = g] %>% 
+    setnames(c("g", s:A)) %>% 
+    melt(id.vars = c("g")) %>% 
+    .[j = as.vector(value)] - x$thetas_avgx$x_gs
+    # This outputs a vector that is recycles `g` faster than `t` (necessary info)
+    # to ensure that the gradient has the same order of moments
+}
+
+# As above, the gradient is invariant to theta, so we precalculate it and return it
+# to the function
+# The calculation is: for each row, defined by a given g and t, determine whether
+# those match the g, and the time-span related to t. We call those values in by
+# going through rows of the observed avgx data as a single index for our lapply().
+avgx_grad_gt.gt <- 
+  x$ix_gt %>% 
+  .[j = lapply(1:nrow(x$thetas_avgx), function(r) {
+    # Pulling this first, suspecting that it'd be faster than referencing it
+    # multiple times
+    my_row <- x$thetas_avgx[r]
+    1*(g == my_row$g & time %in% (my_row$time - x$params[["s"]] + 1):my_row$time)
+  })] %>% 
+  as.matrix() %>% 
+  t() / x$params[["s"]]
+
+avgx_grad_dt <- function(theta, x) {
+  avgx_grad_gt.gt 
+}
+
+```
+
+### Transition Moments
+
+These moment conditions are derived from the fact that each $\theta_{gt}$ can be predicted by the previous value $\theta_{gt-1}$ via the regression $\theta_{gt} = \beta\theta_{gt-1}$ where an estimate of $\beta$ has been obtained from external study -- e.g. the Current Population Survey, which identifies 
+
+our estimated parameter can be averaged within given time spans to match statistics reported for each smaller geography.
+
+Each moment condition thus takes the form of $\frac{1}{s}\Sigma_{i=t-s+1}^{t}\theta_{gi} - \bar{x}_{gt} = 0$. We have $G \times (T-s)$ of these moment conditions. 
+
+```{r}
+trans_moment_dt <- function(theta, x) {
+  x$ix_gt %>% 
+    .[j = theta0 := theta] %>% 
+    .[j = theta0_lag := shift(theta0, n = 1, type = "lag"),
+      by = g] %>% 
+    .[!is.na(theta0_lag)] %>% 
+    pull(theta0 - x$params$beta*theta0_lag) - x$
+    
+    
+    .[j = lapply(s:A, 
+                 function(i) sum(theta0[time %in% (i-s+1):i])),
+      by = g] %>% 
+    setnames(c("g", s:A)) %>% 
+    melt(id.vars = c("g")) %>% 
+    .[j = as.vector(value)] - x$thetas_avgx$x_gs
+}
+```
+
+
+### Combine Moments
+
+```{r}
+
+```
+
+
+# Implement the Method
+
+```{r bring in library example of moment fit, eval = FALSE}
+# See bottom of page 5 for this example: 
+#   https://cran.r-project.org/web/packages/momentfit/vignettes/gmmS4.pdf
+
+data(simData)
+
+# Moment function
+fct <- function(theta, x)
+  cbind(x-theta[1], (x-theta[1])^2-theta[2],
+        (x-theta[1])^3, (x-theta[1])^4-3*theta[2]^2)
+
+# Gradient function
+dfct <- function(theta, x) {
+  m1 <- mean(x-theta[1])
+  m2 <- mean((x-theta[1])^2)
+  m3 <- mean((x-theta[1])^3)
+  matrix(c(-1, -2*m1, -3*m2, -4*m3,
+           0, -1, 0, -6*theta[2]), 4, 2)
+}
+
+theta0=c(mu=1,sig2=1)
+x <- simData$x3
+system.time(mod3 <- momentModel(fct, x, theta0, grad=dfct, vcov="iid"))
+mod3
+
+
+```
+
+## Test Run with Toy Data
+
+```{r }
+
+```
+
+
+
+# Examine Output
+
+
