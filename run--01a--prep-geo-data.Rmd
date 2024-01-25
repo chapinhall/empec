@@ -409,6 +409,31 @@ geo_crosswalk_sd <-
   mutate(pct_sd = LANDAREA / sum(LANDAREA))
 ```
 
+```{r check relationships for the 5 SDs}
+if (FALSE) {
+  geo_crosswalk_sd %>% 
+    filter(School %in% c("Auburn", "Bangor", "Lewiston", "Portland", "Sanford")) %>% 
+    filter(pct_sd < 1)
+  
+  geo_crosswalk_sd %>%
+    filter(GEOID == "23005002400")
+  
+  ggplot() +
+    geom_sf(data = tractShp %>% filter(GEOID %in% c("23005002400")),
+            color = "red",   
+            fill = NA) +
+    geom_sf(data = sdShp %>% filter(school %in% c("Portland")),
+            color = NA, 
+            fill = "green",
+            alpha = 0.2) + 
+    geom_sf(data = sdShp %>% filter(school %in% c("Long Island")),
+            color = NA, 
+            fill = "blue",
+            alpha = 0.2) + 
+    theme_void()
+}
+```
+
 ```{r add county name to geo_crosswalk help label estimates}
 geo_crosswalk <- 
   geo_crosswalk %>% 
