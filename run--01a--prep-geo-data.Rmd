@@ -51,7 +51,6 @@ if (base_year <= 2021) {
 
 geo_crosswalk_puma <-
   fread(xwalk_source) %>% 
-    
     # for reference, this is the 2020 tract-to-PUMA crosswalk. While ACS5 data
     # from 2020 is available and uses this, the ACS1 data pull from 2021 uses
     # 2010 PUMA definitions. Temporarily, we are planning to continue to work on
@@ -75,8 +74,7 @@ geo_crosswalk_zcta <-
   fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_tract20_natl.txt") %>%
   rename(GEOID = GEOID_TRACT_20,
          ZCTA  = GEOID_ZCTA5_20) %>% 
-  mutate(#ZCTA          = str_pad(ZCTA,  width = 5,  side = "left", pad = "0"),
-         GEOID         = str_pad(GEOID, width = 11, side = "left", pad = "0"),  #GEOID: 11-digit (concatenation of state, county, place, and tract)
+  mutate(GEOID         = str_pad(GEOID, width = 11, side = "left", pad = "0"),  #GEOID: 11-digit (concatenation of state, county, place, and tract)
          STATEFIP      = substr(GEOID, 1,2),
          AREALAND_PART = as.numeric(AREALAND_PART)) %>%
   #restrict to my_state_fip
@@ -85,7 +83,8 @@ geo_crosswalk_zcta <-
   .[ZCTA %in% {zcta_min}:{zcta_max}] %>%
   .[j = TRLANDPCT := AREALAND_PART / sum(AREALAND_PART),
     by = GEOID] %>%
-  select(-STATEFIP)
+  select(-STATEFIP) %>% 
+  mutate(ZCTA = str_pad(ZCTA,  width = 5,  side = "left", pad = "0"))
     # See next chunk for defense/exploration of this approach for building a field
     # to apportion tract counts to ZCTAs
   # Source: https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.2020.html#zcta
@@ -149,9 +148,7 @@ geo_crosswalk_zcta_2010 %>%
   # Correlation is 0.8, after trimming away extremes with respect to population pct  
 ```
 
-
-```{r auto pull of tract and puma shapefiles}
-
+```{r auto pull of tract, puma and school district shapefiles}
 # Declare which vintage of Census TIGER shapefiles should be pulled
 tiger_year <- base_year
 
@@ -160,13 +157,30 @@ tiger_year <- base_year
 if (exists("my_county_fip")) county_val <- my_county_fip else county_val <- NULL
 
 # Note that cb = TRUE requests a lower-res file, which is fine for mapping we want to do
-
 try(tractShp  <-   tracts(state = my_state_fip, cb = TRUE, year = tiger_year, county = county_val), silent = T)
 try(pumaShp   <-    pumas(state = my_state_fip, cb = TRUE, year = tiger_year), silent = T)
 try(countyShp <- counties(state = my_state_fip, cb = TRUE, year = tiger_year), silent = T)
 try(zctaShp   <-    zctas(cb = TRUE, year = tiger_year, starts_with = zcta_starts), silent = T)
   # Note: we pull zctas differently--with "starts_with" rather than state because
   # the zctas() function can only return by state for years 2000 and 2010 
+
+# Download school district file from Census using tigris package
+elShp <- school_districts(state = {my_state_fip}, type = 'elementary', year = tiger_year)
+scShp <- school_districts(state = {my_state_fip}, type = 'secondary',  year = tiger_year)
+unShp <- school_districts(state = {my_state_fip}, type = 'unified',    year = tiger_year)
+
+# Clean data
+sdShp <- 
+  bind_rows(elShp %>% mutate(level = "elementary"), 
+            scShp %>% mutate(level = "secondary"), 
+            unShp %>% mutate(level = "unified"))
+rm(elShp, scShp, unShp)
+
+# Display school district shapefile
+ggplot() + 
+  geom_sf(data = sdShp,
+          aes(fill = level)) +
+  theme_void()
 ```
 
 ```{r pull puma and zcta shapefiles from Census website if not available from the tigris package pulls above}
@@ -230,8 +244,195 @@ countyShp <-
   rename(STATEFIP  = STATEFP,
          COUNTYFIP = COUNTYFP,
          County    = NAME)
+
+sdShp <-
+  sdShp %>% 
+  rename(school = NAME)
 ```
 
+```{r examine potential issues with geography}
+# Plot overlap to examine any potential issues
+ggplot() +
+  geom_sf(data = tractShp %>% filter(COUNTYFIP == "005"), #005 is Cumberland county, where Portland (largest population) is located.
+          color = "red",   
+          fill = NA) +
+  geom_sf(data = sdShp %>% filter(GEOID %in% c(2300009, 2303780, 2303930, 2305670, 2306060, 2309930, 2310530, 2310710, 
+                                               2312330, 2313560, 2314100, 2314210, 2314240, 2314771, 2314793, 2314837 # list of SDs that's related to county of 005 only
+                                               # 2310770, 2311790, 2314190, 2314768, 2314789 # list of SDs that's related to county of 005 and other counties
+                                               )),
+          color = "green", 
+          fill = NA,
+          alpha = 0.2) + 
+  theme_void()
+
+#school districts that are smaller than tract
+ggplot() +
+  geom_sf(data = tractShp %>% filter(COUNTYFIP == "005"),
+          color = "red",   
+          fill = NA) +
+  geom_sf(data = sdShp %>% filter(GEOID == 2314837),
+          color = NA, 
+          fill = "green",
+          alpha = 0.2) + 
+  theme_void()
+
+#m:m tract-SD
+ggplot() +
+  geom_sf(data = tractShp %>% filter(GEOID == "23003950100"),
+          color = "red",   
+          fill = NA) +
+  geom_sf(data = sdShp %>% filter(school == "Caswell"),
+          color = NA, 
+          fill = "green",
+          alpha = 0.2) + 
+  geom_sf(data = sdShp %>% filter(school == "New Sweden"),
+          color = NA, 
+          fill = "yellow",
+          alpha = 0.2) + 
+  geom_sf(data = sdShp %>% filter(school == "School Administrative District 24"),
+          color = NA, 
+          fill = "yellowgreen",
+          alpha = 0.2) + 
+  geom_sf(data = sdShp %>% filter(school == "Westmanland"),
+          color = NA, 
+          fill = "blue",
+          alpha = 0.2) + 
+  geom_sf(data = sdShp %>% filter(school == "Regional School Unit 39"),
+          color = NA, 
+          fill = "purple",
+          alpha = 0.2) + 
+  geom_sf(data = sdShp %>% filter(school == "Aroostook Unorganized Territory"),
+          color = NA, 
+          fill = "gray",
+          alpha = 0.2) + 
+  theme_void()
+
+```
+
+```{r check the 5 school districts}
+# Plot overlap to examine any potential issues for 5 municipalities/SDs:
+# "Auburn", "Bangor", "Lewiston", "Portland", "Sanford"
+# https://www2.census.gov/geo/maps/DC2020/PL20/st23_me/schooldistrict_maps/
+ggplot() +
+  geom_sf(data = sdShp %>% filter(school == "Auburn"), 
+          color = "blue",   
+          fill = "blue") +
+  geom_sf(data = sdShp %>% filter(school == "Bangor"), 
+          color = "green",   
+          fill = "green") +
+  geom_sf(data = sdShp %>% filter(school == "Lewiston"), 
+          color = "yellow",   
+          fill = "yellow") +
+  geom_sf(data = sdShp %>% filter(school == "Portland"), 
+          color = "red",   
+          fill = "red") +
+  geom_sf(data = sdShp %>% filter(school == "Sanford"), 
+          color = "purple",   
+          fill = "purple") +
+  geom_sf(data = sdShp,
+          color = "black",   
+          fill = NA,
+          linewidth = 0.2) +
+  theme_void()
+
+# Check with related county for each SDs
+if (FALSE) {
+  ggplot() +
+    geom_sf(data = tractShp %>% filter(COUNTYFIP %in% c("001")),
+            color = "red",   
+            fill = NA) +
+    geom_sf(data = sdShp %>% filter(school %in% c("Auburn")),
+            color = NA, 
+            fill = "green",
+            alpha = 0.2) + 
+    theme_void()
+  
+  ggplot() +
+    geom_sf(data = tractShp %>% filter(COUNTYFIP %in% c("019")),
+            color = "red",   
+            fill = NA) +
+    geom_sf(data = sdShp %>% filter(school %in% c("Bangor")),
+            color = NA, 
+            fill = "green",
+            alpha = 0.2) + 
+    theme_void()
+  
+  ggplot() +
+    geom_sf(data = tractShp %>% filter(COUNTYFIP %in% c("001")),
+            color = "red",   
+            fill = NA) +
+    geom_sf(data = sdShp %>% filter(school %in% c("Lewiston")),
+            color = NA, 
+            fill = "green",
+            alpha = 0.2) + 
+    theme_void()
+  
+  ggplot() +
+    geom_sf(data = tractShp %>% filter(COUNTYFIP %in% c("005")),
+            color = "red",   
+            fill = NA) +
+    geom_sf(data = sdShp %>% filter(school %in% c("Portland")),
+            color = NA, 
+            fill = "green",
+            alpha = 0.2) + 
+    theme_void()
+  
+  ggplot() +
+    geom_sf(data = tractShp %>% filter(COUNTYFIP %in% c("031")),
+            color = "red",   
+            fill = NA) +
+    geom_sf(data = sdShp %>% filter(school %in% c("Sanford")),
+            color = NA, 
+            fill = "green",
+            alpha = 0.2) + 
+    theme_void()
+}
+```
+
+```{r adds tract-SD crosswalk from NCES}
+# sdShp downloaded from the Census does not contain tract information
+# Crosswalk can be downloaded from the National Center for Education Statistics
+# Reference: https://nces.ed.gov/programs/edge/geographic/relationshipfiles
+download.file(url      = glue("https://nces.ed.gov/programs/edge/data/GRF22.zip"),
+              destfile = glue("{input_path}GRF22.zip"))
+unzip(glue("{input_path}GRF22.zip"),
+      exdir = str_replace(input_path, "\\/$", ""))
+
+geo_crosswalk_sd <-
+  read_xlsx(glue("{input_path}GRF22/grf22_lea_tract.xlsx")) %>% 
+  rename(school = NAME_LEA22,
+         GEOID  = TRACT) %>% 
+  mutate(STATEFIP = substr(GEOID, 1, 2),
+         LANDAREA = as.numeric(LANDAREA)) %>% 
+  filter(STATEFIP == {my_state_fip}) %>%
+  group_by(GEOID) %>% 
+  mutate(pct_sd = LANDAREA / sum(LANDAREA))
+```
+
+```{r check relationships for the 5 SDs}
+if (FALSE) {
+  geo_crosswalk_sd %>% 
+    filter(School %in% c("Auburn", "Bangor", "Lewiston", "Portland", "Sanford")) %>% 
+    filter(pct_sd < 1)
+  
+  geo_crosswalk_sd %>%
+    filter(GEOID == "23005002400")
+  
+  ggplot() +
+    geom_sf(data = tractShp %>% filter(GEOID %in% c("23005002400")),
+            color = "red",   
+            fill = NA) +
+    geom_sf(data = sdShp %>% filter(school %in% c("Portland")),
+            color = NA, 
+            fill = "green",
+            alpha = 0.2) + 
+    geom_sf(data = sdShp %>% filter(school %in% c("Long Island")),
+            color = NA, 
+            fill = "blue",
+            alpha = 0.2) + 
+    theme_void()
+}
+```
 
 ```{r add county name to geo_crosswalk help label estimates}
 geo_crosswalk <- 
@@ -239,27 +440,6 @@ geo_crosswalk <-
   merge(countyShp %>% as.data.frame() %>% select(COUNTYFIP, County) %>% unique(),
         by = "COUNTYFIP",
         all.x = TRUE)
-```
-
-```{r construct school district files}
-# Download school district file from Census using tigris package
-elShp <- school_districts(state = {my_state_fip}, type = 'elementary', year = tiger_year)
-scShp <- school_districts(state = {my_state_fip}, type = 'secondary',  year = tiger_year)
-unShp <- school_districts(state = {my_state_fip}, type = 'unified',    year = tiger_year)
-
-# Clean data
-sdShp <- 
-  bind_rows(elShp %>% mutate(level = "elementary"), 
-            scShp %>% mutate(level = "secondary"), 
-            unShp %>% mutate(level = "unified")) %>% 
-  rename(school = NAME)
-rm(elShp, scShp, unShp)
-
-# Display them
-ggplot() + 
-  geom_sf(data = sdShp,
-          aes(fill = level)) +
-  theme_void()
 ```
 
 ```{r load and feed in any auxiliary geographies}
@@ -299,40 +479,6 @@ if (exists("my_aux_geo")) {
       arrange(GEOID) %>% 
       View()
   }
-  
-  # Plot overlap to examine any potential issues
-  ggplot() +
-    geom_sf(data = tractShp %>% filter(COUNTYFIP == "005"), #005 is Cumberland county, where Portland (largest population) is located.
-            color = "red",   
-            fill = "red") +
-    geom_sf(data = auxShp,
-            color = "green", 
-            fill = NA, 
-            linewidth = 1) + 
-    theme_void()
-  
-  # Plot overlap to examine any potential issues for 5 municipalities/SDs
-  ggplot() +
-    geom_sf(data = auxShp %>% filter(school == "Portland"),
-            color = "red",   
-            fill = "red") +
-    geom_sf(data = auxShp %>% filter(school == "Lewiston"),
-            color = "yellow",   
-            fill = "yellow") +
-    geom_sf(data = auxShp %>% filter(school == "Auburn"),
-            color = "blue",   
-            fill = "blue") +
-    geom_sf(data = auxShp %>% filter(school == "Bangor"),
-            color = "green",   
-            fill = "green") +
-    geom_sf(data = auxShp %>% filter(school == "Sanford"),
-            color = "purple",   
-            fill = "purple") +
-    geom_sf(data = auxShp,
-            color = "black",   
-            fill = NA,
-            linewidth = 0.2) +
-    theme_void()
   
   # Subset intersected geographies to those with areas that are within 2 orders of
   # magnitude of the largest. This is primarily to rule out idiosyncratic overlaps
@@ -384,21 +530,20 @@ if (exists("my_aux_geo")) {
                 color = "green",
                 weight = 5.0,
                 fillOpacity = 0.0)
-}
-  
-leaflet_base_map %>% 
-  addLayersControl(
-    # baseGroups = c(),
-    overlayGroups = c("Tracts", 
-                      "PUMAs", 
-                      my_aux_geo_desc),
-    options = layersControlOptions(collapsed = FALSE))
 
+  leaflet_base_map %>% 
+    addLayersControl(
+      # baseGroups = c(),
+      overlayGroups = c("Tracts", 
+                        "PUMAs", 
+                        my_aux_geo_desc),
+      options = layersControlOptions(collapsed = FALSE))
+}
 ```
 
 
 ```{r collect and save GIS data}
-geo_objects <- c("my_state_fip", "geo_crosswalk", "geo_crosswalk_zcta", "tractShp", "pumaShp", "countyShp", "zctaShp", "leaflet_base_map")
+geo_objects <- c("my_state_fip", "geo_crosswalk", "geo_crosswalk_zcta", "geo_crosswalk_sd", "tractShp", "pumaShp", "countyShp", "zctaShp", "leaflet_base_map")
 if (exists("auxShp")) geo_objects <- c(geo_objects, "auxShp", "geo_crosswalk_aux")
 if (exists("my_county_fip")) geo_objects <- c(geo_objects, "my_county_fip")
 
