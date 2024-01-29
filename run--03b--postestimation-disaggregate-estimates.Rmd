@@ -186,7 +186,7 @@ if (developer_mode) {
 nowcast_elig_counts_final <- 
   nowcast_elig_counts_final %>% 
   select(-count, -count_se) %>% 
-  select(count    = count_upd,
+  rename(count    = count_upd,
          count_se = count_se_upd)
 ```
 
@@ -204,10 +204,10 @@ add_agg_level <- function(ests, agg_level) {
                   ZCTA     = ZCTA,
                   geo_part = TRLANDPCT)
     } else if (agg_level == "School") {
-      geo_merge_data <- 
-        geo_crosswalk_sd %>% 
-        transmute(GEOID    = GEOID, 
-                  School   = school, 
+      geo_merge_data <-
+        geo_crosswalk_sd %>%
+        transmute(GEOID    = GEOID,
+                  School   = school,
                   geo_part = pct_sd)
     } else if (agg_level == "aux_geo_label") {
       geo_merge_data <- 
@@ -223,6 +223,7 @@ add_agg_level <- function(ests, agg_level) {
     }
     ests <- 
       ests %>% 
+      .[cps_base_recency == "most_recent"] %>% 
       # Note: while merge() is typically used throughout this codebase, we use
       # left_join() here because we have a less-common situation of a large
       # many-to-many merge e.g. in the case of merging to zip codes, where there
