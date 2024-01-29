@@ -83,7 +83,7 @@ my_state_abbr <- "xx"
 # zcta_min <- 03901
 # zcta_max <- 04992
 zcta_min <-
-zcta_max <- 
+zcta_max <-
 
 # (Optional) -- If choosing to focus analysis on a single county, uncomment the
 #   following line and provide its name. Note that providing even just "Cook"
@@ -142,6 +142,10 @@ local_ccdf_incratio_base <- 225
 #
 # If this table is not provided, then the default of FPL will be used.
 
+# If providing custom income thresholds, provide a short label for use in describing
+# the output. For example, if using State Median Income, this could be specified
+# as "SMI"
+# ccdf_income_thresh_label <- "SMI"
 
 ### Set Other Run Parameters ---------------------------------------------------
 
@@ -155,6 +159,13 @@ local_ccdf_incratio_base <- 225
 # `FALSE`) meaning that a blended estimate may generate useful moderation and
 # greater accuracy
 use_only_sae_model_estimates <- TRUE
+
+# Specify an Excel file that contains a single tab to be inserted as a "front page"
+# to the output of final estimates. For example, this file may have information
+# about details of what the estimates represent (CCDF estimates, income-to-poverty
+# estimates) and contact information
+
+excel_front_page_file <- "path/to/file.xlsx"
 
 ```
 

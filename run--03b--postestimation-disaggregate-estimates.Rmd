@@ -440,7 +440,7 @@ write_agg_output <- function(outcomes_regex, agg_levels, out_label) {
 
 ```{r write various levels of geographic aggregation out to file for ccdf}
 
-outcomes_out_regex <- "ccdf_elig_incratio_|incpov_le(100|200)"
+outcomes_out_regex <- "ccdf_elig_incratio_|incpov_le(50|100|200)"
 
 lAgg_for_output <- 
   list(list(agg_table = nowcast_agg_zip,
