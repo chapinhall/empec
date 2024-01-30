@@ -448,7 +448,10 @@ lAgg_for_output <-
             sheet_name = "Zip Code"),
        list(agg_table = nowcast_agg_cty,
             agg_field = "County",
-            sheet_name = "County"))
+            sheet_name = "County"),
+       list(agg_table = nowcast_agg_sd,
+            agg_field = "School",
+            sheet_name = "School Districts"))
 
 if (exists("my_aux_geo")) {
   lAgg_for_output[length(lAgg_for_output)+1] <- 
