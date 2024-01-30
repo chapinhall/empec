@@ -170,19 +170,24 @@ nowcast_elig_counts_final <-
          count_se_upd = case_when(str_detect(age, "3to5|0to5") ~ sqrt(count_se^2 - var_to_move),
                                   str_detect(age, "6to12")     ~ sqrt(count_se^2 + var_to_move),
                                   TRUE                         ~ count_se))
+```
 
-if (developer_mode) {
-  nowcast_elig_counts_final %>% 
-    filter(outcome_var == outcome_var[1],
-           cps_base_recency == cps_base_recency[1],
-           pd == "nowcast") %>% 
-    ggplot(aes(x = count,
-               y = count_upd - count)) +
-    facet_wrap(~age,
-               scales = "free") +
-    geom_point()
-}
 
+```{r check on reallocation of a portion of five year olds to the school-aged group, eval = developer_mode}
+
+nowcast_elig_counts_final %>% 
+  filter(outcome_var == outcome_var[1],
+         cps_base_recency == cps_base_recency[1],
+         pd == "nowcast") %>% 
+  ggplot(aes(x = count,
+             y = count_upd - count)) +
+  facet_wrap(~age,
+             scales = "free") +
+  geom_point()
+```
+
+
+```{r complete reallocation of a portion of five year olds to the school-aged group}
 nowcast_elig_counts_final <- 
   nowcast_elig_counts_final %>% 
   select(-count, -count_se) %>% 
