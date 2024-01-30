@@ -392,7 +392,7 @@ write_agg_output <- function(outcomes_regex, agg_levels, out_label) {
                            sheetName = lvl[["sheet_name"]])
     
     # Write the data to the new sheet
-    writeDataTable(wb, 
+    openxlsx::writeDataTable(wb, 
                    sheet = lvl[["sheet_name"]], 
                    x = add_sheet,
                    colNames = TRUE, 
@@ -400,35 +400,35 @@ write_agg_output <- function(outcomes_regex, agg_levels, out_label) {
                    tableStyle = "TableStyleMedium2")
     
     # Format specified columns as percentage
-    addStyle(wb, 
+    openxlsx::addStyle(wb, 
              sheet = lvl[["sheet_name"]], 
-             style = createStyle(numFmt = "0.0%"), 
+             style = openxlsx::createStyle(numFmt = "0.0%"), 
              cols = str_which(cn(add_sheet), "-- %"),
              rows = 1:nrow(add_sheet),
              gridExpand = TRUE)
     
     # Wrap text for header row
-    addStyle(wb, 
+    openxlsx::addStyle(wb, 
              sheet = lvl[["sheet_name"]], 
-             style = createStyle(wrapText = TRUE), 
+             style = openxlsx::createStyle(wrapText = TRUE), 
              cols = 1:ncol(add_sheet),
              rows = 1,
              gridExpand = TRUE)
     
     # Freeze the top row and leftmost column
-    freezePane(wb,
+    openxlsx::freezePane(wb,
                sheet = lvl[["sheet_name"]],
                firstRow = TRUE,
                firstCol = TRUE)
     
     # Set column widths
-    setColWidths(wb, 
+    openxlsx::setColWidths(wb, 
                  sheet = lvl[["sheet_name"]], 
                  cols = 2:ncol(add_sheet), 
                  widths = 18)
     
     # Group and hide columns corresponding to upper and lower bounds
-    groupColumns(wb,
+    openxlsx::groupColumns(wb,
                  sheet = lvl[["sheet_name"]],
                  cols = str_which(cn(add_sheet), "bound$"),
                  hidden = TRUE)
@@ -453,7 +453,10 @@ lAgg_for_output <-
             sheet_name = "Zip Code"),
        list(agg_table = nowcast_agg_cty,
             agg_field = "County",
-            sheet_name = "County"))
+            sheet_name = "County"),
+       list(agg_table = nowcast_agg_sd,
+            agg_field = "School",
+            sheet_name = "School Districts"))
 
 if (exists("my_aux_geo")) {
   lAgg_for_output[length(lAgg_for_output)+1] <- 
@@ -789,15 +792,17 @@ for (out_var in c("ccdf", "le100", "le200")) {
                         #val_limits = c(0, 0.6),
                         show_legend = TRUE)
   
-  static_map_level_diff(estimates = nowcast_agg_aux %>% filter(age == "age_0to5"),
-                        geo_level = "aux",
-                        geo_level_merge_field = "aux_geo_label",
-                        geo_level_desc = my_aux_geo_desc,
-                        outcome = out_var,
-                        field_desc = out_var_desc,
-                        save_map = TRUE, 
-                        #val_limits = c(0, 0.6),
-                        show_legend = TRUE) 
+  if (exists("my_aux_geo")) {
+    static_map_level_diff(estimates = nowcast_agg_aux %>% filter(age == "age_0to5"),
+                          geo_level = "aux",
+                          geo_level_merge_field = "aux_geo_label",
+                          geo_level_desc = my_aux_geo_desc,
+                          outcome = out_var,
+                          field_desc = out_var_desc,
+                          save_map = TRUE, 
+                          #val_limits = c(0, 0.6),
+                          show_legend = TRUE) 
+  }
 }
 ```
 

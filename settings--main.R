@@ -16,7 +16,7 @@ packages.list <-
     "extrafont", "remotes", "broom", "sf", "lwgeom", "foreach", "doParallel",
     "xlsx", "tidycensus", "fredr", "ipumsr", "tsibble", "forecast", "fable", 
     "boot", "ggtext", "data.table", "tidyr", "dplyr", "scales", "janitor", "R.utils",
-    "lubridate")
+    "lubridate", "readxl", "openxlsx")
 
 for (p in packages.list) {
   if (!p %in% installed.packages()[, "Package"]) {

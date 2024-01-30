@@ -170,7 +170,7 @@ scShp <- school_districts(state = {my_state_fip}, type = 'secondary',  year = ti
 unShp <- school_districts(state = {my_state_fip}, type = 'unified',    year = tiger_year)
 
 # Clean data
-sdShp <- 
+schoolShp <- 
   bind_rows(elShp %>% mutate(level = "elementary"), 
             scShp %>% mutate(level = "secondary"), 
             unShp %>% mutate(level = "unified"))
@@ -178,7 +178,7 @@ rm(elShp, scShp, unShp)
 
 # Display school district shapefile
 ggplot() + 
-  geom_sf(data = sdShp,
+  geom_sf(data = schoolShp,
           aes(fill = level)) +
   theme_void()
 ```
@@ -245,8 +245,8 @@ countyShp <-
          COUNTYFIP = COUNTYFP,
          County    = NAME)
 
-sdShp <-
-  sdShp %>% 
+schoolShp <-
+  schoolShp %>% 
   rename(school = NAME)
 ```
 
@@ -256,7 +256,7 @@ ggplot() +
   geom_sf(data = tractShp %>% filter(COUNTYFIP == "005"), #005 is Cumberland county, where Portland (largest population) is located.
           color = "red",   
           fill = NA) +
-  geom_sf(data = sdShp %>% filter(GEOID %in% c(2300009, 2303780, 2303930, 2305670, 2306060, 2309930, 2310530, 2310710, 
+  geom_sf(data = schoolShp %>% filter(GEOID %in% c(2300009, 2303780, 2303930, 2305670, 2306060, 2309930, 2310530, 2310710, 
                                                2312330, 2313560, 2314100, 2314210, 2314240, 2314771, 2314793, 2314837 # list of SDs that's related to county of 005 only
                                                # 2310770, 2311790, 2314190, 2314768, 2314789 # list of SDs that's related to county of 005 and other counties
                                                )),
@@ -270,7 +270,7 @@ ggplot() +
   geom_sf(data = tractShp %>% filter(COUNTYFIP == "005"),
           color = "red",   
           fill = NA) +
-  geom_sf(data = sdShp %>% filter(GEOID == 2314837),
+  geom_sf(data = schoolShp %>% filter(GEOID == 2314837),
           color = NA, 
           fill = "green",
           alpha = 0.2) + 
@@ -281,27 +281,27 @@ ggplot() +
   geom_sf(data = tractShp %>% filter(GEOID == "23003950100"),
           color = "red",   
           fill = NA) +
-  geom_sf(data = sdShp %>% filter(school == "Caswell"),
+  geom_sf(data = schoolShp %>% filter(school == "Caswell"),
           color = NA, 
           fill = "green",
           alpha = 0.2) + 
-  geom_sf(data = sdShp %>% filter(school == "New Sweden"),
+  geom_sf(data = schoolShp %>% filter(school == "New Sweden"),
           color = NA, 
           fill = "yellow",
           alpha = 0.2) + 
-  geom_sf(data = sdShp %>% filter(school == "School Administrative District 24"),
+  geom_sf(data = schoolShp %>% filter(school == "School Administrative District 24"),
           color = NA, 
           fill = "yellowgreen",
           alpha = 0.2) + 
-  geom_sf(data = sdShp %>% filter(school == "Westmanland"),
+  geom_sf(data = schoolShp %>% filter(school == "Westmanland"),
           color = NA, 
           fill = "blue",
           alpha = 0.2) + 
-  geom_sf(data = sdShp %>% filter(school == "Regional School Unit 39"),
+  geom_sf(data = schoolShp %>% filter(school == "Regional School Unit 39"),
           color = NA, 
           fill = "purple",
           alpha = 0.2) + 
-  geom_sf(data = sdShp %>% filter(school == "Aroostook Unorganized Territory"),
+  geom_sf(data = schoolShp %>% filter(school == "Aroostook Unorganized Territory"),
           color = NA, 
           fill = "gray",
           alpha = 0.2) + 
@@ -314,22 +314,22 @@ ggplot() +
 # "Auburn", "Bangor", "Lewiston", "Portland", "Sanford"
 # https://www2.census.gov/geo/maps/DC2020/PL20/st23_me/schooldistrict_maps/
 ggplot() +
-  geom_sf(data = sdShp %>% filter(school == "Auburn"), 
+  geom_sf(data = schoolShp %>% filter(school == "Auburn"), 
           color = "blue",   
           fill = "blue") +
-  geom_sf(data = sdShp %>% filter(school == "Bangor"), 
+  geom_sf(data = schoolShp %>% filter(school == "Bangor"), 
           color = "green",   
           fill = "green") +
-  geom_sf(data = sdShp %>% filter(school == "Lewiston"), 
+  geom_sf(data = schoolShp %>% filter(school == "Lewiston"), 
           color = "yellow",   
           fill = "yellow") +
-  geom_sf(data = sdShp %>% filter(school == "Portland"), 
+  geom_sf(data = schoolShp %>% filter(school == "Portland"), 
           color = "red",   
           fill = "red") +
-  geom_sf(data = sdShp %>% filter(school == "Sanford"), 
+  geom_sf(data = schoolShp %>% filter(school == "Sanford"), 
           color = "purple",   
           fill = "purple") +
-  geom_sf(data = sdShp,
+  geom_sf(data = schoolShp,
           color = "black",   
           fill = NA,
           linewidth = 0.2) +
@@ -341,7 +341,7 @@ if (FALSE) {
     geom_sf(data = tractShp %>% filter(COUNTYFIP %in% c("001")),
             color = "red",   
             fill = NA) +
-    geom_sf(data = sdShp %>% filter(school %in% c("Auburn")),
+    geom_sf(data = schoolShp %>% filter(school %in% c("Auburn")),
             color = NA, 
             fill = "green",
             alpha = 0.2) + 
@@ -351,7 +351,7 @@ if (FALSE) {
     geom_sf(data = tractShp %>% filter(COUNTYFIP %in% c("019")),
             color = "red",   
             fill = NA) +
-    geom_sf(data = sdShp %>% filter(school %in% c("Bangor")),
+    geom_sf(data = schoolShp %>% filter(school %in% c("Bangor")),
             color = NA, 
             fill = "green",
             alpha = 0.2) + 
@@ -361,7 +361,7 @@ if (FALSE) {
     geom_sf(data = tractShp %>% filter(COUNTYFIP %in% c("001")),
             color = "red",   
             fill = NA) +
-    geom_sf(data = sdShp %>% filter(school %in% c("Lewiston")),
+    geom_sf(data = schoolShp %>% filter(school %in% c("Lewiston")),
             color = NA, 
             fill = "green",
             alpha = 0.2) + 
@@ -371,7 +371,7 @@ if (FALSE) {
     geom_sf(data = tractShp %>% filter(COUNTYFIP %in% c("005")),
             color = "red",   
             fill = NA) +
-    geom_sf(data = sdShp %>% filter(school %in% c("Portland")),
+    geom_sf(data = schoolShp %>% filter(school %in% c("Portland")),
             color = NA, 
             fill = "green",
             alpha = 0.2) + 
@@ -381,7 +381,7 @@ if (FALSE) {
     geom_sf(data = tractShp %>% filter(COUNTYFIP %in% c("031")),
             color = "red",   
             fill = NA) +
-    geom_sf(data = sdShp %>% filter(school %in% c("Sanford")),
+    geom_sf(data = schoolShp %>% filter(school %in% c("Sanford")),
             color = NA, 
             fill = "green",
             alpha = 0.2) + 
@@ -390,7 +390,7 @@ if (FALSE) {
 ```
 
 ```{r adds tract-SD crosswalk from NCES}
-# sdShp downloaded from the Census does not contain tract information
+# schoolShp downloaded from the Census does not contain tract information
 # Crosswalk can be downloaded from the National Center for Education Statistics
 # Reference: https://nces.ed.gov/programs/edge/geographic/relationshipfiles
 download.file(url      = glue("https://nces.ed.gov/programs/edge/data/GRF22.zip"),
@@ -422,11 +422,11 @@ if (FALSE) {
     geom_sf(data = tractShp %>% filter(GEOID %in% c("23005002400")),
             color = "red",   
             fill = NA) +
-    geom_sf(data = sdShp %>% filter(school %in% c("Portland")),
+    geom_sf(data = schoolShp %>% filter(school %in% c("Portland")),
             color = NA, 
             fill = "green",
             alpha = 0.2) + 
-    geom_sf(data = sdShp %>% filter(school %in% c("Long Island")),
+    geom_sf(data = schoolShp %>% filter(school %in% c("Long Island")),
             color = NA, 
             fill = "blue",
             alpha = 0.2) + 
@@ -543,7 +543,7 @@ if (exists("my_aux_geo")) {
 
 
 ```{r collect and save GIS data}
-geo_objects <- c("my_state_fip", "geo_crosswalk", "geo_crosswalk_zcta", "geo_crosswalk_sd", "tractShp", "pumaShp", "countyShp", "zctaShp", "leaflet_base_map")
+geo_objects <- c("my_state_fip", "geo_crosswalk", "geo_crosswalk_zcta", "geo_crosswalk_sd", "tractShp", "pumaShp", "countyShp", "zctaShp", "schoolShp", "leaflet_base_map")
 if (exists("auxShp")) geo_objects <- c(geo_objects, "auxShp", "geo_crosswalk_aux")
 if (exists("my_county_fip")) geo_objects <- c(geo_objects, "my_county_fip")
 
