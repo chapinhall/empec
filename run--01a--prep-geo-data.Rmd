@@ -184,27 +184,33 @@ ggplot() +
 ```
 
 ```{r pull puma and zcta shapefiles from Census website if not available from the tigris package pulls above}
-for (geo in c("puma20", "zcta520")) {
-  census_suffix <- switch(geo, "puma" = "puma20", "zcta" = "zcta520")
-  census_path   <- switch(geo, 
-                          "puma20"   = glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/PUMA/"),
-                          "zcta520"   = glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/ZCTA520/"))
-  if (geo == "puma20" && !exists("pumaShp")) {
+if (!exists("pumaShp", envir = .GlobalEnv)) {
+  pumafile <- glue("{input_path}tl_{tiger_year}_{my_state_fip}_puma20.shp")
+  if (!exists("pumafile")) {
+    census_path       <- glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/PUMA/")
     download_filename <- glue("state_{my_state_fip}_puma20.zip")
     download.file(url      = glue("{census_path}tl_{tiger_year}_{my_state_fip}_puma20.zip"),
                   destfile = glue("{input_path}{download_filename}.zip"))
     unzip(glue("{input_path}tl_{tiger_year}_{my_state_fip}_{geo}.zip"),
           exdir = str_replace(input_path, "\\/$", ""))
-    pumaShp <- st_read(glue("{input_path}tl_{tiger_year}_{my_state_fip}_puma20.shp"))
-  } else if (geo == "zcta520" && !exists("zctaShp")) {
+  }
+  pumaShp <- st_read(glue("{input_path}tl_{tiger_year}_{my_state_fip}_puma20.shp"))
+  rm(pumafile)
+}
+
+if (!exists("zctaShp", envir = .GlobalEnv)) {
+  zctafile <- glue("{input_path}tl_{tiger_year}_us_zcta520.shp")
+  if (!exists("zctafile")) {
+    census_path       <- glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/ZCTA520/")
     download_filename <- glue("us_zcta520")
     download.file(url      = glue("{census_path}tl_{tiger_year}_us_zcta520.zip"),
                   destfile = glue("{input_path}{download_filename}.zip"))
     unzip(glue("{input_path}tl_{tiger_year}_us_zcta520.zip"),
           exdir = str_replace(input_path, "\\/$", ""))
-    zctaShp <- st_read(glue("{input_path}tl_{tiger_year}_us_zcta520.shp"))
   }
-}  
+  zctaShp <- st_read(glue("{input_path}tl_{tiger_year}_us_zcta520.shp"))
+  rm(zctafile)
+}
 ```
 
 ```{r rename certain fields in shapefiles to agree with those in the crosswalks}
@@ -393,13 +399,15 @@ if (FALSE) {
 # schoolShp downloaded from the Census does not contain tract information
 # Crosswalk can be downloaded from the National Center for Education Statistics
 # Reference: https://nces.ed.gov/programs/edge/geographic/relationshipfiles
-download.file(url      = glue("https://nces.ed.gov/programs/edge/data/GRF22.zip"),
-              destfile = glue("{input_path}GRF22.zip"))
-unzip(glue("{input_path}GRF22.zip"),
-      exdir = str_replace(input_path, "\\/$", ""))
-
+grffile <- glue("{input_path}GRF22/grf22_lea_tract.xlsx")
+if (!exists("grffile")) {
+  download.file(url      = glue("https://nces.ed.gov/programs/edge/data/GRF22.zip"),
+            destfile = glue("{input_path}GRF22.zip"))
+  unzip(glue("{input_path}GRF22.zip"),
+        exdir = str_replace(input_path, "\\/$", ""))
+}
 geo_crosswalk_sd <-
-  read_xlsx(glue("{input_path}GRF22/grf22_lea_tract.xlsx")) %>% 
+  read_xlsx(grffile) %>% 
   rename(school = NAME_LEA22,
          GEOID  = TRACT) %>% 
   mutate(STATEFIP = substr(GEOID, 1, 2),
@@ -407,6 +415,7 @@ geo_crosswalk_sd <-
   filter(STATEFIP == {my_state_fip}) %>%
   group_by(GEOID) %>% 
   mutate(pct_sd = LANDAREA / sum(LANDAREA))
+rm(grffile)
 ```
 
 ```{r check relationships for the 5 SDs}
