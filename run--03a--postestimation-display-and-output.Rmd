@@ -22,28 +22,15 @@ load(file = glue("{output_path}acs5_data_{my_output_tag}.Rda"))
 ```
 
 ```{r select a sensitivity}
-# /*\ This is something that users of this method must specify
+
 # Below, there are several `if` clauses that already implement--and describe--
 # logic for selecting a sensitivity specific for each of several run specifications
 
-if (str_detect(my_output_tag, "IL2022")) {
-  # Rationale is we're not just focused on metro areas, and we want the most
-  # up-to-date estimates as possible
-  nowcast_selected_sens <-
-    nowcast_out[cps_geo_subsample == "none" & 
-                cps_base_recency  == "most_recent"]
-} else if (str_detect(my_output_tag, "Cook|Chi")) {
-  # Rationale is we are focused on a metro areas, and we want estimates for 2022
-  # that are parallel to 2021, given that this method is part of a sequence of
-  # a sequence of annual reports
-  nowcast_selected_sens <-
-    nowcast_out[cps_geo_subsample == "metros" & 
-                cps_base_recency  == "allbase"]
-} else if (str_detect(my_output_tag, "Dirigo")) {
-  nowcast_selected_sens <-
-    nowcast_out[cps_geo_subsample == "none" & 
-                cps_base_recency  == "most_recent"]
-}
+# If a county has been provided, we assume that it is for a higher density area,
+# and that the use of the 'metropolitan areas' subset of CPS data is appropriate
+nowcast_selected_sens <-
+    nowcast_out[cps_geo_subsample == ifelse(exists("my_county"), "metros", "none")]
+
 ```
 
 
@@ -133,7 +120,7 @@ for (ccdf_spec in unique(str_subset(nowcast_parallel_setup$outcome_var, "ccdf_el
 # Generate parallel base/nowcast constructions wide by base/now measures 
 nowcast_parallel_preshape <- 
   bind_rows(bind_list) %>% 
-  dplyr::select(GEOID, outcome_var, age, base_share, base_share_se, nowcast_share, nowcast_share_se) %>% 
+  dplyr::select(GEOID, cps_base_recency, outcome_var, age, base_share, base_share_se, nowcast_share, nowcast_share_se) %>% 
   # /!\ ** This unique() should not be necessary. However, it's occurring because
   # there are duplicates resulting from a merge of the crosswalk file, due to
   # overlaps with ZCTAs. There should be a cleaner, unique crosswalk of census
@@ -198,7 +185,9 @@ share_pre_post <-
 tractShp %>% 
   merge(share_pre_post, 
         by = "GEOID") %>%
-  filter(outcome_var %like% "le50") %>%
+  filter(outcome_var %like% "le50",
+         cps_base_recency == "most_recent",
+         age == "age_0to5") %>%
   ggplot(aes(fill = share_nowcast)) +
   geom_sf(color = NA) +
   facet_wrap(~ outcome_var) +
@@ -217,7 +206,7 @@ We compare now-cast estimates to baseline SAE estimates for only Head Start elig
 comp_nowcast_vs_sae <- function(share_ests, title, xlab, ylab, save_tag) {
   
   my_plot <- 
-    ggplot(share_ests,
+    ggplot(share_ests %>% filter(cps_base_recency == "allbase"),
            aes(x = share_base,
                y = share_nowcast)) +
     geom_point(alpha = 0.2) +
@@ -288,7 +277,8 @@ plot_elig_diff_vs_char <-
     
     dt_plot <-
       share_pre_post_chars %>% 
-      filter(str_detect(outcome_var, outcome_string))
+      filter(str_detect(outcome_var, outcome_string),
+             cps_base_recency == "allbase")
     
     my_plot <- 
       ggplot(dt_plot,
@@ -302,6 +292,7 @@ plot_elig_diff_vs_char <-
                   se = FALSE) +
       scale_x_continuous(label = percent) +
       scale_y_continuous(label = percent) +
+      facet_wrap(~age) +
       labs(x = char_desc,
            y = glue("Change in {outcome_desc} - {base_year} to {base_year + 1}")) +
       theme_minimal()
