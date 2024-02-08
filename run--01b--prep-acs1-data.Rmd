@@ -39,13 +39,15 @@ acs1[j = PUMA := str_pad(PUMA, width = 5, side = "left", pad = "0")]
 ```{r develop fields for the relationship variable depending on its source}
 if (base_year <= 2018) {
   acs1[j = cRel := 
-         case_when(rel_var == 00 ~ "Head",
-                   rel_var == 01 ~ "Spouse",
+         case_when(rel_var == 00                    ~ "Head",
+                   rel_var == 01                    ~ "Spouse",
+                   rel_Var %in% c("02", "03", "04") ~ "Child",
                    TRUE ~ "Other relationship")]
 } else {
   acs1[j = cRel := 
-         case_when(rel_var == 20 ~ "Head",
+         case_when(rel_var == 20          ~ "Head",
                    rel_var %in% c(21, 23) ~ "Spouse",
+                   rel_var %in% 25:27     ~ "Child",
                    TRUE ~ "Other relationship")]
 }
 ```
@@ -66,7 +68,7 @@ my_state_fip <-
   unique()
 
 acs1 <- 
-  acs1[TYPE %in% c(1) &
+  acs1[TYPEHUGQ %in% c(1) &
          ST == my_state_fip &
          YEAR == max(YEAR)]
 
@@ -117,8 +119,9 @@ acs1_hoh <-
            hoh_hispanic = 1*(HISP != 1))] %>% # Note: multiplication by 1 converts the TRUE/FALSE output to 1/0
   .[j = hoh_industry_vulnerable := ifelse(hoh_industry == "NA", 
                                           "NA", 
-                                          str_detect(hoh_industry, "educhealth|food"))] %>% # Note: the second argument to str_detect() uses regular experessions. For reference, see e.g. https://regexone.com/
-  dplyr::select(YEAR, SAMPLE, SERIALNO, hoh_educ, hoh_industry, hoh_industry_vulnerable, hoh_race, hoh_hispanic)
+                                          str_detect(hoh_industry, "educhealth|food"))] %>% # Note: the second argument to str_detect() uses regular expressions. For reference, see e.g. https://regexone.com/
+  dplyr::select(YEAR, #SAMPLE, 
+                SERIALNO, hoh_educ, hoh_industry, hoh_industry_vulnerable, hoh_race, hoh_hispanic)
 ```
 
 ```{r view variables relevant to constructing household-level measures, eval = developer_mode, results = "asis"}
@@ -146,10 +149,10 @@ An additional set of indicators is built using all information about household m
 acs1_hh <-
   copy(acs1) %>% 
   .[j = fam_size := .N,
-    by = .(YEAR, SAMPLE, SERIALNO)] %>% 
+    by = .(YEAR, SERIALNO)] %>% 
   .[i = cRel %in% c("Head", "Spouse"), # subset to only householder and spouse records
-    by = .(YEAR, SAMPLE, SERIALNO, fam_size),
-    j = .(spouse_present = maxNA(cRel == "Spouse"),
+    by = .(YEAR, SERIALNO, fam_size),
+    j = .(spouse_present = maxNA(cRel == "Spouse"),             # note: spouse_present is hh-level var
           all_work_sch   = minNA(ESR %in% 1:2 | SCH %in% 2:3))] # corresponds to working, or in school
 
   # /!\ Not built, but possibly of interest may be gender of households, and
@@ -162,7 +165,7 @@ acs1_hh <-
 if (FALSE) {
   check <- 
     merge(acs1[j = .(YEAR, SERIALNO, cRel, SEX, AGEP, SCH, ESR)],
-          acs1_hh[j = .(YEAR, SERIALNO, spouse_present, all_work_sch)],
+          acs1_hh[j = .(YEAR, SERIALNO, fam_size, spouse_present, all_work_sch)],
           all = TRUE) %>% 
     .[order(SERIALNO, YEAR)]
   View(check)
@@ -202,12 +205,12 @@ Besides the indicators above, all other relevant characteristics are measured re
 
 ```{r prepare ACS 1-year microdata for children}
 acs1_child <- 
-  acs1[AGEP <= 14] %>% 
+  acs1[AGEP <= kid_age_thres_p+1] %>% 
   merge(acs1_hoh, 
-        by = c("YEAR", "SAMPLE", "SERIALNO"), 
+        by = c("YEAR", "SERIALNO"), 
         all.x = TRUE) %>%
   merge(acs1_hh,
-        by = c("YEAR", "SAMPLE", "SERIALNO"),
+        by = c("YEAR", "SERIALNO"),
         all.x = TRUE) %>% 
   .[, fam_incpov_ratio := POVPIP / 100] %>% 
   .[, `:=`(child_agegroup = bin_age(AGEP),
@@ -223,15 +226,15 @@ acs1_child <-
            fam_incpov_ratio_cat_by75    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.75, 1.50, 2.25, 4.00)),
            fam_incpov_ratio_cat_by100   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 1.0)),
            obs_weight = PWGTP)] %>% 
-  .[j = `:=`(work_spouse_status = paste(ifelse(all_work_sch   == 1, "WorkElig",      "NotWorkElig"),
-                                        ifelse(spouse_present == 1, "SpousePresent", "NoSpousePresent"),
-                                        sep = "_"),
+  .[j = `:=`(work_spouse_status    = paste(ifelse(all_work_sch == 1, "WorkElig",      "NotWorkElig"),
+                                           ifelse(spouse_present == 1, "SpousePresent", "NoSpousePresent"),
+                                           sep = "_"),
              work_incpov_status185 = paste(ifelse(all_work_sch == 1, "WorkElig", "NotWorkElig"),
-                                        fam_incpov_ratio_cat_to185,
-                                        sep = "_"),
+                                           fam_incpov_ratio_cat_to185,
+                                           sep = "_"),
              work_incpov_status100 = paste(ifelse(all_work_sch == 1, "WorkElig", "NotWorkElig"),
-                                        fam_incpov_ratio_cat_by100,
-                                        sep = "_"),
+                                           fam_incpov_ratio_cat_by100,
+                                           sep = "_"),
              work_incpov_status75  = paste(ifelse(all_work_sch == 1, "WorkElig", "NotWorkElig"),
                                            fam_incpov_ratio_cat_by75,
                                            sep = "_"),
@@ -447,7 +450,7 @@ elig_stats_puma_stack %>%
 
 ```{r verify that data sets only have one obs per child, eval = developer_mode}
 acs1_child %>% 
-  group_by("SAMPLE", "SERIALNO", "SPORDER") %>% 
+  group_by("SERIALNO", "SPORDER") %>% 
   summarize(count = n()) %>% 
   group_by(count) %>% 
   tally() 

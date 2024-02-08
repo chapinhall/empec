@@ -2,7 +2,7 @@
 
 This is a project intended to estimate counts of children eligible for a range of child care subsidies and supports. This is relevant to Chapin Hall's work as part of its federally-funded Child Care Policy Research Partnership (CCPRP) project in partnership with the Illinois Department of Human Services (IDHS) as well as local work in collaboration with the Chicago Department of Family and Support Services (DFSS). Each agency is tasked with managing public funding to ensure adequate access to quality childcare in their jurisdictions, and understanding the quantity of need--and eligibility for public supports--is a key consideration.
 
-E-mail [Nick Mader](mailto:nmader@chapinhall.org) for questions related to this method or this codebase.
+E-mail [Nick Mader](mailto:nmader@chapinhall.org) and [Hyein Kang](mailto:hkang@chapinhall.org) for questions related to this method or this codebase.
 
 # Methodology
 
@@ -147,6 +147,10 @@ local_ccdf_incratio_base <- 225
 # as "SMI"
 # ccdf_income_thresh_label <- "SMI"
 
+# Speficy age threshold eligible for programs
+kid_age_thres_p  <- 13
+kid_age_thres_hs <- 5
+
 ### Set Other Run Parameters ---------------------------------------------------
 
 # Use only "model" estimates from the Small Area Estimation method, rather than
@@ -241,7 +245,7 @@ These files can be run manually, but are generally set up to be run automaticall
 * `run--01b--prep-acs1-data.Rmd` -- reads pulls of ACS1 microdata and develops necessary structures for use in the Small Area Estimation method
 * `run--01c--prep-cps-data.Rmd` -- reads pulls of CPS microdata (instructions provided above) and develops necessary structures for use in the "now-casting" method
 * `run--01d--prep-acs5-data.Rmd` -- adds onto the output from the `pull--acs5-general-data.R` script, adding some additional fields, and aggregating calculations and standard errors up to the PUMA level
-* `run--01e--prep-pop-by-age-data.Rmd` -- pulls data from the Census redistricting files, SF1 Census files, and ACS5 to get population by age group to use in projecting population counts for young children
+* `run--01e--prep-pop-by-age-data.Rmd` -- pulls data from the Census Demographic and Housing Characteristics File (DHC) and Census Summary File 1 (SF1) to get population by age group to use in projecting population counts for young children by the most recent year.
 * `run--02a--run-and-validate-SAE.Rmd` -- run a range of SAE specifications for a range of measures--including share of households by income-to-poverty ratio, and measures related to predicting CCDF eligibility--and examine their properties to gauge their individual reliability, and compare their output
 * `run--02b--run-and-validate-nowcasting.Rmd` -- run a range of "now-casting" analyses, apply them to baseline+SAE measures to estimate counts, and examine patterns and maps of the output.
 * `run--03a--postestimation-display-and-output.Rmd` -- after selecting sensitivities based on output guidance from the `02` scripts, this script examines patterns of the results, and outputs the final estimates in maps and Excel tables
