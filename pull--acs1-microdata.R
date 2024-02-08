@@ -27,8 +27,6 @@
 # - method--general-helper-functions.R
 
 #list necessary variables
-# Note: "TYPE" is missing
-
 rel_var <- ifelse(base_year <= 2018,
                   "RELP",
                   "RELSHIPP")
@@ -36,7 +34,7 @@ rel_var <- ifelse(base_year <= 2018,
 pull_vars <- 
   c("SERIALNO", "ST", "PUMA", "FS", "SPORDER", rel_var, "SEX", "AGEP", 
     "RAC2P", "HISP", "SCH", "SCHL", "ESR", "COW", "OCCP", "INDP", "FINCP", 
-    "POVPIP", "PWGTP", "WGTP")
+    "POVPIP", "PWGTP", "WGTP", "TYPEHUGQ")
 
 # View all available variables for acs1
 if (FALSE) {
@@ -73,15 +71,13 @@ if (FALSE) {
 
 #creating variables
 acs1$YEAR <- base_year
-acs1$SAMPLE <- glue("{base_year}01")
-acs1$STRATA <- str_c(acs1$PUMA, acs1$ST)
+#acs1$SAMPLE <- glue("{base_year}01")
+#acs1$STRATA <- str_c(acs1$PUMA, acs1$ST)
 
 acs1 <- 
   acs1 %>% 
   mutate(
-    TYPE     = str_sub(as.character(acs1$SERIALNO), 5, 6),
-    TYPE     = recode(TYPE, `HU` = "1", `GQ` = "2"),
-    TYPE     = as.numeric(TYPE),
+    TYPEHUGQ = as.numeric(TYPEHUGQ),
     
     SERIALNO = SERIALNO %>% 
       str_replace("HU", "00") %>%
@@ -97,8 +93,8 @@ acs1 <-
     RAC2P    = as.numeric(RAC2P),
     HISP     = as.numeric(HISP),
     INDP     = as.numeric(INDP),
-    SAMPLE   = as.numeric(SAMPLE),
-    STRATA   = as.numeric(STRATA),
+    #SAMPLE   = as.numeric(SAMPLE),
+    #STRATA   = as.numeric(STRATA),
     SCHL     = recode(SCHL,
                       `bb` = "0"),
     SCHL     = as.numeric(SCHL),
@@ -117,5 +113,5 @@ acs1 <-
   ) %>% 
   data.table()
 
-write.csv(acs1, file = glue("{input_path}census_acs1_{base_year}.csv"))
+write.csv(acs1, file = glue("{input_path}census_acs1_{base_year}_{my_output_tag}.csv"))
 

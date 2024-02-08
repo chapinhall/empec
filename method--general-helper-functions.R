@@ -476,3 +476,24 @@ label_vars_prevec <- function(var) {
 # Vectorize the previous function
 label_vars <- Vectorize(label_vars_prevec)
 
+
+# Sort a character field using embedded numeric values ------------------------#
+
+sort_by_char_nums <- function(x) {
+  # This function sorts x based on:
+  # 1. the first character chunk, as delimited by underscores
+  # 2. any embedded numeric content AS numeric
+  # and then returns an ordered factor
+  
+  q <- unique(x)
+  df <- 
+    data.frame(q, 
+               first = str_replace(q, "^([^_]+).+", "\\1"),
+               num = str_extract(q, "\\d+") %>% as.numeric()) %>% 
+    arrange(first, num)
+  
+  factor(x, levels = unique(df$q))
+    
+}
+
+

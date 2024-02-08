@@ -6,8 +6,8 @@
 
 # Start by installing a package to help search for whether already-installed
 # packages are the most recent
-install.packages("pkgsearch")
-library(pkgsearch)
+# install.packages("pkgsearch")
+# library(pkgsearch)
 
 packages.list <- 
   c("knitr", "ggplot2", "Rcpp", "Hmisc", "VGAM", "stringr", "glmnet", "censusapi",
@@ -15,7 +15,8 @@ packages.list <-
     "zoo", "moments", "leaflet", "RColorBrewer", "ggalluvial", "tigris",
     "extrafont", "remotes", "broom", "sf", "lwgeom", "foreach", "doParallel",
     "xlsx", "tidycensus", "fredr", "ipumsr", "tsibble", "forecast", "fable", 
-    "boot", "ggtext", "data.table", "tidyr", "dplyr", "scales", "janitor", "R.utils")
+    "boot", "ggtext", "data.table", "tidyr", "dplyr", "scales", "janitor", "R.utils",
+    "lubridate", "readxl", "openxlsx")
 
 for (p in packages.list) {
   if (!p %in% installed.packages()[, "Package"]) {
@@ -27,11 +28,14 @@ for (p in packages.list) {
                            character.only = TRUE,
                            verbose = FALSE))
 }
-devtools::install_github("CT-Data-Haven/cwi")
-library(cwi)
 
 # Suppress warnings from dplyr::summarise() with group_by()s
 options(dplyr.summarise.inform = FALSE)
+
+# Do not use scientific notation in output
+options(scipen = 999)
+
+# Custom functions
 
 meanNA <- function(x, ...) mean(x = x[!is.infinite(x)], ..., na.rm = TRUE)
  sumNA <- function(x, ...)  sum(x = x[!is.infinite(x)], ..., na.rm = TRUE)
@@ -51,6 +55,7 @@ whats_big <- function() {
 
 ### Generate aliases for select functions --------------------------------------
 cn <- function(x) colnames(x)
+sub_cn <- function(x, pattern) str_subset(cn(x), pattern)
 
 ### Install fonts --------------------------------------------------------------
 
