@@ -382,6 +382,25 @@ specs <- c("incpov_simple_05",
 
 ```
 
+```{r}
+# Organize contents
+sae_aux_data_acs5 <- acs5tract_sae
+sae_controls_list <- list(sae_controls_simple_05,
+                          sae_controls_simple_612,
+                          sae_controls_added_2534_05,
+                          sae_controls_added_2534_612)
+results <- paste0("sae_results_", specs)
+
+# Save the bundle of objects
+save(list = c(results, "specs", "incpov_ref_value", "sae_controls_list", "sae_aux_data_acs5"),
+     file = glue("{output_path}sae_sensitivity_estimates_interim_{my_output_tag}.Rda"))
+
+if (FALSE) {
+  load(file = glue("{output_path}sae_sensitivity_estimates_interim_{my_output_tag}.Rda")) 
+}
+```
+
+
 #### Compare Direct versus FH Output Estimates
 
 As a reality check, confirm that a single "direct" estimate applies to all tracts within each given PUMA. The result should be that there are all "0" numbers of duplicates. 
@@ -929,6 +948,148 @@ acs5_incpov_cat_var <-
   summarize(acs5_tract.in.puma_sd = sd(value, na.rm = TRUE)) %>% 
   ungroup()
 ```
+
+```{r build tract-level estimates of ccdf eligibility using acs5 data}
+# Our approach uses multiple ACS 5-year tables with partial information: income-
+# to-poverty by age, and work status by family type for families with children.
+
+# Because we do not know the joint distribution of these income- and work-eligibility
+# phenomenal, we use microdata for some calibration. We use the phi calculation of
+# correlation for bernoulli random variables, which is just the pearson correlation.
+# We first confirm that.
+if (FALSE) {
+  library(psych)
+  df <- data.frame(x = c(1, 1, 0, 1),
+                   y = c(1, 0, 0, 1))
+  
+  with(df, cor(x, y))
+  
+  mat <- matrix(c(2, 1, 0, 1), ncol = 2, byrow = TRUE)
+  phi(mat, digits = 7)
+  # This yields the same result
+}
+
+# Calculate correlations between income and work status across PUMAs
+inc_work_elig_phi <- 
+    acs1_child %>% 
+    .[j = .(phi = cor(fam_incpov_ratio < local_ccdf_incratio_base/100,
+                      ccdf_elig_incratio_225)),
+      by = PUMA]
+
+if (developer_mode) {
+  print("Phi calculations -- correlation of income and work eligibility by PUMA")
+  inc_work_elig_phi
+}
+
+# The measures that we have calculated from pulls of the ACS 5-year data are
+# only marginal distributional values. However, we want estimates of the joint
+# value, i.e. kids in families who are both income and work eligible. We
+# can use calculations from the phi coefficient (https://en.wikipedia.org/wiki/Phi_coefficient)
+# in the microdata above with these marginal values to estimate the likelihood of 
+# the joint work eligible x income eligible condition
+# Using notation from that wikipedia article, note that the n11, n01, n10, n00
+# values could be considered rates instead of counts, where n11 is the value
+# of interest, and n1., n0., n.1, and n.0 are the marginal values that we
+# obtain from the ACS 5-year data. Call these n1. = p, n0. = (1-p), n.1 = q,
+# n.0 = (1-q), and note that n = 1, as the sum of marginal probabilities
+# must equal 100% probability. Then, the second equation for phi under the 
+# "Definition" section which reads as follow, can be reduced:
+#   phi = (n*n11 - n1.*n.1) / sqrt(n1.*n.1*(n - n1.)*(n - n.1))
+#       = (1*n11 - p*q) / sqrt(p*q*(1-p)*(1-q))
+# And thus:
+#   n11 = phi * sqrt(p*q*(1-p)*(1-q)) + pq
+# Here, n11 is the quantity of interest--the joint probability of income and
+# work eligibility--and where we have phi calculated. Note that phi=0 
+# corresponds to the case of zero correlation, and would result in n11 = pq
+# which is the joint probability case where both random variables are 
+# independent, which confirms common expectations.
+
+# Combine PUMA-level calculations of phi from the ACS 1-year data with
+# the tract-level ACS 5-year calculations of marginal probabilities
+load(file = glue("{output_path}acs5_ccdf_{my_output_tag}.Rda"))
+ccdf_est_acs5 <- 
+  acs5_ccdf %>% 
+  select(GEOID, rIncPovLt200, wIncPovLt200, rWorkEligFam) %>% 
+  merge(geo_crosswalk %>% select(GEOID, PUMA) %>% unique(),
+        by = "GEOID",
+        all.x = TRUE) %>% 
+  merge(inc_work_elig_phi,
+        by = "PUMA", 
+        all.x = TRUE) %>% 
+  mutate(
+    ccdf_elig_acs5 = 
+      phi * 
+      sqrt(rIncPovLt200*rWorkEligFam*(1-rIncPovLt200)*(1-rWorkEligFam)) +
+      rIncPovLt200*rWorkEligFam,
+    ccdf_elig_acs5_indep = rIncPovLt200*rWorkEligFam)
+
+if (developer_mode) {
+  # Examine the distribution of values
+  ggplot(ccdf_est_acs5,
+         aes(x = ccdf_elig_acs5)) +
+    geom_density()
+  
+  # Check that phi=0 corresponds to no difference, and neg/pos values 
+  # affect calculations in anticipated ways
+  ggplot(ccdf_est_acs5,
+         aes(x = phi,
+             y = ccdf_elig_acs5 - ccdf_elig_acs5_indep)) +
+    geom_point(alpha = 0.2) +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = 0)
+}
+
+# Compare PUMA-aggregated calculations of ACS 5-year estimates with ACS 1-year
+# estimates
+if (developer_mode) {
+  ccdf_est_puma_comp <- 
+    ccdf_est_acs5 %>% 
+    summarize(.by = PUMA,
+              ccdf_elig_acs5 = weighted.mean(ccdf_elig_acs5, wIncPovLt200)) %>% 
+    merge(acs1_child[between(AGEP, 0, 6),
+                     j = .(ccdf_elig_acs1 = sum(PWGTP[ccdf_elig_incratio_225==TRUE])/sum(PWGTP)),
+                     by = PUMA],
+          by = "PUMA") 
+  
+  ccdf_est_puma_comp %>% 
+    ggplot(aes(x = ccdf_elig_acs1,
+               y = ccdf_elig_acs5)) +
+    geom_point() + 
+    geom_abline() +
+    scale_x_continuous(limits = c(0, NA)) +
+    scale_y_continuous(limits = c(0, NA))
+  
+  ccdf_est_puma_comp %>% 
+    summarize(varNA(ccdf_elig_acs5), varNA(ccdf_elig_acs1))
+}
+
+# Compare tract-level estimates from ACS5 with tract-level SAE estimates
+# Want to ideally see ~something~ not too far from the 45, and likely higher
+# variance than the SAE
+if (developer_mode) {
+  comp_ccdf_acs5_sae <- 
+    sae_results_ccdf_wk_pov_05$sae_out %>% 
+    select(GEOID, share_model_trunc, vc_value) %>% 
+    filter(vc_value %in% c("WorkElig_0%-100%",
+                           "WorkElig_100%-225%")) %>% 
+    summarize(ccdf_elig_sae = sum(share_model_trunc),
+              .by = GEOID) %>% 
+    merge(ccdf_est_acs5,
+          by = "GEOID")
+  
+  comp_ccdf_acs5_sae %>% 
+    summarize(varNA(ccdf_elig_sae), varNA(ccdf_elig_acs5))
+  
+  ggplot(comp_ccdf_acs5_sae,
+         aes(x = ccdf_elig_sae,
+             y = ccdf_elig_acs5)) +
+    geom_abline() + 
+    geom_point(alpha = 0.2)
+}
+
+
+```
+
 
 
 ```{r calculate variance of acs5 analogs to each income-to-poverty measure}
