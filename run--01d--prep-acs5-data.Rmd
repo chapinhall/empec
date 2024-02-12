@@ -18,6 +18,9 @@ if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 
 load(glue("{output_path}geo_data_{my_output_tag}.Rda"))
+
+source("method--pull-and-process-acs5.R")
+
 ```
 
 ```{r run acs5 data pull if data is not available}
@@ -199,9 +202,168 @@ acs5tract_test <-
 #View(acs5tract_test %>% select(wgt, n, r, incpov_r0to50_est, incpov_r0to50_est))
 ```
 
-
 ```{r}
 save(acs5tract, acs5puma,
      file = glue("{output_path}acs5_data_{my_output_tag}.Rda"))
 ```
+
+```{r prepare county argument for fresh pull of acs5 data}
+if (exists("my_county_fip")) county_val <- my_county_fip else county_val <- NULL
+```
+
+```{r fresh pull of both income and work status tables}
+# "Age by Ratio of Income to Poverty Level In the Past 12 Months"
+acs5_incpov_byage_raw    <- pull_table("B17024", state = my_state_abbr, county = county_val, year = acs5_year)
+
+# "Relationship To Householder For Children Under 18 Years In Households"
+acs5_famconfig_wKids_raw <- pull_table("B23007", state = my_state_abbr, county = county_val, year = acs5_year)
+
+```
+
+```{r determine closest fpl cutoff to ccdf eligibility threshold}
+ccdf_inc_thresh_fpl <- get_fpl_thresh_for_ccdf()
+
+# Determine which inc-to-pov value from the tables is closest to the ccdf fpl
+# cutoff
+acs5_income_cutpoints <- c(0, 50, 75, 100, 125, 150, 175, 185, 200, 300, 400, 500)
+dev <- 
+  (acs5_income_cutpoints - ccdf_inc_thresh_fpl) %>% 
+  abs()
+
+nearest_incpov_cutpoint_to_ccdf <- 
+  acs5_income_cutpoints[which(dev == min(dev))]
+```
+
+```{r functions to recode acs5 inc-to-pov fields into a custom partition}
+# Determine partitions for constructing one implementation
+# - make a df with these values, mapped to lower values, for a given value, return
+#    those with left-value
+dfIncPovCutoffs <- 
+  data.frame(incpov = unique(acs5_incpov_byage_raw$inc_to_pov_ratio)) %>% 
+  filter(incpov != "All") %>% 
+  mutate(left = 
+           incpov %>% 
+           str_replace("IncPov(\\d+)(to|plus).*", "\\1") %>% 
+           as.numeric())
+
+return_incpov_fields_bounds <- function(low, high) {
+  out <- filter(dfIncPovCutoffs, left >= low)
+  if (!is.na(high)) {
+    out <- filter(out, left < high)
+  }
+  return(out$incpov)
+}
+if (FALSE) {
+  return_incpov_fields_bounds(0, 100)
+  return_incpov_fields_bounds(0, 101)
+  return_incpov_fields_bounds(500, NA)
+}
+
+recode_incpov_fields_vec <- function(vec) {
+  # Initialize output
+  out <- 
+    dfIncPovCutoffs %>% 
+    mutate(recoding = incpov)
+  
+  # Go through out cutpoint to create mapping
+  for (v in 1:length(vec)) {
+    low <- vec[v]
+    high <- vec[v+1]
+    corresponding_fields <- return_incpov_fields_bounds(low, high)
+    if (is.na(high)) {
+      recode_val <- glue("IncPov{low}plus")
+    } else {
+      recode_val <- glue("IncPov{low}to{high}")
+    }
+    out <- 
+      out %>% 
+      mutate(recoding = ifelse(incpov %in% corresponding_fields,
+                             recode_val,
+                             recoding))
+  }
+  return(out)
+}
+
+if (FALSE) {
+  recode_incpov_fields_vec(c(0, 50, 100, 200, 500))
+}
+```
+
+```{r generate recoding schemes for income-to-poverty aggregation}
+inspect_fields(acs5_incpov_byage_raw)
+
+recode_incpov <- function(recoding_cuts) {
+  recoding_scheme <- recode_incpov_fields_vec(recoding_cuts)
+  acs5_incpov_byage_raw %>% 
+  filter(inc_to_pov_ratio != "All") %>% 
+  mutate(inc_to_pov_recode = recoding_scheme$recoding[match(inc_to_pov_ratio, recoding_scheme$incpov)])
+}
+
+incpov_for100s_recoded <- recode_incpov(c(0, 100, 200, 300, 400))
+incpov_forMix_recoded  <- recode_incpov(c(0,  50, 100, 200, 400))
+incpov_forCcdf_recoded <- recode_incpov(c(0, 100, nearest_incpov_cutpoint_to_ccdf, 500))
+
+# Check completeness of recoding
+stopifnot(!any("NEEDS RECODING" %in% 
+                 c(incpov_for100s_recoded$inc_to_pov_recode, 
+                    incpov_forMix_recoded$inc_to_pov_recode)))
+if (FALSE) {
+  incpov_for100s_recoded %>% select(inc_to_pov_ratio, inc_to_pov_recode) %>% unique()
+  incpov_forMix_recoded  %>% select(inc_to_pov_ratio, inc_to_pov_recode) %>% unique()
+  incpov_forCcdf_recoded %>% select(inc_to_pov_ratio, inc_to_pov_recode) %>% unique()
+}
+```
+
+```{r execute aggregations of income-to-poverty data}
+agg_incpov_recoding <- function(acs5_incpov_recoded) {
+  acs5_incpov_recoded %>% 
+    select(-inc_to_pov_ratio) %>% 
+    construct_fields(
+      numerator = "inc_to_pov_recode",
+      by_vars = "age",
+      subset_cond = "age %in% c('Age0to6', 'Age6to11')",
+      subset_descr = "")
+}
+
+incpov_for100s <- agg_incpov_recoding(incpov_for100s_recoded)
+incpov_forMix  <- agg_incpov_recoding(incpov_forMix_recoded)
+incpov_forCcdf <- agg_incpov_recoding(incpov_forCcdf_recoded)
+
+# Check on the completeness of the output
+if (FALSE) {
+  sub_cn(incpov_for100s, "^rInc.+Age0") %>% sort_by_char_nums() %>% levels()
+  sub_cn(incpov_forMix,  "^rInc.+Age0") %>% sort_by_char_nums() %>% levels()
+  sub_cn(incpov_forCcdf, "^rInc.+Age0") %>% sort_by_char_nums() %>% levels()
+}
+```
+
+```{r construct desired work eligibility field}
+inspect_fields(acs5_famconfig_wKids_raw)
+
+workelig_withKids <- 
+  construct_fields(
+    df = acs5_famconfig_wKids_raw,
+    subset_cond = "own_kids_under18 == 'SomeKidsUnder18'",
+    #denom_subset = "status == 'All'",
+    numerator = "status", 
+    numerator_vals = c("HusbandEmplWifeEmpl", "Empl"),
+    numerator_lab  = c("WorkEligFam"),
+    subset_descr = "")
+```
+
+
+```{r merge together data sets intended for estimating ccdf eligibility}
+merge_by_geoid <- function(x, y) {
+  # Remove duplicate fields
+  non_dup_fields <- c(cn(y)[!cn(y) %in% cn(x)], "GEOID")
+  merge(x, y %>% select(one_of(non_dup_fields)), by = "GEOID", all = TRUE)
+}
+acs5_ccdf <-
+  Reduce(merge_by_geoid,
+         list(incpov_for100s, incpov_forMix, incpov_forCcdf, workelig_withKids))
+
+save(acs5_ccdf,
+     file = glue("{output_path}acs5_ccdf_{my_output_tag}.Rda"))
+```
+
 
