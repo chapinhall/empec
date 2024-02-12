@@ -66,7 +66,7 @@ my_state_fip <-
   unique()
 
 acs1 <- 
-  acs1[TYPE %in% c(1) &
+  acs1[TYPEHUGQ %in% c(1) &
          ST == my_state_fip &
          YEAR == max(YEAR)]
 
@@ -118,7 +118,7 @@ acs1_hoh <-
   .[j = hoh_industry_vulnerable := ifelse(hoh_industry == "NA", 
                                           "NA", 
                                           str_detect(hoh_industry, "educhealth|food"))] %>% # Note: the second argument to str_detect() uses regular experessions. For reference, see e.g. https://regexone.com/
-  dplyr::select(YEAR, SAMPLE, SERIALNO, hoh_educ, hoh_industry, hoh_industry_vulnerable, hoh_race, hoh_hispanic)
+  dplyr::select(YEAR, SERIALNO, hoh_educ, hoh_industry, hoh_industry_vulnerable, hoh_race, hoh_hispanic)
 ```
 
 ```{r view variables relevant to constructing household-level measures, eval = developer_mode, results = "asis"}
@@ -146,9 +146,9 @@ An additional set of indicators is built using all information about household m
 acs1_hh <-
   copy(acs1) %>% 
   .[j = fam_size := .N,
-    by = .(YEAR, SAMPLE, SERIALNO)] %>% 
+    by = .(YEAR, SERIALNO)] %>% 
   .[i = cRel %in% c("Head", "Spouse"), # subset to only householder and spouse records
-    by = .(YEAR, SAMPLE, SERIALNO, fam_size),
+    by = .(YEAR, SERIALNO, fam_size),
     j = .(spouse_present = maxNA(cRel == "Spouse"),
           all_work_sch   = minNA(ESR %in% 1:2 | SCH %in% 2:3))] # corresponds to working, or in school
 
@@ -200,14 +200,23 @@ Besides the indicators above, all other relevant characteristics are measured re
   - 0-100% FPL, 100-200%, 200-300%, 300-400%, 400%+ (useful for simpler reference)
 * Combinations of partitions defined above to both represent share categories predicted in the SAE method, as well as direct calculation of CCDF eligibility rates in the baseline year
 
+```{r get fpl threshold for ccdf}
+# It's not strictly the case that this is provided directly by users, because a
+# custom income threshold such as based on state median income may have been 
+# provided
+
+ccdf_inc_thresh_fpl <- get_fpl_thresh_for_ccdf()
+```
+
+
 ```{r prepare ACS 1-year microdata for children}
 acs1_child <- 
   acs1[AGEP <= 14] %>% 
   merge(acs1_hoh, 
-        by = c("YEAR", "SAMPLE", "SERIALNO"), 
+        by = c("YEAR", "SERIALNO"), 
         all.x = TRUE) %>%
   merge(acs1_hh,
-        by = c("YEAR", "SAMPLE", "SERIALNO"),
+        by = c("YEAR", "SERIALNO"),
         all.x = TRUE) %>% 
   .[, fam_incpov_ratio := POVPIP / 100] %>% 
   .[, `:=`(child_agegroup = bin_age(AGEP),
@@ -217,7 +226,7 @@ acs1_child <-
                        TRUE ~ "other_multiple"),
            child_hispanic = 1*(HISP != 1),
            fam_incpov_ratio_cat_mix     = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 4.00)),
-           fam_incpov_ratio_cat_hs_ccdf = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 1.00, local_ccdf_incratio_base/100, 3.50, 5.00)),
+           fam_incpov_ratio_cat_hs_ccdf = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 1.00, ccdf_inc_thresh_fpl/100, 4.00)),
            fam_incpov_ratio_cat_to185   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 4.00)),
            fam_incpov_ratio_cat_by50    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 0.5)),
            fam_incpov_ratio_cat_by75    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.75, 1.50, 2.25, 4.00)),
@@ -337,7 +346,7 @@ acs1_child <-
                           glue("NotWorkElig_0%_{local_ccdf_incratio_base}%"),
              str_detect(work_incpov_statushs,
                         glue("NotWorkElig_[^(0%|100%)]")) ~
-                          glue("NotWorkElig_{local_ccdf_incratio_base}_500%"),
+                          glue("NotWorkElig_{local_ccdf_incratio_base}%+"),
              TRUE ~ work_incpov_statushs))
   # Note that we intentionally leave "WorkElig_0%_100%" as an often-smaller
   # cell because it represents an important single quantity of children in
