@@ -547,7 +547,7 @@ acs1_tables_labeled <-
             year = base_year,
             survey = "acs1")  
 
-acs1_5pct_puma <- 
+acs1_puma <- 
   acs1_tables_labeled %>% 
   mutate(age = 
            case_when(str_detect(label, "Under 6") ~ "lt6",
@@ -591,7 +591,7 @@ acs1_5pct_puma <-
   select(-matches("^(est|moe)"))
 
 if (FALSE) {
-  acs1_5pct_puma %>% 
+  acs1_puma %>% 
     filter(PUMA == "03167") %>% 
     pivot_longer(cols = -c(GEOID, PUMA, age))  
 }
@@ -601,6 +601,6 @@ if (FALSE) {
 ```{r}
 save(acs1_child,
      acs1_puma_stats,
-     acs1_5pct_puma,
+     acs1_puma,
      file = glue("{output_path}acs1_data_{my_output_tag}.Rda"))
 ```
