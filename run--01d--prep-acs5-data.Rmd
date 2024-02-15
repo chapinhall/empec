@@ -234,121 +234,107 @@ nearest_incpov_cutpoint_to_ccdf <-
   acs5_income_cutpoints[which(dev == min(dev))]
 ```
 
-```{r functions to recode acs5 inc-to-pov fields into a custom partition}
-# Determine partitions for constructing one implementation
-# - make a df with these values, mapped to lower values, for a given value, return
-#    those with left-value
-dfIncPovCutoffs <- 
-  data.frame(incpov = unique(acs5_incpov_byage_raw$inc_to_pov_ratio)) %>% 
-  filter(incpov != "All") %>% 
-  mutate(left = 
-           incpov %>% 
-           str_replace("IncPov(\\d+)(to|plus).*", "\\1") %>% 
-           as.numeric())
+```{r perform basic incpov calculations}
+acs5_incpov_byage_wide <- 
+  construct_fields(
+    df = acs5_incpov_byage_raw,
+    numerator = "inc_to_pov_ratio",
+    by_vars = "age",
+    subset_cond = "age %in% c('Age0to6', 'Age6to11')",
+    subset_descr = "")
 
-return_incpov_fields_bounds <- function(low, high) {
-  out <- filter(dfIncPovCutoffs, left >= low)
-  if (!is.na(high)) {
-    out <- filter(out, left < high)
-  }
-  return(out$incpov)
-}
-if (FALSE) {
-  return_incpov_fields_bounds(0, 100)
-  return_incpov_fields_bounds(0, 101)
-  return_incpov_fields_bounds(500, NA)
-}
-
-recode_incpov_fields_vec <- function(vec) {
-  # Initialize output
-  out <- 
-    dfIncPovCutoffs %>% 
-    mutate(recoding = incpov)
-  
-  # Go through out cutpoint to create mapping
-  for (v in 1:length(vec)) {
-    low <- vec[v]
-    high <- vec[v+1]
-    corresponding_fields <- return_incpov_fields_bounds(low, high)
-    if (is.na(high)) {
-      recode_val <- glue("IncPov{low}plus")
-    } else {
-      recode_val <- glue("IncPov{low}to{high}")
-    }
-    out <- 
-      out %>% 
-      mutate(recoding = ifelse(incpov %in% corresponding_fields,
-                             recode_val,
-                             recoding))
-  }
-  return(out)
-}
-
-if (FALSE) {
-  recode_incpov_fields_vec(c(0, 50, 100, 200, 500))
-}
-```
-
-```{r generate recoding schemes for income-to-poverty aggregation}
-inspect_fields(acs5_incpov_byage_raw)
-
-recode_incpov <- function(recoding_cuts) {
-  recoding_scheme <- recode_incpov_fields_vec(recoding_cuts)
-  acs5_incpov_byage_raw %>% 
-  filter(inc_to_pov_ratio != "All") %>% 
-  mutate(inc_to_pov_recode = recoding_scheme$recoding[match(inc_to_pov_ratio, recoding_scheme$incpov)])
-}
-
-incpov_for100s_recoded <- recode_incpov(c(0, 100, 200, 300, 400))
-incpov_forMix_recoded  <- recode_incpov(c(0,  50, 100, 200, 400))
-incpov_forCcdf_recoded <- recode_incpov(c(0, 100, nearest_incpov_cutpoint_to_ccdf, 500))
-
-# Check completeness of recoding
-stopifnot(!any("NEEDS RECODING" %in% 
-                 c(incpov_for100s_recoded$inc_to_pov_recode, 
-                    incpov_forMix_recoded$inc_to_pov_recode)))
-if (FALSE) {
-  incpov_for100s_recoded %>% select(inc_to_pov_ratio, inc_to_pov_recode) %>% unique()
-  incpov_forMix_recoded  %>% select(inc_to_pov_ratio, inc_to_pov_recode) %>% unique()
-  incpov_forCcdf_recoded %>% select(inc_to_pov_ratio, inc_to_pov_recode) %>% unique()
-}
-```
-
-```{r execute aggregations of income-to-poverty data}
-agg_incpov_recoding <- function(acs5_incpov_recoded) {
-  acs5_incpov_recoded %>% 
-    select(-inc_to_pov_ratio) %>% 
-    construct_fields(
-      numerator = "inc_to_pov_recode",
-      by_vars = "age",
-      subset_cond = "age %in% c('Age0to6', 'Age6to11')",
-      subset_descr = "")
-}
-
-incpov_for100s <- agg_incpov_recoding(incpov_for100s_recoded)
-incpov_forMix  <- agg_incpov_recoding(incpov_forMix_recoded)
-incpov_forCcdf <- agg_incpov_recoding(incpov_forCcdf_recoded)
-
-# Check on the completeness of the output
-if (FALSE) {
-  sub_cn(incpov_for100s, "^rInc.+Age0") %>% sort_by_char_nums() %>% levels()
-  sub_cn(incpov_forMix,  "^rInc.+Age0") %>% sort_by_char_nums() %>% levels()
-  sub_cn(incpov_forCcdf, "^rInc.+Age0") %>% sort_by_char_nums() %>% levels()
-}
+acs5_incpov_byage <- 
+  construct_fields(
+    df = acs5_incpov_byage_raw,
+    numerator = "inc_to_pov_ratio",
+    by_vars = "age",
+    subset_cond = "age %in% c('Age0to6', 'Age6to11')",
+    subset_descr = "", 
+    wide = FALSE)
 ```
 
 ```{r construct desired work eligibility field}
 inspect_fields(acs5_famconfig_wKids_raw)
 
-workelig_withKids <- 
-  construct_fields(
-    df = acs5_famconfig_wKids_raw,
-    subset_cond = "own_kids_under18 == 'SomeKidsUnder18'",
-    #denom_subset = "status == 'All'",
-    numerator = "status", 
-    numerator_vals = c("HusbandEmplWifeEmpl", "Empl"),
-    numerator_lab  = c("WorkEligFam"),
-    subset_descr = "")
+# /!\ These constructions have problems with respect handling complicated
+# and non-parallel hierarchies in the "InLfp" field
+# acs5_workelig_withKids_old_wide <- 
+#   construct_fields(
+#     df = acs5_famconfig_wKids_raw,
+#     subset_cond = "own_kids_under18 == 'SomeKidsUnder18'",
+#     #denom_subset = "status == 'All'",
+#     numerator = "status", 
+#     numerator_vals = c("HusbandEmplWifeEmpl", "Empl"),
+#     numerator_lab  = c("WorkEligFam"),
+#     subset_descr = "")
+# 
+# acs5_workelig_withKids_old <- 
+#   construct_fields(
+#     df = acs5_famconfig_wKids_raw,
+#     subset_cond = "own_kids_under18 == 'SomeKidsUnder18' & !(family_type == 'Married' & lfp %in% c('HusbandInLfp', 'HusbandNotInLfp'))",
+#     #denom_subset = "status == 'All'",
+#     numerator = "status", 
+#     numerator_vals = c("HusbandEmplWifeEmpl", "Empl"),
+#     numerator_lab  = c("WorkEligFam"),
+#     subset_descr = "",
+#     wide = FALSE)
+
+# Calculating work eligibility by hand
+acs5_workelig_withKids_denom <- 
+  acs5_famconfig_wKids_raw %>% 
+  filter(own_kids_under18 == "SomeKidsUnder18",
+         family_type %in% c("Married", "UnmarriedMaleHh", "UnmarriedFemaleHh"),
+         lfp == "All",
+         status == "All")
+
+acs5_workelig_withKids_num <- 
+  acs5_famconfig_wKids_raw %>% 
+  filter(own_kids_under18 == "SomeKidsUnder18",
+         (family_type == "Married" & status == "HusbandEmplWifeEmpl") | 
+         (str_detect(family_type, "Unmarried") & status == "Empl"))
+
+acs5_workelig_withKids <- 
+  merge(acs5_workelig_withKids_num   %>% summarize(nEmpl = sum(estimate), .by = GEOID),
+        acs5_workelig_withKids_denom %>% summarize(nAll  = sum(estimate), .by = GEOID),
+        by = "GEOID") %>% 
+  mutate(r = nEmpl / nAll,
+         n = nEmpl,
+         w = nAll,
+         status = "WorkEligFam")
+
+acs5_workelig_withKids <- 
+  bind_rows(acs5_workelig_withKids,
+            acs5_workelig_withKids %>% mutate(r = 1 - r, n = w - n, status = "NotWorkEligFam")) 
+
+# Audit the constructions here
+if (FALSE) {
+  my_g <- acs5_workelig_withKids$GEOID[1]
+  
+  acs5_workelig_withKids_old %>% filter(GEOID == my_g)  
+  acs5_workelig_withKids     %>% filter(GEOID == my_g)  
+  
+  acs5_famconfig_wKids_raw %>% filter(GEOID == my_g, own_kids_under18 == "SomeKidsUnder18") %>% select(-variable, -se, -geography, -table, -GEOID) %>% as.data.frame()
+  
+  # All families: 367
+  # Married: HusbandEmplWifeEmpl -- 130
+  # UnmarriedMaleHh: Empl = 28
+  # UnmarriedFemaleHh: Empl = 102
+  # Hand calc: (130+28+102)/367 = 70.8% ... this is below the 36% calculation
+  # Solutions -- 
+  # 1. either need to add handling in the meta data for these cases, or
+  # 2. split the calculations for married and for single families? 
+  #    - not sure if/how well this would work given the issues with the InLfp field
+  # 3. ... Maybe do this fully by hand?
+  
+  # New example -- 
+  # All families: 186
+  # Married: HusbandEmplWifeEmpl -- 88
+  # UnmarriedMaleHh: Empl = 19
+  # UnmarriedFemaleHh: Empl = 9
+  # Hand calc: (88+19+9)/186 = 62.3% ... WOking Fam est is 42%
+  
+}
+
 ```
 
 
@@ -358,11 +344,11 @@ merge_by_geoid <- function(x, y) {
   non_dup_fields <- c(cn(y)[!cn(y) %in% cn(x)], "GEOID")
   merge(x, y %>% select(one_of(non_dup_fields)), by = "GEOID", all = TRUE)
 }
-acs5_ccdf <-
-  Reduce(merge_by_geoid,
-         list(incpov_for100s, incpov_forMix, incpov_forCcdf, workelig_withKids))
+# acs5_ccdf <-
+#   Reduce(merge_by_geoid,
+#          list(acs5_incpov_byage_wide, acs5_workelig_withKids_wide))
 
-save(acs5_ccdf,
+save(list = c("acs5_incpov_byage", "acs5_workelig_withKids"), 
      file = glue("{output_path}acs5_ccdf_{my_output_tag}.Rda"))
 ```
 
