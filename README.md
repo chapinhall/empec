@@ -202,6 +202,13 @@ use_only_sae_model_estimates <- TRUE
 
 excel_front_page_file <- "path/to/file.xlsx"
 
+# Many auxiliary diagnostics are produced for chunks that only run on the 
+# condition of `eval = developer_mode`. Setting `developer_mode` to FALSE would
+# hide these diagnostics and extra output that should not be present in the final
+# report draft. Set `developer_mode` to TRUE if intending to render these in place 
+# (i.e. throughout the draft) that they are relevant.
+developer_mode <- FALSE
+
 ```
 
 Also note that, throughout the codebase, there are two marker that signal attention to users:
@@ -210,7 +217,7 @@ Also note that, throughout the codebase, there are two marker that signal attent
 * /*\\ -- this is used to invite users to alter or add to the code. Examples include diagnostics where some local information can be provided, or titling or explanation of figures to describe the patterns seen in the user's own data. Efforts have been made to ensure that the code is structured to allow for multiple users to contribute to a common codebase (e.g. by using conditional statements that select the appropriate figure title based on the `my_output_tag` value relevant to the local context), but for cases where larger deviation is required (e.g. where the codebase is modified to focus on a different public program requiring different data development) we recommend "forking" this repository for parallel development.
 
 # Updating the Estimates
-When the CPS basic monthly file is released:
+To update with new CPS basic monthly file:
 
 1. Go to [IPUMS CPS](https://cps.ipums.org/cps/) website
 2. Log in and click "My Data"
@@ -222,10 +229,12 @@ When the CPS basic monthly file is released:
 8. Update the data file name (cps_000XX) in the `settings--profile.R`
 9. Run the code
 
-When ACS 1-year or 5-year is released:
+To update with new ACS 1-year or 5-year:
 
 1. Assign new year to `base_year` or `acs5_year` in the `settings--profile.R`
 2. Run the code
+
+The default income threshold value is the FPL, and is updated in this repository regularly. For the states using other income thresholds, such as state median income, would need to update the `custom_income_thresh` values in `settings--profile.R`. 
 
 # Data Sources and their Uses
 
