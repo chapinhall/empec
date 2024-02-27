@@ -921,13 +921,12 @@ write.csv(ests_with_forecast_wide,
 # of population counts based on sampling and statistical forecasting. The
 # 02b script currently assumes that standard errors are 0 (i.e. that these 
 # estimates are perfectly precise).
-
 pop_by_age <- 
   ests_with_forecast_wide %>% 
   mutate(GEOID_TR20 = as.character(GEOID_TR20),
-         age        = case_when(agegroup == "02"   ~ "age_0to2_count",
-                                agegroup == "34"   ~ "age_3to5_count",
-                                agegroup == "5"    ~ "age_3to5_count",
+         age        = case_when(agegroup == "2"    ~ "age_0to2_count",          
+                                agegroup == "34"   ~ "age_3to4_count",
+                                agegroup == "5"    ~ "age_5_count",
                                 agegroup == "612"  ~ "age_6to12_count",
                                 agegroup == "1317" ~ "age_13to17_count")) %>% 
   pivot_longer(cols = starts_with("est")) %>% 
@@ -935,7 +934,9 @@ pop_by_age <-
   summarize(value = sum(value)) %>% 
   pivot_wider(names_from  = "age",
               values_from = "value") %>% 
-  mutate(age_0to5_count = age_0to2_count + age_3to5_count,
+  mutate(age_0to5_count = age_0to2_count + age_3to4_count + age_5_count,
+         age_4_count    = round(age_3to4_count/2, 0),
+         age_3to5_count = age_3to4_count + age_5_count,
          year = str_extract(name, "\\d+") %>% as.numeric()) %>% 
   ungroup() %>% 
   select(-name)

@@ -78,13 +78,13 @@ age_breakdown_byoutcome_long <-
   age_breakdown_byoutcome %>% 
   pivot_longer(cols = -outcome_var,
                names_to = "child_agegroup",
-               values_to = "pct_age_of_lt5") %>% 
+               values_to = "pct_age_of_0to5") %>%
   mutate(outcome_var = sort_by_char_nums(outcome_var))
 
 plot_age_in_outcome <- function(outcome_regex, subtitle) {
   ggplot(age_breakdown_byoutcome_long %>% filter(str_detect(outcome_var, outcome_regex)),
        aes(x = child_agegroup,
-           y = pct_age_of_lt5,
+           y = pct_age_of_0to5,
            fill = outcome_var)) +
   geom_bar(stat = "identity",
            position = "dodge") +
@@ -111,9 +111,9 @@ nowcast_parallel_counts <-
   data.table()
 
 # Prep overall population for under 5 breakdown
-pop_by_age_under5 <- 
+pop_by_age_0to5 <- 
   pop_by_age %>% 
-  select(GEOID = GEOID_TR20, year, age_0to2 = age_0to2_count, age_3to5 = age_3to5_count) %>% 
+  select(GEOID = GEOID_TR20, year, age_0to2 = age_0to2_count, age_3to5 = age_3to5_count, age_4 = age_4_count) %>% 
   pivot_longer(cols = matches("age"),
                names_to = "child_agegroup",
                values_to = "pop_count")
@@ -126,11 +126,11 @@ nowcast_elig_counts_0to5 <-
         all.x = TRUE,
         allow.cartesian = TRUE) %>% 
     select(-pop_count) %>% 
-  merge(pop_by_age_under5,
+  merge(pop_by_age_0to5,
         by = c("GEOID", "year", "child_agegroup"),
         all.x = TRUE) %>% 
-  mutate(count    = pct_age_of_lt5 * count,
-         count_se = pct_age_of_lt5 * count_se) %>% 
+  mutate(count    = pct_age_of_0to5 * count,
+         count_se = pct_age_of_0to5 * count_se) %>% 
   select(-age, age = child_agegroup)
 
 nowcast_elig_counts_added_ages <- 
@@ -413,7 +413,7 @@ write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_l
              sheet = lvl[["sheet_name"]], 
              style = openxlsx::createStyle(numFmt = "0.0%"), 
              cols = str_which(cn(add_sheet), "-- %"),
-             rows = 2:nrow(add_sheet)+1,
+             rows = 1:nrow(add_sheet)+1,
              gridExpand = TRUE)
     
     # Wrap text for header row
@@ -475,7 +475,7 @@ if (exists("my_aux_geo")) {
 }
 
 write_agg_output(outcomes_regex = outcomes_out_regex,
-                 age_regex      = "age_(0to2|3to5|0to5|6to12)",
+                 age_regex      = "age_(0to2|3to5|4|0to5|6to12)",
                  agg_levels     = lAgg_for_output,
                  out_label      = local_ccdf_name_short)
 
