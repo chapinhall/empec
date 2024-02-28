@@ -413,7 +413,15 @@ write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_l
              sheet = lvl[["sheet_name"]], 
              style = openxlsx::createStyle(numFmt = "0.0%"), 
              cols = str_which(cn(add_sheet), "-- %"),
-             rows = 2:nrow(add_sheet)+1,
+             rows = 1:nrow(add_sheet)+1,
+             gridExpand = TRUE)
+    
+    # Format specified columns as comma
+    openxlsx::addStyle(wb, 
+             sheet = lvl[["sheet_name"]], 
+             style = openxlsx::createStyle(numFmt = "#,##0"), 
+             cols = str_which(cn(add_sheet), "-- #"),
+             rows = 1:nrow(add_sheet)+1,
              gridExpand = TRUE)
     
     # Wrap text for header row
