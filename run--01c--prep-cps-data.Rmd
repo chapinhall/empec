@@ -52,7 +52,7 @@ cps_sub <-
                                            # Using both ASEC and monthly causes some issues -- e.g., generate WTFINL == NA for March ASEC; double counts individuals for March
                                            # See https://cps.ipums.org/cps/cps_linking_documentation.shtml
     (!STATEFIP %in% c(2, 15))          &   # This excludes HI and AK
-     between(RELATE, 101, 1001)] %>%        # This subsets to only related members of the family
+     between(RELATE, 101, 1001)] %>%        # This subsets to only related members of the household
   dplyr::select(-COUNTY, -OCC, -CLASSWKR, -FAMID) # dropping variables not currently used.
 
 rm(cps)
@@ -711,7 +711,7 @@ dim(cps_base_hoh); dim(cps_post_hoh)
 # /!\ We should obtain weights that are as of baseline. Here and in the 
 # calculations below we are only pulling final weights.
 cps_child_base <- 
-  cps_elig[is_baseline == TRUE & between(AGE, 0, 14)] %>% 
+  cps_elig[is_baseline == TRUE & between(AGE, 0, kid_age_thres_p+1)] %>% 
   .[j = c("CPSID", "CPSIDP", "WTFINL", "HWTFINL", 
           "YEAR", "MONTH", "YEAR_MONTH", "AGE", "is_validation", 'METRO', 
           "has_schage_kid_base",
@@ -846,7 +846,7 @@ save(cps_hoh_pre_post,
 
 
 ```{r compare head of household incomes at pre and post, eval = developer_mode}
-ggplot(cps_hoh_pre_post[YEAR_b == 2019],
+ggplot(cps_hoh_pre_post[YEAR_b == {base_year}],
        aes(faminc_draw_b,
            faminc_draw_p)) +
   geom_point(alpha = 0.2) + 

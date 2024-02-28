@@ -185,7 +185,8 @@ share_pre_post <-
 tractShp %>% 
   merge(share_pre_post, 
         by = "GEOID") %>%
-  filter(outcome_var %like% "le50",
+  #filter(outcome_var %like% "le50",
+  filter(grepl(paste("le50|le100|", local_ccdf_incratio_base, "$", sep = ""), outcome_var),
          cps_base_recency == "most_recent",
          age == "age_0to5") %>%
   ggplot(aes(fill = share_nowcast)) +
