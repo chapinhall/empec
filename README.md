@@ -41,7 +41,7 @@ You will now have the following four files in the input folder: CPS data, CPS do
 1. Create Census API [here](https://api.census.gov/data/key_signup.html).
 2. Create FRED API [here](https://fred.stlouisfed.org/docs/api/api_key.html)
 
-#### Step 4. Create a new R script, copy and paste the following, and save it as `settings--profile.R` in the folder with all other codes:
+#### Step 4. Create a new R script, copy and paste the following, and save it as `settings--config.R` in the folder with all other codes:
 
 ```
 ### Set Run Information --------------------------------------------------------
@@ -226,15 +226,15 @@ To update with new CPS basic monthly file:
 5. Add newly released sample
 6. Click "Submit Sample Selections"
 7. Download the data and DDI in the input folder.
-8. Update the data file name (cps_000XX) in the `settings--profile.R`
+8. Update the data file name (cps_000XX) in the `settings--config.R`
 9. Run the code
 
 To update with new ACS 1-year or 5-year:
 
-1. Assign new year to `base_year` or `acs5_year` in the `settings--profile.R`
+1. Assign new year to `base_year` or `acs5_year` in the `settings--config.R`
 2. Run the code
 
-The default income threshold value is the FPL, and is updated in this repository regularly. For the states using other income thresholds, such as state median income, would need to update the `custom_income_thresh` values in `settings--profile.R`. 
+The default income threshold value is the FPL, and is updated in this repository regularly. For the states using other income thresholds, such as state median income, would need to update the `custom_income_thresh` values in `settings--config.R`. 
 
 # Data Sources and their Uses
 
@@ -265,7 +265,7 @@ Code files in this repository include:
 ## Settings Scripts
 
 * `settings--main.R` -- This script loads libraries, functions, and visual standards whose use is common across multiple scripts below.
-* `settings--profile.R` -- This script sets parameters specific to each user's context, both in terms of computing, and in terms of geographic state of focus. See the `Running This Code` section above.
+* `settings--config.R` -- This script sets parameters specific to each user's context, both in terms of computing, and in terms of geographic state of focus. See the `Running This Code` section above.
 
 ## Pull Scripts
 
@@ -278,7 +278,7 @@ These files can be run manually, but are generally set up to be run automaticall
 ## Run Scripts
 
 * `run--00--main-doc.Rmd` -- run and incorporate all following scripts into a main document
-* `run--01a--prep-geo-data.Rmd` -- this auto-pulls shape files from the Census TIGER service based on state--and if specified, county--indications in the `settings--profile.R` script, and produces useful cross-walks between tracts and PUMA, zip codes, school districts, and (if specified) custom geographies
+* `run--01a--prep-geo-data.Rmd` -- this auto-pulls shape files from the Census TIGER service based on state--and if specified, county--indications in the `settings--config.R` script, and produces useful cross-walks between tracts and PUMA, zip codes, school districts, and (if specified) custom geographies
 * `run--01b--prep-acs1-data.Rmd` -- reads pulls of ACS1 microdata and develops necessary structures for use in the Small Area Estimation method
 * `run--01c--prep-cps-data.Rmd` -- reads pulls of CPS microdata (instructions provided above) and develops necessary structures for use in the "now-casting" method
 * `run--01d--prep-acs5-data.Rmd` -- adds onto the output from the `pull--acs5-general-data.R` script, adding some additional fields, and aggregating calculations and standard errors up to the PUMA level

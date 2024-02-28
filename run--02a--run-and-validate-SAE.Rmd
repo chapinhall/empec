@@ -9,19 +9,10 @@ pubic audiences are suppressed or moved to code chunks that can optionally be
 ```{r}
 # run scripts for necessary packages and objects as necessary
 if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 if (!"direct_est_tract"     %in% objects()) source_rmd("method--small-area-estimation-functions.Rmd", echo = FALSE)
 ```
-
-```{r eval = FALSE}
-# Within an `eval = FALSE` chunk, this option will be set when running this
-# script interactively, but not when called by `run--00`. This is significant
-# in that 00 will check that this has been run, set rerun_sae to FALSE in order
-# to focus on report rendering and not this time-consuming run.
-rerun_sae <- TRUE
-```
-
 
 ```{r load data for SAE runs}
 # Load prepped data
