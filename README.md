@@ -35,13 +35,15 @@ See the `run--00--main-doc.Rmd` script for the most recent description of the st
 9. Go to [url](https://data2.nhgis.org/crosswalks/nhgis_bg2010_tr2020.zip) and save the file in the input folder
 10. Go to [url](https://data2.nhgis.org/crosswalks/nhgis_blk2010_blk2020_ge.zip) and save the file in the input folder
 
-You will now have the following four files in the input folder: CPS data, CPS documentation, and two crosswalk files
+You will now have the following four files in the input folder: CPS data, CPS documentation, and two crosswalk files.
 
 #### Step 3. Create APIs (if you already have APIs for the Census and FRED, this step may be skipped)
 1. Create Census API [here](https://api.census.gov/data/key_signup.html).
-2. Create FRED API [here](https://fred.stlouisfed.org/docs/api/api_key.html)
+2. Create FRED API [here](https://fred.stlouisfed.org/docs/api/api_key.html).
 
 #### Step 4. Create a new R script, copy and paste the following, and save it as `settings--profile.R` in the folder with all other codes:
+
+#### Step 5. Running this code requires 64-bit Java. If Java is not installed or you have 32-bit Java installed, 64-bit Java can be downloaded here [url](https://www.java.com/en/download/manual.jsp).
 
 ```
 ### Set Run Information --------------------------------------------------------
