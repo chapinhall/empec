@@ -8,7 +8,7 @@ pubic audiences are suppressed or moved to code chunks that can optionally be
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
 if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 if (!"calc_cps_transitions" %in% objects()) source_rmd("method--nowcasting-functions.Rmd", echo = FALSE)
@@ -63,13 +63,11 @@ visualize_cps_transitions <- function(trans_calcs, # transition calculations out
   geom_bar(stat = "identity",
            position = "dodge") +
   geom_hline(yintercept = 1.0) +
-  scale_fill_manual(name = vul2_label,
-                    values = chHexs) +
+  scale_fill_discrete(name = vul2_label) +
   facet_grid(~ outcome_label) +
   labs(x = vul1_label,
        y = "# Children Eligible in Post\nper 1.0 Children at Baseline",
-       title = title) +
-  myTheme
+       title = title)
 }
 ```
 
@@ -294,12 +292,10 @@ ggplot(comp_ratios_loc,
                 width = 0.2,
                 position = position_dodge(0.9)) +
   facet_wrap(~ fam_incpov_ratio_cat_by100) +
-  scale_fill_manual(name = "",
-                    values = chHexs) +
+  scale_fill_discrete(name = "") +
   labs(x = "",
        y = "Transition Ratio",
-       title = "Transition Ratios by CPS Geographic Subset") +
-  myTheme
+       title = "Transition Ratios by CPS Geographic Subset")
 ```
 
 #### Examine transitions into income bands by CPS cohort
@@ -338,9 +334,7 @@ ggplot(comp_ratios_cohort,
                 width = 0.2,
                 position = position_dodge(0.9)) +
   facet_wrap(~ fam_incpov_ratio_cat_by100) +
-  scale_fill_manual(name = "",
-                    values = chHexs) +
-  myTheme
+  scale_fill_discrete(name = "")
 ```
 
 ## Implement the Now-Casting Method
@@ -741,8 +735,7 @@ compare_betas <- function(betas, title, subtitle, comp_var, comp_var_label, prin
                       ymax = estimate + 1.96*std.error),
                   width = 0.1,
                   position = position_dodge(.9)) +
-    scale_fill_manual(name = comp_var_label, 
-                      values = chHexs,
+    scale_fill_discrete(name = comp_var_label,
                       # breaks = c("cond", "uncond"),
                       # labels = c("Conditional", "Unconditional")
     ) +
@@ -881,7 +874,7 @@ plot_trans_sensitivity_comp <- function(data, comp_col, base_val) {
          aes(x = elig_base,
              y = elig_share)) +
     geom_point(alpha = 0.1) +
-    geom_45(color = "blue") +
+    geom_abline(color = "blue") +
     scale_x_continuous(labels = percent) +
     scale_y_continuous(labels = percent) +
     facet_wrap(as.formula(glue("~ {paste(setdiff(keep_cols, 'GEOID'), collapse = ' + ')}"))) +

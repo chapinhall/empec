@@ -12,7 +12,7 @@ print_documentation <- FALSE
 
 ```{r }
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
 if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```

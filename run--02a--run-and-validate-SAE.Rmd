@@ -8,7 +8,7 @@ pubic audiences are suppressed or moved to code chunks that can optionally be
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
 if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 if (!"direct_est_tract"     %in% objects()) source_rmd("method--small-area-estimation-functions.Rmd", echo = FALSE)
@@ -33,7 +33,7 @@ The figures below examine how evenly the ACS1 sample is divided among different 
 show_acs1_cat_density <- function(my_cat, my_subtitle) {
   ggplot(acs1_child,
          aes(x = get(my_cat))) +
-    geom_bar(fill = chHex1) +
+    geom_bar() +
     facet_wrap(~ child_agegroup_combo) +
     labs(title = "Number of ACS1 Sample Observations by Category Scheme",
          subtitle = my_subtitle,
@@ -74,7 +74,7 @@ The figures below explore the amount of variation in each category across PUMAs.
 show_acs1_cat_density_by_puma <- function(my_cat, my_subtitle) {
  ggplot(acs1_child,
        aes(x = PUMA)) +
-  geom_bar(fill = chHex2) +
+  geom_bar() +
   facet_grid(get(my_cat) ~ child_agegroup_combo,
              scales = "free_y") +
   labs(title = "Number of ACS1 Sample Observations by PUMA, by Age Group and Category",
@@ -273,7 +273,7 @@ ggplot(acs5tract_sae_counts,
        aes(x = age_0to5_count,
            y = age_0to5_count_base)) +
   geom_point() + 
-  geom_45(color = "red") +
+  geom_abline(color = "red") +
   labs(title = "Comparison of Tract-level Counts of Children Aged 0-5",
        x = "ACS 5-Year",
        y = glue("Estimate for Base Year ({base_year})")) +
@@ -464,7 +464,7 @@ ggplot(display_lambda_wgt,
        aes(x = share_direct,
            y = share_model)) +
   geom_point(alpha = 0.1) +
-  geom_45(color = "blue") +
+  geom_abline(color = "blue") +
   facet_wrap(~ vc_value) +
   labs(title = "Comparison of SAE Output -- Model-Estimated Share (y) vs Direct (x)") +
   theme_minimal()
@@ -801,7 +801,7 @@ compare_sae_lt100fpl <- function(sae_spec, title, xlab, ylab) {
   sae_lt100fpl_comp_plot <- 
     plot_base +
     geom_point(alpha = 0.1) +
-    geom_45(color = "red") +
+    geom_abline(color = "red") +
     geom_smooth(color = "blue") + 
     scale_x_continuous(labels = percent) +
     scale_y_continuous(labels = percent) +
@@ -1508,7 +1508,7 @@ check_redis_sae %>%
 check_redis_sae %>% 
   ggplot(aes(x = share_acs5,
              y = share_model_redis_pct)) +
-  geom_45() + 
+  geom_abline() + 
   geom_point(alpha = 0.1) + 
   geom_smooth() +
   geom_hline(yintercept = 0, color = "red") +
@@ -1518,7 +1518,7 @@ check_redis_sae %>%
 check_redis_sae %>% 
   ggplot(aes(x = share_acs5,
              y = share_model_redis_log)) +
-  geom_45() + 
+  geom_abline() + 
   geom_point(alpha = 0.1) +
   geom_smooth() +
   geom_hline(yintercept = 0, color = "red") +
@@ -1541,7 +1541,7 @@ check_redis_sae %>%
 check_redis_sae %>% 
   ggplot(aes(x = share_acs5,
              y = share_model_redis_pct01_infl)) +
-  geom_45() + 
+  geom_abline() + 
   geom_point(alpha = 0.1) + 
   geom_smooth() +
   geom_hline(yintercept = 0, color = "red") +
@@ -1551,7 +1551,7 @@ check_redis_sae %>%
 check_redis_sae %>% 
   ggplot(aes(x = share_model_redis_pct,
              y = share_model_redis_pct01_infl)) +
-  geom_45() + 
+  geom_abline() + 
   geom_point(alpha = 0.1) +
   geom_smooth() +
   geom_hline(yintercept = 0, color = "red") +
@@ -1573,7 +1573,7 @@ check_redis_sae %>%
 check_redis_sae %>% 
   ggplot(aes(x = share_model_trunc,
              y = share_model_redis_pct01_infl)) +
-  geom_45() + 
+  geom_abline() + 
   geom_point(alpha = 0.1) +
   geom_smooth() +
   facet_wrap(~vc_value)
@@ -1588,7 +1588,7 @@ comp_plot <- function(field1, field2) {
          !is.na(get(field2))) %>% 
   ggplot(aes(x = get(field1),
              y = get(field2))) +
-  geom_45() + 
+  geom_abline() + 
   geom_point(alpha = 0.1) +
   geom_smooth() + 
   scale_y_continuous(limits = c(0, 1)) +
@@ -1647,7 +1647,7 @@ ggplot(est_vs_acs1,
        aes(x = share_acs1,
            y = estimate_puma,
            color = method)) +
-  geom_45() + 
+  geom_abline() + 
   geom_point() + 
   geom_smooth() +
   facet_grid(vc_value ~ method) +
@@ -1706,7 +1706,7 @@ ggplot(var_prop_acs5_sae,
            y = avg_sae_pov,
            label = PUMA)) + 
   geom_point() + 
-  geom_45() +
+  geom_abline() +
   geom_text(vjust = 1) +
   labs(title = "Comparison of PUMA-Level ACS5 and SAE Estimates (Simple averages)",
          x = "ACS5 Poverty Rate",
