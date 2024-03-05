@@ -890,7 +890,54 @@ for (a in c("age_0to5")) { # "age_0to2", "age_3to5", "age_0to5", "age_4"
 
 ```{r if multiple ccdf cuts are specified -- contrast them statewide and at any geographic levels of focus}
 if (length(local_ccdf_incratio_cuts) > 1) {
-  
+  lAggs <- 
+    list(school = nowcast_agg_sd  %>% rename(geo = School),
+         county = nowcast_agg_cty %>% rename(geo = County),
+         zip    = nowcast_agg_zip %>% rename(geo = ZCTA))
+
+  agg <- 
+    lAggs[[map_geo_level]] %>% 
+    filter(geo %in% map_geos,
+           pd == "nowcast",
+           cps_base_recency == "most_recent",
+           outcome_var %like% "ccdf") %>% 
+    select(geo, age, outcome_var, count, share) %>% 
+    mutate(outcome_var = sort_by_char_nums(outcome_var)) %>% 
+    arrange(age, geo, outcome_var) %>% 
+    data.table() %>% 
+    .[j = `:=`(added_count = count - lag(count),
+               added_share = share - lag(share)),
+      by = .(age, geo)] %>% 
+    .[j = `:=`(added_count = ifelse(is.na(added_count), count, added_count),
+               added_share = ifelse(is.na(added_share), share, added_share))]
+    
+  agg %>% 
+    filter(age == "age_0to5") %>% 
+    mutate(outcome_var = factor(outcome_var, 
+                                levels = rev(levels(outcome_var))),
+           outcome_var = factor(outcome_var,
+                                levels = levels(outcome_var),
+                                labels = levels(outcome_var) %>% 
+                                           str_extract("\\d+$") %>% 
+                                           paste0("%")))%>% 
+    ggplot(aes(x = factor(geo),
+               y = added_share,
+               fill = outcome_var)) +
+    geom_bar(stat = "identity",
+             width = 0.3) +
+    scale_y_continuous(labels = percent) +
+    scale_fill_viridis_d(name = glue("Income Threshold\nas % of {local_custom_thresh_label}"),
+                         option = "G",
+                         guide = guide_legend(reverse = TRUE,
+                                              byrow = TRUE)) +
+    labs(title = glue("Increases in Estimated {local_ccdf_name_short} Eligibility for Increasing the Income Threshold"),
+         subtitle = "by Selected Geographies",
+         x = "",
+         y = glue("{local_ccdf_name_short} Eligibility")) +
+    theme_minimal() +
+    theme(axis.text = element_text(size = 12),
+          legend.position = "bottom",
+          legend.title = element_text(hjust = 1))
 }
 ```
 
