@@ -13,6 +13,7 @@ See the `run--00--main-doc.Rmd` script for the most recent description of the st
 #### Step 1. Create an input folder and an output folder. The path of these folders will be used in Step 4.
 
 #### Step 2. Download datasets manually
+
 1. Go to [IPUMS CPS](https://cps.ipums.org/cps/) website
 2. Create account and log in
 3. Click "Browse and select data" under "Data" section
@@ -38,6 +39,7 @@ See the `run--00--main-doc.Rmd` script for the most recent description of the st
 You will now have the following four files in the input folder: CPS data, CPS documentation, and two crosswalk files
 
 #### Step 3. Create APIs (if you already have APIs for the Census and FRED, this step may be skipped)
+
 1. Create Census API [here](https://api.census.gov/data/key_signup.html).
 2. Create FRED API [here](https://fred.stlouisfed.org/docs/api/api_key.html)
 
@@ -141,6 +143,13 @@ zcta_max <-
 
 # 4. (Optional) One among the auxiliary geographies to highlight, e.g. "Cook County"
   # my_aux_geo_focal_val <- "<if desired, single value of `my_aux_geo_field` to highlight in figures>"
+
+# 5. A list of specific geographies to use in maps and figures of final estimates
+#     E.g. map_geos <- c("Los Angeles", "San Francisco", "San Diego", "Sacramento")
+  map_geos <- c(<list of values in double quotes, separated by commas>)
+
+# 6. An indication of which geographic level the names in #5 belong, e.g. "school", "county", "zip"
+  map_geo_level <- "<school/county/zip>"
 
 ### Set Local CCDF Parameters --------------------------------------------------
 
@@ -285,14 +294,16 @@ These files can be run manually, but are generally set up to be run automaticall
 * `run--01e--prep-pop-by-age-data.Rmd` -- pulls data from the Census Demographic and Housing Characteristics File (DHC) and Census Summary File 1 (SF1) to get population by age group to use in projecting population counts for young children by the most recent year.
 * `run--02a--run-and-validate-SAE.Rmd` -- run a range of SAE specifications for a range of measures--including share of households by income-to-poverty ratio, and measures related to predicting CCDF eligibility--and examine their properties to gauge their individual reliability, and compare their output
 * `run--02b--run-and-validate-nowcasting.Rmd` -- run a range of "now-casting" analyses, apply them to baseline+SAE measures to estimate counts, and examine patterns and maps of the output.
-* `run--03a--postestimation-display-and-output.Rmd` -- after selecting sensitivities based on output guidance from the `02` scripts, this script examines patterns of the results, and outputs the final estimates in maps and Excel tables
-* `run--03b--postestimation-disaggregate-estimates.Rmd` -- this file current generates some additional disaggregations of methods by age and by race/ethnicity
+* `run--03a--postestimation-display-and-output.Rmd` -- after selecting sensitivities based on output guidance from the `02` scripts, this script examines patterns of the results
+* `run--03b--postestimation-disaggregate-estimates.Rmd` -- disaggregates the estimates into smaller age ranges, and aggregates all of the results up to various geographic levels including zip code, school district, and county
+* `run--03c--gen-ouput -- outputs the final estimates into a formatted Excel workbook and Powerpoint deck
 
 ## Methods Scripts
 
 * `method--general-helper-functions.R` -- these are general functions used throughout the scripts, including processing for ACS data, calculating income-to-poverty ratios, and converting age, income, and industry codes into categorical groups/classifications
 * `method--small-area-estimation-functions.Rmd` -- run Small Area Estimation (SAE) method to estimate, in prior years, counts of program-eligible children for small geographies
 * `method--nowcasting-functions.Rmd` -- these are functions that use CPS data to "now-cast" the Small Area counts to a recent month
+* `method--pull-and-process-acs5.R` -- these are functions to automatically pull and process ACS5 data
 
 ## Other Diagnostic Scripts
 
