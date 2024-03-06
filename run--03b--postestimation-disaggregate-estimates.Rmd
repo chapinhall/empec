@@ -794,20 +794,14 @@ for (out_var in c("ccdf", "le100", "le200")) {
 
 
 ```{r generate tract-level maps within indicated geographies if specified for ccdf sensitivities}
+lMap_out <- list(maps_by_geo = list(),
+                 maps_by_inc = list())
 
 ccdf_outs <- 
   nowcast_agg_tract$outcome_var %>% 
   str_subset("ccdf") %>% 
   sort_by_char_nums() %>% 
   levels()
-
-map_geos <- c("Portland", "Lewiston", "Auburn", "Bangor", "Sanford", "Biddeford")
-map_geo_level <- "school"
-map_geo_field <- 
-  case_match(map_geo_level,
-             "tract" ~ "GEOID",
-             "county" ~ "County",
-             "school" ~ "school")
 
 # Loop across ages
 for (a in c("age_0to5")) { # "age_0to2", "age_3to5", "age_0to5", "age_4"
@@ -839,39 +833,50 @@ for (a in c("age_0to5")) { # "age_0to2", "age_3to5", "age_0to5", "age_4"
     for (o in ccdf_outs) {
       inc_thresh <- str_extract(o, "\\d+$")
       
-      static_map_val(estimates = ests_ag,
-                     geo_level = "tract",
-                     geo_level_merge_field = "GEOID",
-                     outcome = o,
-                     field_desc = 
-                       glue("{local_ccdf_name_short} Eligibility - ",
-                            "{inc_thresh}% {local_custom_thresh_label}, {age_desc} ",
-                            "({date_range})"),
-                     val_limits = share_range,
-                     show_legend = TRUE,
-                     map_title = g,
-                     plot_stat = "nowcast",
-                     file_tag = glue(" - {g}"),
-                     save_map = TRUE)
+      my_plot_ranged <- 
+        static_map_val(estimates = ests_ag,
+                       geo_level = "tract",
+                       geo_level_merge_field = "GEOID",
+                       outcome = o,
+                       field_desc = 
+                         glue("{local_ccdf_name_short} Eligibility - ",
+                              "{inc_thresh}% {local_custom_thresh_label}, {age_desc} ",
+                              "({date_range})"),
+                       val_limits = share_range,
+                       show_legend = TRUE,
+                       map_title = g,
+                       plot_stat = "nowcast",
+                       file_tag = glue(" - {g}"),
+                       save_map = FALSE)
+      
+      # lMap_out[["maps_by_inc"]] <- 
+      #   append(lMap_out[["maps_by_inc"]],
+      #          my_plot_ranged)
+      lMap_out[["maps_by_inc"]][[length(lMap_out[["maps_by_inc"]]) + 1]] <- 
+                 my_plot_ranged
       
       # If it's the base CCDF income eligibility ratio, build a map with its own
       # scale to focus on geographic contrasts (rather than comparison of rates
       # across other income thresholds)
       if (str_detect(o, as.character(local_ccdf_incratio_base))) {
-        static_map_val(estimates = ests_ag,
-                     geo_level = "tract",
-                     geo_level_merge_field = "GEOID",
-                     outcome = o,
-                     field_desc = 
-                       glue("{local_ccdf_name_short} Eligibility - ",
-                            "{inc_thresh}% {local_custom_thresh_label}, {age_desc} ",
-                            "({date_range})"),
-                     val_limits = NULL,
-                     show_legend = TRUE,
-                     map_title = g,
-                     plot_stat = "nowcast",
-                     file_tag = glue(" - {g} - geographic contrast"),
-                     save_map = TRUE)
+        my_plot_unranged <- 
+          static_map_val(estimates = ests_ag,
+                         geo_level = "tract",
+                         geo_level_merge_field = "GEOID",
+                         outcome = o,
+                         field_desc = 
+                           glue("{local_ccdf_name_short} Eligibility - ",
+                                "{inc_thresh}% {local_custom_thresh_label}, {age_desc} ",
+                                "({date_range})"),
+                         val_limits = NULL,
+                         show_legend = TRUE,
+                         map_title = g,
+                         plot_stat = "nowcast",
+                         file_tag = glue(" - {g} - geographic contrast"),
+                         save_map = FALSE)
+        
+        lMap_out[["maps_by_geo"]][[length(lMap_out[["maps_by_geo"]]) + 1]] <- 
+                 my_plot_unranged
       }
     }
   }
@@ -911,7 +916,8 @@ if (length(local_ccdf_incratio_cuts) > 1) {
     .[j = `:=`(added_count = ifelse(is.na(added_count), count, added_count),
                added_share = ifelse(is.na(added_share), share, added_share))]
     
-  agg %>% 
+  fig_comp_thresh_geos <- 
+    agg %>% 
     filter(age == "age_0to5") %>% 
     mutate(outcome_var = factor(outcome_var, 
                                 levels = rev(levels(outcome_var))),
@@ -938,6 +944,60 @@ if (length(local_ccdf_incratio_cuts) > 1) {
     theme(axis.text = element_text(size = 12),
           legend.position = "bottom",
           legend.title = element_text(hjust = 1))
+}
+```
+
+
+```{r collect output into presentation deck}
+# This powerpoint output is intended to capture the figures and maps generated
+# below for easy display
+ppt <- 
+  read_pptx() %>% 
+  add_slide(layout = "Title Slide") %>% 
+  ph_with(glue("Maps and Figures for Examining {local_ccdf_name_short} Eligibility for {my_state_abbr}"),
+          location = ph_location_type(type = "ctrTitle"))
+
+if (exists("map_geos")) {
+  # Generate slides for geographic contrasts
+  ppt <- 
+    ppt %>% 
+    add_slide(layout = "Section Header") %>% 
+    ph_with(glue("Maps Showing {local_ccdf_name_short} Eligibility by Select Geographies"),
+            location = ph_location_type(type = "title"))
+  
+  for (i in 1:length(lMap_out$maps_by_geo)) {
+    ppt <- 
+      ppt %>% 
+      add_slide() %>% 
+      ph_with(lMap_out$maps_by_geo[[i]],
+              location = ph_location_type(type = "body"))
+  }  
+  
+  # If multiple threshold cutpoints had been selected, output those figures
+  if (length(local_ccdf_incratio_cuts) > 1) {
+    ppt <- 
+      ppt %>% 
+      add_slide(layout = "Section Header") %>% 
+      ph_with(glue("Increase of Eligibility by Hypothetical Income Thresholds"),
+              location = ph_location_type(type = "title")) %>% 
+      add_slide() %>% 
+      ph_with(fig_comp_thresh_geos,
+              location = ph_location_type(type = "body")) %>% 
+      add_slide(layout = "Section Header") %>% 
+      ph_with(glue("Maps Showing {local_ccdf_name_short} Eligibility by Income Threshold for Select Geographies"),
+              location = ph_location_type(type = "title"))
+    
+    for (i in 1:length(lMap_out$maps_by_inc))
+      ppt <- 
+        ppt %>% 
+        add_slide() %>% 
+        ph_with(lMap_out$maps_by_inc[[i]],
+                location = ph_location_type(type = "body"))
+  }
+  
+  # Output
+  print(ppt, 
+        target = glue("{output_path}Maps and Figures for Examining {local_ccdf_name_short} Eligibility for {my_state_abbr} - {my_output_tag}.pptx"))
 }
 ```
 
