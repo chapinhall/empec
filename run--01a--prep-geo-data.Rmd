@@ -28,7 +28,7 @@ if ("my_county" %in% objects()) {
     filter(state == my_state_abbr, 
            str_detect(county, my_county)) %>% 
     pull(county_code) %>% 
-    unique() 
+    unique()
 }
 ```
 
@@ -131,7 +131,7 @@ geo_crosswalk_zcta_2010 %>%
   .[between(pop_pct, 0.05, 0.95)] %>% 
   ggplot(aes(x = pop_pct,
              y = land_pct)) +
-  geom_45() +
+  geom_abline() +
   geom_point(alpha = 0.3) +
   geom_smooth(color = "blue")
   # Bottom line -- there's a significant amount of scatter, but the trend
@@ -407,7 +407,7 @@ if (!exists("grffile")) {
         exdir = str_replace(input_path, "\\/$", ""))
 }
 geo_crosswalk_sd <-
-  read_xlsx(grffile) %>% 
+  readxl::read_xlsx(grffile) %>% 
   rename(school = NAME_LEA22,
          GEOID  = TRACT) %>% 
   mutate(STATEFIP = substr(GEOID, 1, 2),

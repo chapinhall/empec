@@ -208,11 +208,11 @@ add_agg_level <- function(ests, agg_level) {
         transmute(GEOID    = GEOID, 
                   ZCTA     = ZCTA,
                   geo_part = TRLANDPCT)
-    } else if (agg_level == "School") {
+    } else if (agg_level == "school") {
       geo_merge_data <-
         geo_crosswalk_sd %>%
         transmute(GEOID    = GEOID,
-                  School   = school,
+                  school   = school,
                   geo_part = pct_sd)
     } else if (agg_level == "aux_geo_label") {
       geo_merge_data <- 
@@ -271,7 +271,7 @@ agg_tracts_up <- function(ests, agg_level) {
 nowcast_agg_tract <- agg_tracts_up(nowcast_elig_counts_final, "GEOID")
 nowcast_agg_zip   <- agg_tracts_up(nowcast_elig_counts_final, "ZCTA")
 nowcast_agg_cty   <- agg_tracts_up(nowcast_elig_counts_final, "County")
-nowcast_agg_sd    <- agg_tracts_up(nowcast_elig_counts_final, "School")
+nowcast_agg_sd    <- agg_tracts_up(nowcast_elig_counts_final, "school")
 
 if (exists("my_aux_geo")) {
   nowcast_agg_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  

@@ -618,7 +618,7 @@ ggplot(comp_pop,
        aes(x = age_0to5_count.pop,
            y = age_0to5_count.acs5)) +
   geom_point(alpha = 0.3) + 
-  geom_45(color = "blue") +
+  geom_abline(color = "blue") +
   geom_smooth(color = "red") +
   theme_minimal()
 
@@ -626,7 +626,7 @@ ggplot(comp_pop,
        aes(x = age_6to12_count.pop,
            y = age_6to12_count.acs5)) +
   geom_point(alpha = 0.3) + 
-  geom_45(color = "blue") +
+  geom_abline(color = "blue") +
   geom_smooth(color = "red") +
   theme_minimal()
 

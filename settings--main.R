@@ -14,7 +14,7 @@ packages.list <-
     "plotly", "crosstalk", "DT", "kableExtra", "sae", "emdi", "glue", "forcats", 
     "zoo", "moments", "leaflet", "RColorBrewer", "ggalluvial", "tigris",
     "extrafont", "remotes", "broom", "sf", "lwgeom", "foreach", "doParallel",
-    "tidycensus", "fredr", "ipumsr", "tsibble", "forecast", "xlsx", "fable",
+    "tidycensus", "fredr", "ipumsr", "tsibble", "forecast", "fable", #"xlsx", 
     "boot", "ggtext", "data.table", "tidyr", "dplyr", "scales", "janitor", "R.utils",
     "lubridate", "readxl", "openxlsx", "officer")
 

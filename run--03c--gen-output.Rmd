@@ -35,15 +35,17 @@ if (year(date1) == year(date2)) {
 }
 ```
 
+```{r identify label for income measure used for thresholds}
+ccdf_income_thresh_label <- 
+    ifelse(exists("local_custom_thresh_label"),
+           local_custom_thresh_label,
+           "FPL")
+```
+
 
 ```{r function to output excel sheets for various levels of geographic aggregation}
 write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_label) {
 
-  ccdf_income_thresh_label <- 
-    ifelse(exists("local_custom_thresh_label"),
-           local_custom_thresh_label,
-           "FPL")
-  
   if (exists("excel_front_page_file")) {
     #addWorksheet(wb, "Front page")
     wb <- openxlsx::loadWorkbook(excel_front_page_file)
@@ -186,7 +188,7 @@ lAgg_for_output <-
             agg_field = "County",
             sheet_name = "County"),
        list(agg_table = nowcast_agg_sd,
-            agg_field = "School",
+            agg_field = "school",
             sheet_name = "School Districts"))
 
 if (exists("my_aux_geo")) {
@@ -422,7 +424,7 @@ static_map_val <- function(estimates,
                          labels = percent,
                          alpha = .4) +
     labs(title    = ifelse(!is.null(map_title), map_title, str_wrap(measure_label)),
-         subtitle = ifelse( is.null(map_title),      NULL, str_wrap(measure_label))) +
+         subtitle = ifelse( is.null(map_title),        "", str_wrap(measure_label))) +
     theme_void() 
   
   # Remove legend if not desired
@@ -462,9 +464,9 @@ static_map_level_diff <- function(plot_stats = c("nowcast", "diff"),
 for (out_var in c("ccdf", "le100", "le200")) {
   out_var_desc <- 
     case_match(out_var,
-               "ccdf"  = glue("{local_ccdf_name_short} Eligibility ({date_range})"),
-               "le100" = glue("Head Start Eligibility ({date_range})"),
-               "le200" = glue("Income <200% FPL ({date_range})"))
+               "ccdf"  ~ glue("{local_ccdf_name_short} Eligibility ({date_range})"),
+               "le100" ~ glue("Head Start Eligibility ({date_range})"),
+               "le200" ~ glue("Income <200% FPL ({date_range})"))
   
   static_map_level_diff(estimates = nowcast_agg_zip %>% filter(age == "age_0to5"),
                         geo_level = "ZCTA",
@@ -483,7 +485,7 @@ for (out_var in c("ccdf", "le100", "le200")) {
                         show_legend = TRUE)
   
   static_map_level_diff(estimates = nowcast_agg_sd %>% filter(age == "age_0to5"),
-                        geo_level = "School",
+                        geo_level = "school",
                         outcome = out_var,
                         field_desc = out_var_desc,
                         save_map = TRUE, 
@@ -560,7 +562,7 @@ if (exists("map_geos")) {
                          outcome = o,
                          field_desc = 
                            glue("{local_ccdf_name_short} Eligibility - ",
-                                "{inc_thresh}% {local_custom_thresh_label}, {age_desc} ",
+                                "{inc_thresh}% {ccdf_income_thresh_label}, {age_desc} ",
                                 "({date_range})"),
                          val_limits = share_range,
                          show_legend = TRUE,
@@ -586,7 +588,7 @@ if (exists("map_geos")) {
                            outcome = o,
                            field_desc = 
                              glue("{local_ccdf_name_short} Eligibility - ",
-                                  "{inc_thresh}% {local_custom_thresh_label}, {age_desc} ",
+                                  "{inc_thresh}% {ccdf_income_thresh_label}, {age_desc} ",
                                   "({date_range})"),
                            val_limits = NULL,
                            show_legend = TRUE,
@@ -617,7 +619,7 @@ if (exists("map_geos")) {
 ```{r if multiple ccdf cuts are specified -- contrast them statewide and at any geographic levels of focus}
 if (length(local_ccdf_incratio_cuts) > 1 && exists("map_geos")) {
   lAggs <- 
-    list(school = nowcast_agg_sd  %>% rename(geo = School),
+    list(school = nowcast_agg_sd  %>% rename(geo = school),
          county = nowcast_agg_cty %>% rename(geo = County),
          zip    = nowcast_agg_zip %>% rename(geo = ZCTA))
 
@@ -653,7 +655,7 @@ if (length(local_ccdf_incratio_cuts) > 1 && exists("map_geos")) {
     geom_bar(stat = "identity",
              width = 0.3) +
     scale_y_continuous(labels = percent) +
-    scale_fill_viridis_d(name = glue("Income Threshold\nas % of {local_custom_thresh_label}"),
+    scale_fill_viridis_d(name = glue("Income Threshold\nas % of {ccdf_income_thresh_label}"),
                          option = "G",
                          guide = guide_legend(reverse = TRUE,
                                               byrow = TRUE)) +
