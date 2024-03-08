@@ -1,6 +1,6 @@
 .Rdata
 .Rhistory
-settings--profile.R
+settings--config.R
 
 # Eliminate tracking of cached files produced during runs of the manuscript
 run--00--main-doc_cache/
