@@ -9,6 +9,10 @@ if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R"
 ```{r load final aggregates}
 # Load final aggregated output
 load(file = glue("{output_path}Final ELPEP Estimates in Multiple Geographic Aggregates - {my_output_tag}.Rda"))
+
+# Load other related content for reference
+load(glue("{output_path}Now-cast counts at the tract level, pre-disaggregation - {my_output_tag}.Rda"))
+
 ```
 
 #### Generate Excel Tables with Estimates at Each Geographic Aggregation for CCDF
@@ -65,6 +69,7 @@ write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_l
              cps_base_recency == "most_recent",
              str_detect(outcome_var, outcomes_regex),
              str_detect(age, age_regex)) %>% 
+      select(-cps_base_recency) %>% 
       # convert age to narrative
       mutate(Age = 
                age %>% 
@@ -181,7 +186,10 @@ write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_l
 outcomes_out_regex <- "ccdf_elig_incratio_|incpov_le(100|200)"
 
 lAgg_for_output <- 
-  list(list(agg_table = nowcast_agg_zip,
+  list(list(agg_table = nowcast_agg_tract,
+            agg_field = "GEOID",
+            sheet_name = "Census Tract"),
+       list(agg_table = nowcast_agg_zip,
             agg_field = "ZCTA",
             sheet_name = "Zip Code"),
        list(agg_table = nowcast_agg_cty,
@@ -192,7 +200,7 @@ lAgg_for_output <-
             sheet_name = "School Districts"))
 
 if (exists("my_aux_geo")) {
-  lAgg_for_output[length(lAgg_for_output)+1] <- 
+  lAgg_for_output[[length(lAgg_for_output)+1]] <- 
     list(agg_table = nowcast_agg_aux,
          agg_field = "aux_geo_label",
          sheet_name = my_aux_geo_desc)
@@ -203,28 +211,6 @@ write_agg_output(outcomes_regex = outcomes_out_regex,
                  agg_levels     = lAgg_for_output,
                  out_label      = local_ccdf_name_short)
 
-```
-
-```{r write various levels of geographic aggregation out to file for le50 100 and 200}
-if (exists("my_aux_geo")) {
-  write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "le50"),
-                   agg_level = "aux_geo_label",
-                   sheet_name = my_aux_geo_desc, 
-                   add = FALSE,
-                   out_label = "Pov_below_50")
-  
-  write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "le100"),
-                   agg_level = "aux_geo_label",
-                   sheet_name = my_aux_geo_desc, 
-                   add = FALSE,
-                   out_label = "Pov_below_100")
-  
-  write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "le200"),
-                   agg_level = "aux_geo_label",
-                   sheet_name = my_aux_geo_desc, 
-                   add = FALSE,
-                   out_label = "Pov_below_200")
-}
 ```
 
 
@@ -548,7 +534,10 @@ if (exists("map_geos")) {
         xwalk_g <- filter(geo_crosswalk, County == g)
       } else if (str_to_lower(map_geo_level) == "school") {
         xwalk_g <- filter(geo_crosswalk_sd, school == g)
+      } else if (str_to_lower(map_geo_level) == "aux") {
+        xwalk_g <- filter(geo_crosswalk_aux, get(my_aux_geo_field) == g)
       }
+      
       map_tracts <- unique(xwalk_g$GEOID)
       ests_ag <- filter(ests_a, GEOID %in% map_tracts)
       
@@ -622,6 +611,9 @@ if (length(local_ccdf_incratio_cuts) > 1 && exists("map_geos")) {
     list(school = nowcast_agg_sd  %>% rename(geo = school),
          county = nowcast_agg_cty %>% rename(geo = County),
          zip    = nowcast_agg_zip %>% rename(geo = ZCTA))
+  if (exists("my_aux_geo")) {
+    lAggs[["aux"]] <- nowcast_agg_aux %>% rename(geo = aux_geo_label)
+  }
 
   agg <- 
     lAggs[[map_geo_level]] %>% 
@@ -666,7 +658,8 @@ if (length(local_ccdf_incratio_cuts) > 1 && exists("map_geos")) {
     theme_minimal() +
     theme(axis.text = element_text(size = 12),
           legend.position = "bottom",
-          legend.title = element_text(hjust = 1))
+          legend.title = element_text(hjust = 1),
+          axis.text.x = element_text(angle = 90))
 }
 ```
 
