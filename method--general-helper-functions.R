@@ -509,7 +509,7 @@ sort_by_char_nums <- function(x) {
   q <- unique(x)
   df <- 
     data.frame(q, 
-               first = str_replace(q, "^([^\\d]+).+", "\\1"),
+               first = str_replace(q, "^([^\\d]*).*", "\\1"),
                num = str_extract(q, "\\d+") %>% as.numeric()) %>% 
     arrange(first, num)
   
