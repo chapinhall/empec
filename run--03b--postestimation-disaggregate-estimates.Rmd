@@ -278,6 +278,8 @@ age_aggs <-
   tribble(~age_group, ~age_group_lab, ~low_month, ~high_month,
           "age_infant",   "Infant",   1, 15,
           "age_toddler",  "Toddler", 16, 36,
+          "age_3",        "Pre-K 3", 37, 48,
+          "age_4",        "Pre-K 4", 49, 60,
           "age_0to2",     "Age 0-2",  1, 36,
           "age_3to5",     "Age 3-5", 37, end_month_pre_schoolage,
           "age_0to5",     "Age 0-5",  1, end_month_pre_schoolage)
