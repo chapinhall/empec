@@ -351,7 +351,7 @@ ests_20102020 <-
   select(GEOID_TR20, agegroup, year, pop_interp)
 
 ests_with_forecast <- 
-  bind_rows(ests20102020, 
+  bind_rows(ests_20102020, 
             est_forecast)
 
 ```
@@ -412,10 +412,10 @@ pcts_0to5 <-
 
 pcts_0to5 %>%
   filter(agegroup %in% as.character(c(0:2))) %>%
-  summarize(pct_02ofLt5 = sum(pct),
+  summarize(pct_02of0to5 = sum(pct),
             .by = c(GEOID_TR20, year)) %>% 
   ggplot(aes(x = year,
-             y = pct_02ofLt5,
+             y = pct_02of0to5,
              group = GEOID_TR20)) +
   geom_line(alpha = 0.1) +
   scale_y_continuous(labels = percent) +
@@ -490,7 +490,7 @@ pop_by_age <-
             .by = c(GEOID_TR20, year, age)) %>% 
   pivot_wider(names_from  = "age",
               values_from = "pop_interp") %>% 
-  mutate(age_0to5_count = age_0_count + age_2_count + age_3_count + age_3_count + age_4_count + age_5_count,
+  mutate(age_0to5_count = age_0_count + age_1_count + age_2_count + age_3_count + age_4_count + age_5_count,
          age_3to5_count = age_3_count + age_4_count + age_5_count)
 
 ```
