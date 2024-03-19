@@ -26,10 +26,18 @@ calc_breakdown <- function(acs1_outcome_sub, outcome_var) {
     filter(child_agegroup %in% c("0to2", "3to5")) %>% 
     mutate(age_0to2 = between(AGEP, 0, 2),
            age_3to5 = between(AGEP, 3, 5),
+           age_0    = AGEP == 0,
+           age_1    = AGEP == 1,
+           age_2    = AGEP == 2,
+           age_3    = AGEP == 3,
            age_4    = AGEP == 4,
            age_5    = AGEP == 5) %>% 
     summarize(age_0to2 = sum(PWGTP[age_0to2]) / sum(PWGTP),
               age_3to5 = sum(PWGTP[age_3to5]) / sum(PWGTP),
+              age_0    = sum(PWGTP[age_0])    / sum(PWGTP),
+              age_1    = sum(PWGTP[age_1])    / sum(PWGTP),
+              age_2    = sum(PWGTP[age_2])    / sum(PWGTP),
+              age_3    = sum(PWGTP[age_3])    / sum(PWGTP),
               age_4    = sum(PWGTP[age_4])    / sum(PWGTP),
               age_5    = sum(PWGTP[age_5])    / sum(PWGTP)) %>% 
     mutate(outcome_var = outcome_var)
@@ -39,6 +47,10 @@ calc_breakdown <- function(acs1_outcome_sub, outcome_var) {
       filter(child_agegroup %in% c("0to2", "3to5")) %>% 
       mutate(age_0to2 = between(AGEP, 0, 2),
              age_3to5 = between(AGEP, 3, 5),
+             age_0    = AGEP == 0,
+             age_1    = AGEP == 1,
+             age_2    = AGEP == 2,
+             age_3    = AGEP == 3,
              age_4    = AGEP == 4,
              age_5    = AGEP == 5) %>% 
       select(AGEP, child_agegroup, age_0to2, age_3to5, age_4, age_5) %>% 
@@ -113,7 +125,15 @@ nowcast_parallel_counts <-
 # Prep overall population for under 5 breakdown
 pop_by_age_0to5 <- 
   pop_by_age %>% 
-  select(GEOID = GEOID_TR20, year, age_0to2 = age_0to2_count, age_3to5 = age_3to5_count, age_4 = age_4_count) %>% 
+  select(GEOID = GEOID_TR20, year, 
+         # age_3to5 = age_3to5_count, 
+         # age_0to5 = age_0to5_count, 
+         age_0 = age_0_count,
+         age_1 = age_1_count,
+         age_2 = age_2_count,
+         age_3 = age_3_count,
+         age_4 = age_4_count,
+         age_5 = age_5_count) %>% 
   pivot_longer(cols = matches("age"),
                names_to = "child_agegroup",
                values_to = "pop_count")
@@ -142,59 +162,148 @@ nowcast_elig_counts_added_ages <-
 
 ```
 
-```{r reallocate a portion of five year olds to the school-aged group}
-kindy_cutoff <- ifelse(exists("kindergarten_date_cutoff"), 
-                       kindergarten_date_cutoff,
-                       "09-01")
+```{r function to build single ages--and portions thereof--into larger age groups}
+# Note: we interpret months to be the nth month that a child is "inside" of, rather
+# than a month of age that they have achieved. Thus: a child that has just been
+# born is in their first month, i.e. month 1, and a child that is in month 12 is
+# in their 12 month since birth, and this is an age just before turning 1. This
+# means that children aged 1-12 months are age 0, 13-24 are age 1, etc.
 
-age5_sch_age_portion <- 
-  (ymd(glue("{base_year+1}-{kindy_cutoff}")) - ymd(glue("{base_year+1}-01-01"))) / 365.25
+apportion_ages <- function(low_month, high_month, age_desc, verbose = FALSE) {
+   low_age <- floor(( low_month - 1)/12)
+  high_age <- floor((high_month - 1)/12)
   
-age5_sch_age_portion <- as.numeric(age5_sch_age_portion)
+    low_keep_pct <- 1 - ((low_month - 1) %% 12) / 12
+   high_keep_pct <-     ( high_month     %% 12) / 12
+   if (high_month %% 12 == 0) {
+     high_keep_pct <- 1
+   }
+   
+   if (verbose) {
+     glue("Low/high months: {low_month}-{high_month}\n",
+          "Low/high ages: {low_age}-{high_age}\n",
+          "To preserve from low age/high age groups: {percent(low_keep_pct)}, {percent(high_keep_pct)}\n\n") %>% 
+       print()
+   }
+   
+   apportion_ages <- low_age:high_age
+   
+   apportioned <- 
+     nowcast_elig_counts_added_ages %>% 
+     # Collapse ages
+     filter(age %in% paste0("age_", apportion_ages)) %>% 
+     mutate(
+       # Determine keep pct for age of given row
+       keep_pct = 
+         case_when(age == glue("age_{low_age}")  ~ low_keep_pct,
+                   age == glue("age_{high_age}") ~ high_keep_pct,
+                   TRUE                          ~ 1),
+       
+       # Apply keep pct to each key field
+           count_upd     = keep_pct*count,
+           count_se_upd  = keep_pct*count_se,
+       pop_count_upd     = keep_pct*pop_count,
+       pop_count_se_upd  = keep_pct*pop_count_se,
+     )
+   
+   if (verbose) {
+     print(
+       apportioned %>% 
+         filter(GEOID == GEOID[1],
+                outcome_var == outcome_var[1],
+                pd == "nowcast",
+                cps_base_recency == cps_base_recency[1]) %>% 
+       ggplot(aes(x = count,
+                  y = count_upd)) +
+         geom_point() + 
+         geom_abline() + 
+         facet_wrap(~age)
+     )
+   }
+   
+   collapsed <- 
+     apportioned %>% 
+     # Calculate variances from std err's for summing
+     mutate(    count_var_upd =     count_se_upd^2,
+            pop_count_var_upd = pop_count_se_upd^2) %>% 
+     # Aggregate ages to create the new group
+     summarize(    count    =      sum(count_upd),
+                   count_se = sqrt(sum(count_var_upd)),
+               pop_count    =      sum(pop_count_upd),
+               pop_count_se = sqrt(sum(pop_count_var_upd)),
+               .by = c(GEOID, outcome_var, cps_base_recency, pd, year)) %>% 
+     mutate(age = age_desc,
+            share = count / pop_count,
+            share_se = se_ratio(count, pop_count, count_se, pop_count_se)) %>% 
+     as.data.table()
+   
+   if (verbose) {
+     return(0)
+   } else {
+     return(collapsed)
+   }
+}
 
-age5_portion <- 
-  nowcast_elig_counts_added_ages %>% 
-  filter(age == "age_5") %>% 
-  mutate(count_to_move = age5_sch_age_portion * count,
-         se_to_move    = age5_sch_age_portion * count_se,
-         var_to_move   = se_to_move^2)
+# Check accuracy
+if (FALSE) {
+  apportion_ages( 1, 12, verbose = TRUE, age_desc = "age0")
+  apportion_ages(13, 24, verbose = TRUE, age_desc = "age1")
+  apportion_ages( 1, 15, verbose = TRUE, age_desc = "infant")
+  apportion_ages(16, 36, verbose = TRUE, age_desc = "toddler")
+  apportion_ages(1,  68, verbose = TRUE, age_desc = "age0to5")
+}
 
-nowcast_elig_counts_final <- 
-  nowcast_elig_counts_added_ages %>% 
-  merge(age5_portion %>% select(GEOID, outcome_var, cps_base_recency, pd, year, count_to_move, var_to_move),
-        by = c("GEOID", "outcome_var", "cps_base_recency", "pd", "year"),
-        all.x = TRUE) %>% 
-  mutate(count_upd    = case_when(str_detect(age, "3to5|0to5") ~ count - count_to_move,
-                                  str_detect(age, "6to12")     ~ count + count_to_move,
-                                  TRUE                         ~ count),
-         count_se_upd = case_when(str_detect(age, "3to5|0to5") ~ sqrt(count_se^2 - var_to_move),
-                                  str_detect(age, "6to12")     ~ sqrt(count_se^2 + var_to_move),
-                                  TRUE                         ~ count_se))
 ```
 
 
-```{r check on reallocation of a portion of five year olds to the school-aged group, eval = developer_mode}
+```{r specify and run reaggregations to new age groups}
 
-nowcast_elig_counts_final %>% 
-  filter(outcome_var == outcome_var[1],
-         cps_base_recency == cps_base_recency[1],
-         pd == "nowcast") %>% 
-  ggplot(aes(x = count,
-             y = count_upd - count)) +
-  facet_wrap(~age,
-             scales = "free") +
-  geom_point()
-```
+kindergarten_cutoff <- 
+  ifelse(exists("kindergarten_date_cutoff"), 
+         kindergarten_date_cutoff,
+         "09-01")
 
+end_month_pre_schoolage <- 
+  (interval(ymd(glue("{base_year+1}-01-01")),
+           ymd(glue("{base_year+1}-{kindergarten_cutoff}"))) %/%
+  days(1) /  # Get difference in days
+  30.5 +     # Get difference in (roughly) monthly
+  60)        # Add to number of months up until age 5
 
-```{r complete reallocation of a portion of five year olds to the school-aged group}
-nowcast_elig_counts_final <- 
+# Round to the nearest half month
+end_month_pre_schoolage <- 
+  round(end_month_pre_schoolage/0.5)*0.5
+  
+age_aggs <- 
+  tribble(~age_group, ~age_group_lab, ~low_month, ~high_month,
+          "age_infant",   "Infant",   1, 15,
+          "age_toddler",  "Toddler", 16, 36,
+          "age_0to2",     "Age 0-2",  1, 36,
+          "age_3to5",     "Age 3-5", 37, end_month_pre_schoolage,
+          "age_0to5",     "Age 0-5",  1, end_month_pre_schoolage)
+
+nowcast_elig_counts_final <- NULL
+for (r in 1:nrow(age_aggs)) {
+  #print(age_aggs$age_group[r])
+  print(age_aggs[r, ])
+  nowcast_elig_counts_final <-
+    bind_rows(nowcast_elig_counts_final,
+              apportion_ages( low_month = age_aggs$low_month[r],
+                             high_month = age_aggs$high_month[r],
+                             age_desc   = age_aggs$age_group[r]))
+  tabyl(nowcast_elig_counts_final$age)
+}
+
+# Examine a GEOID/outcome combo to check on reasonableness of aggregates/disaggregates
+if (FALSE) {
   nowcast_elig_counts_final %>% 
-  select(-count, -count_se) %>% 
-  rename(count    = count_upd,
-         count_se = count_se_upd)
+    filter(outcome_var == outcome_var[1],
+           GEOID == GEOID[1],
+           pd == "nowcast",
+           cps_base_recency == "allbase") %>% 
+    select(age, count, pop_count)
+}
 ```
-
 
 ### Aggregate Estimates to Larger Geographies
 
