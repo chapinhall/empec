@@ -979,8 +979,8 @@ make_acs5_equiv <- function(sae_ests, sae_age, verbose = FALSE) {
     case_when(sae_age == "05"  ~ "Age0to6",
               sae_age == "612" ~ "Age6to11")
   acs1_ages <- 
-    case_when(sae_age == "05"  ~ c(0, 6),
-              sae_age == "612" ~ c(0, 12))
+    case_when(sae_age == "05"  ~ c(0, 5),
+              sae_age == "612" ~ c(6, 12))
   
   acs5_ests <- NULL
   for (vc in vc_vals) {
@@ -1009,7 +1009,7 @@ make_acs5_equiv <- function(sae_ests, sae_age, verbose = FALSE) {
     ### Calculate joint income-and-work status work eligibility is relevant ###
     # The measures that we have calculated from pulls of the ACS 5-year data are
     # only marginal distributional values. However, we want estimates of the joint
-    # value, i.e. kids in families based on both income and work eligibilty status.
+    # value, i.e. kids in families based on both income and work eligibility status.
     # We can use calculations from the phi coefficient (https://en.wikipedia.org/wiki/Phi_coefficient)
     # in the microdata above with these marginal values to estimate the likelihood of 
     # the joint work eligible x income eligible condition.
@@ -1021,7 +1021,7 @@ make_acs5_equiv <- function(sae_ests, sae_age, verbose = FALSE) {
     # n.0 = (1-q), and note that n = 1, as the sum of marginal probabilities
     # must equal 100% probability. Then, the second equation for phi under the 
     # "Definition" section which reads as follow, can be reduced:
-    #   phi = (n*n11 - n1.*n.1) / sqrt(n1.*n.1*(n - n1.)*(n - n.1))
+    #   phi = (n11 - n1.*n.1) / sqrt(n1.*n.1*(n - n1.)*(n - n.1))
     #       = (1*n11 - p*q) / sqrt(p*q*(1-p)*(1-q))
     # And thus:
     #   n11 = phi * sqrt(p*q*(1-p)*(1-q)) + pq
