@@ -203,7 +203,7 @@ Besides the indicators above, all other relevant characteristics are measured re
   - 0-100% FPL, 100-200%, 200-300%, 300-400%, 400%+ (useful for simpler reference)
 * Combinations of partitions defined above to both represent share categories predicted in the SAE method, as well as direct calculation of CCDF eligibility rates in the baseline year
 
-```{r get fpl threshold for ccdf}
+```{r get fpl threshold for ccdf for ACS1 calcs}
 # It's not strictly the case that this is provided directly by users, because a
 # custom income threshold such as based on state median income may have been 
 # provided
