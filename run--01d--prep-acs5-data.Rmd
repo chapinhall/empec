@@ -21,9 +21,6 @@ load(glue("{output_path}geo_data_{my_output_tag}.Rda"))
 
 source("method--pull-and-process-acs5.R")
 
-```
-
-```{r run acs5 data pull if data is not available}
 acs5_filename <- glue("{output_path}acs5_variables_{my_output_tag}.csv")
 if (!file.exists(acs5_filename)) {
   source("pull--acs5-general-data.R")
@@ -215,7 +212,7 @@ if (exists("my_county_fip")) county_val <- my_county_fip else county_val <- NULL
 # "Age by Ratio of Income to Poverty Level In the Past 12 Months"
 acs5_incpov_byage_raw    <- pull_table("B17024", state = my_state_abbr, county = county_val, year = acs5_year)
 
-# "Relationship To Householder For Children Under 18 Years In Households"
+# "Presence of Own Children Under 18 Years by Family Type by Employment Status"
 acs5_famconfig_wKids_raw <- pull_table("B23007", state = my_state_abbr, county = county_val, year = acs5_year)
 
 ```
