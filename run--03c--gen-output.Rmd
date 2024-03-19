@@ -71,50 +71,64 @@ write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_l
              str_detect(age, age_regex)) %>% 
       select(-cps_base_recency) %>% 
       # convert age to narrative
-      mutate(Age = 
-               age %>% 
-               str_replace("age_(\\d+)to(\\d+)", "Age \\1-\\2") %>% 
-               str_replace("age_(\\d+)$", "Age \\1"),
-             
-             #Outcome = str_replace(outcome_var, "^([a-z]+)_.+", "\\1"),
-             Outcome = 
-               case_when(str_detect(outcome_var, "^ccdf") ~ 
-                           str_replace(outcome_var, 
-                                       "ccdf_elig_incratio_(\\d+)",
-                                       glue("{local_ccdf_name_short} - \\1% {ccdf_income_thresh_label}")),
-                         str_detect(outcome_var, "_le50_")  ~ "Below 50% FPL",
-                         str_detect(outcome_var, "_le100_") ~ "Below 100% FPL",
-                         str_detect(outcome_var, "_le185_") ~ "Below 185% FPL",
-                         str_detect(outcome_var, "_le200_") ~ "Below 200% FPL",
-                         str_detect(outcome_var, "_le225_") ~ "Below 225% FPL",
-                         str_detect(outcome_var, "_le400_") ~ "Below 400% FPL"),
-             
-             Outcome = sort_by_char_nums(Outcome),
-             
-             # Calculate bounds, and round
-             count_lb = round(count + qnorm(.1)*count_se),
-             count_ub = round(count + qnorm(.9)*count_se),
-             count    = round(count),
-             pop_count = round(pop_count), # This is in order to get "round" values of share
-             
-             # (Re)calculate share to be consistent with the rounded counts.
-             # This is most significant for small geographies, where counts may
-             # be small--and thus likely a familiar percentage, or even 0
-             share = (count / pop_count) %>% replace_na(0),
-             share_se = se_proportion(count, pop_count, count_se, pop_count_se),
-             share_lb = pmax(share + qnorm(.1)*share_se, 0) %>% replace_na(0),
-             share_ub = pmin(share + qnorm(.9)*share_se, 1) %>% replace_na(0)) %>% 
-      dplyr::select(-count_se, -share_se, -pop_count, -pop_count_se) %>% 
+      mutate(
+        # Recode numeric age values
+        Age = 
+          age %>% 
+          str_replace("age_(\\d+)to(\\d+)", "Age \\1-\\2") %>% 
+          str_replace("age_(\\d+)$", "Age \\1"),
+        
+        # Recode non-numeric age values
+        Age = 
+          case_when(Age %like% "infant"  ~ "Infant (1-15 months)",
+                    Age %like% "toddler" ~ "Toddler (16-36 months)",
+                    Age == "Age 3" ~ "Pre-K 3 (37-48 months)",
+                    Age == "Age 4" ~ "Pre-K 4 (49-60 months)",
+                    TRUE             ~ Age),
+        
+        Outcome = 
+          case_when(str_detect(outcome_var, "^ccdf") ~ 
+                      str_replace(outcome_var, 
+                                  "ccdf_elig_incratio_(\\d+)",
+                                  glue("{local_ccdf_name_short} - \\1% {ccdf_income_thresh_label}")),
+                    str_detect(outcome_var, "_le50_")  ~ "Below 50% FPL",
+                    str_detect(outcome_var, "_le100_") ~ "Below 100% FPL",
+                    str_detect(outcome_var, "_le185_") ~ "Below 185% FPL",
+                    str_detect(outcome_var, "_le200_") ~ "Below 200% FPL",
+                    str_detect(outcome_var, "_le225_") ~ "Below 225% FPL",
+                    str_detect(outcome_var, "_le400_") ~ "Below 400% FPL"),
+        
+        Outcome = sort_by_char_nums(Outcome),
+        
+        # Calculate bounds, and round
+        count_lb = round(count + qnorm(.1)*count_se),
+        count_ub = round(count + qnorm(.9)*count_se),
+        count    = round(count),
+        pop_count = round(pop_count), # This is in order to get "round" values of share
+        
+        # (Re)calculate share to be consistent with the rounded counts.
+        # This is most significant for small geographies, where counts may
+        # be small--and thus likely a familiar percentage, or even 0
+        share = (count / pop_count) %>% replace_na(0),
+        share_se = se_proportion(count, pop_count, count_se, pop_count_se),
+        share_lb = pmax(share + qnorm(.1)*share_se, 0) %>% replace_na(0),
+        share_ub = pmin(share + qnorm(.9)*share_se, 1) %>% replace_na(0)) %>% 
+      dplyr::select(-count_se, -share_se, -pop_count_se) %>% 
       pivot_longer(cols = matches("(count|share)(_|$)")) %>% 
-      mutate(stat = case_when(name %like% "count" ~ "#",
+      mutate(stat = case_when(name == "pop_count" ~ "Overall #",
+                              name %like% "count" ~ "#",
                               name %like% "share" ~ "%"),
              calc = case_when(name %like% "_lb" ~ ", lower bound",
                               name %like% "_ub" ~ ", upper bound",
                               TRUE ~ ""),
+             Outcome = case_when(name == "pop_count" ~ "",
+                                 TRUE                ~ paste0(" ", Outcome)),
              
-             label = glue("{Age} {Outcome}, {date_range} -- {stat}{calc}")) %>% 
+             label = glue("{Age}{Outcome}, {date_range} -- {stat}{calc}")) %>% 
       arrange(Age, Outcome) %>% 
       dplyr::select(-age, -pd, -outcome_var, -Age, -Outcome, -name, -stat, -calc) %>% 
+      # Use a unique() to compress the overall population rows across outcomes
+      unique() %>% 
       pivot_wider(names_from = label,
                   values_from = value)
     
@@ -207,7 +221,7 @@ if (exists("my_aux_geo")) {
 }
 
 write_agg_output(outcomes_regex = outcomes_out_regex,
-                 age_regex      = "age_(0to2|3to5|4|0to5|6to12)",
+                 age_regex      = "age(_3$|_4$|_infant$|_toddler$)", # "_0to2|_3to5|_0to5|_6to12"
                  agg_levels     = lAgg_for_output,
                  out_label      = local_ccdf_name_short)
 
