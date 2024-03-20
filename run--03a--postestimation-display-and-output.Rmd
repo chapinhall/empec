@@ -8,8 +8,8 @@ pubic audiences are suppressed or moved to code chunks that can optionally be
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 if (!"calc_cps_transitions" %in% objects()) source_rmd("method--nowcasting-functions.Rmd", echo = FALSE)
 ```
@@ -211,7 +211,7 @@ comp_nowcast_vs_sae <- function(share_ests, title, xlab, ylab, save_tag) {
            aes(x = share_base,
                y = share_nowcast)) +
     geom_point(alpha = 0.2) +
-    geom_45(color = "red") +
+    geom_abline(color = "red") +
     geom_smooth(se = FALSE,
                 color = "blue") +
     # facet_wrap(~ sae_spec) +

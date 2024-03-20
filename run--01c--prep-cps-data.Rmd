@@ -14,8 +14,8 @@ developer_mode <- FALSE
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
@@ -335,6 +335,14 @@ cps_faminc_vals <- sort(unique(cps_pov$FAMINC))
 
 ```
 
+```{r get fpl threshold for ccdf for CPS calcs}
+# It's not strictly the case that this is provided directly by users, because a
+# custom income threshold such as based on state median income may have been 
+# provided
+
+ccdf_inc_thresh_fpl <- get_fpl_thresh_for_ccdf()
+```
+
 
 ```{r develop income to poverty ratio and ccdf/ccap eligibility for cps considering economic impact payments}
 cps_pov <-
@@ -361,8 +369,8 @@ cps_pov <-
              # Develop categories of household income to align with those in ACS1, which define the SAE targets
              fam_incpov_ratio_cat_byMix       = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.00, 2.00, 4.00)),
              fam_incpov_ratio_cat_byMix_adj   = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.00, 2.00, 4.00)),
-             fam_incpov_ratio_cat_hs_ccdf     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 1.00, local_ccdf_incratio_base/100, 3.50, 5.00)),
-             fam_incpov_ratio_cat_hs_ccdf_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 1.00, local_ccdf_incratio_base/100, 3.50, 5.00)),
+             fam_incpov_ratio_cat_hs_ccdf     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 1.00, ccdf_inc_thresh_fpl/100, 4.00)),
+             fam_incpov_ratio_cat_hs_ccdf_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 1.00, ccdf_inc_thresh_fpl/100, 4.00)),
              fam_incpov_ratio_cat_to185       = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.25, 1.85, 4.00)),
              fam_incpov_ratio_cat_to185_adj   = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.25, 1.85, 4.00)),
              fam_incpov_ratio_cat_by50        = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = seq(0, 4, by = 0.50)),
@@ -514,7 +522,6 @@ ggplot(comp_sub[faminc_draw < 150000],
                        "Adjusted income below top-coded limit of $150,000"),
        x = "EIP-Adjusted Family Income (Basic Monthly)",
        y = "Summed Wage and UI (ASEC)") +
-  myTheme +
   theme(legend.position = "bottom")
 ```
 
@@ -538,8 +545,7 @@ ggplot(comp_sub[faminc_draw < 150000],
   geom_smooth(formula = y ~ x, 
               method = "rolling_median", 
               se = FALSE) +
-  geom_abline(intercept = 0,
-              slope = 1) +
+  geom_abline() +
   scale_y_continuous(labels = comma) +
   scale_x_continuous(labels = comma) +
   scale_color_discrete(name = "") +
@@ -548,7 +554,6 @@ ggplot(comp_sub[faminc_draw < 150000],
                        "Adjusted income below top-coded limit of $150,000"),
        x = "Family Income (Basic Monthly)",
        y = "Summed Total Income (ASEC)") +
-  myTheme +
   theme(legend.position = "bottom")
 
 ```
@@ -850,8 +855,8 @@ ggplot(cps_hoh_pre_post[YEAR_b == {base_year}],
        aes(faminc_draw_b,
            faminc_draw_p)) +
   geom_point(alpha = 0.2) + 
-  geom_45(color = "blue", 
-          linewidth = 1) +
+  geom_abline(color = "blue", 
+              linewidth = 1) +
   geom_smooth(color = "red")
 ```
 
@@ -862,8 +867,8 @@ ggplot(cps_hoh_pre_post[j = is_black := ifelse(RACE_b == 200, "black HOH", "non-
            color = has_young_kids_base_b)) +
   # geom_point(alpha = 0.1) + 
   facet_grid(paste0("Base: ", YEAR_b) ~ is_black) +
-  geom_45(color = "blue", 
-          linewidth = 1) +
+  geom_abline(color = "blue", 
+              linewidth = 1) +
   geom_smooth(se = FALSE) +
   scale_color_manual(name = "",
                      values = c("green", "purple")) +
@@ -885,8 +890,8 @@ ggplot(cps_hoh_pre_post[j = ed_lt12 := ifelse(EDUC_b < 70, "Lt HS Ed", "HS Ed or
            color = has_young_kids_base_b)) +
   # geom_point(alpha = 0.1) + 
   facet_grid(paste0("Base: ", YEAR_b) ~ ed_lt12) +
-  geom_45(color = "blue", 
-          linewidth = 1) +
+  geom_abline(color = "blue", 
+              linewidth = 1) +
   geom_smooth(se = FALSE) +
   scale_color_manual(name = "",
                      values = c("green", "purple")) +
@@ -915,8 +920,8 @@ ggplot(cps_trans,
        aes(x = faminc_adj_b,
            y = faminc_adj_p)) +
   geom_point(alpha = 0.1) + 
-  geom_45(color = "blue", 
-          linewidth = 1) +
+  geom_abline(color = "blue", 
+              linewidth = 1) +
   geom_smooth(color = "red")
 ```
 
@@ -933,16 +938,16 @@ ggplot(cps_trans[YEAR_b == 2019],
        aes(x = faminc_adj_b,
            y = faminc_adj_p)) +
   geom_point() + 
-  geom_45(color = "blue", 
-          linewidth = 1) +
+  geom_abline(color = "blue", 
+              linewidth = 1) +
   geom_smooth(color = "red")
 
 ggplot(cps_trans[YEAR_b == 2019],
        aes(x = fam_incpov_ratio_b,
            y = fam_incpov_ratio_p)) +
   geom_point() + 
-  geom_45(color = "blue", 
-          linewidth = 1) +
+  geom_abline(color = "blue", 
+              linewidth = 1) +
   geom_smooth(color = "red")
 ```
 

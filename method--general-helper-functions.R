@@ -286,6 +286,27 @@ if (FALSE) {
         sapply(1:8, function(x) get_pov_threshold(x, year = base_year, month = 1)))
 }
 
+get_fpl_thresh_for_ccdf <- function(fam_size_calc = 4) {
+  if (exists("custom_income_thresh")) {
+    custom_inc_thresh_fam4 <- 
+      custom_income_thresh %>% 
+      filter(fam_size == fam_size_calc) %>% 
+      pull(inc_thresh)*(local_ccdf_incratio_base/100)
+    
+    fpl_fam4 <- 
+      fpl_by_year %>% 
+      filter(fpl_fam_size == fam_size_calc) %>% 
+      pull(glue("fpl_{base_year}"))
+    
+    ccdf_inc_thresh_fpl <- 
+      (custom_inc_thresh_fam4 / fpl_fam4)*100
+  } else {
+    ccdf_inc_thresh_fpl <- local_ccdf_incratio_base  
+  }  
+  return(ccdf_inc_thresh_fpl)
+}
+
+
 draw_inc <- function(faminc, fixed_results = TRUE) {
   # This function randomly draws income from FAMINC categories
   
@@ -488,7 +509,7 @@ sort_by_char_nums <- function(x) {
   q <- unique(x)
   df <- 
     data.frame(q, 
-               first = str_replace(q, "^([^_]+).+", "\\1"),
+               first = str_replace(q, "^([^\\d]*).*", "\\1"),
                num = str_extract(q, "\\d+") %>% as.numeric()) %>% 
     arrange(first, num)
   
@@ -496,4 +517,7 @@ sort_by_char_nums <- function(x) {
     
 }
 
-
+if (FALSE) {
+  sort_by_char_nums(c("ABC_10", "ABC_5", "ABC_20", "DEF_40", "DEF_1")) %>% levels()
+  sort_by_char_nums(c("ABC10", "ABC5", "ABC20", "DEF40", "DEF1")) %>% levels()
+}

@@ -404,7 +404,6 @@ compare_sae_agg <- function(sae_in,        # SAE estimates output by the `run_sa
          x = "ACS 1-Year",
          y = "SAE Estimates") +
     theme_minimal() +
-    myTheme +
     theme(strip.background = element_rect(fill = "lightgray", 
                                           color = NA))
   

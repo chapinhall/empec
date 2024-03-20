@@ -13,8 +13,8 @@ print_documentation <- FALSE
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 
 Sys.setenv(census_api_key = census_key)
@@ -64,16 +64,16 @@ This code pulls together data from the [2020 Census Demographic and Housing Char
 * Use 2010 Census SF1 to get single-age population data at the block group level 
 * Use NHGIS 2010-block-groups-to-2020-tract crosswalk to obtain 2010 pop counts for 2020 tracts
 
-```{r pull single-age population counts aged 0, ..., 17 from 2020 DHC}
-#Load variables for 2020 DHC
-#Also available at https://api.census.gov/data/2020/dec/dhc/variables.html
+```{r develop metadata for the 2020 DHC data}
+# Load variables for 2020 DHC
+# Also available at https://api.census.gov/data/2020/dec/dhc/variables.html
 var_dhc_2020 <- load_variables(2020, dataset = "dhc")
 
-#Filter variables
+# Filter variables
 var_dhc_2020 <- 
   var_dhc_2020 %>% 
   # P14: Count by single-year age for the population under 20 years (available at the block/tract level)
-  filter(str_detect(name, "P14")) %>%
+  filter(str_detect(name, "^P14")) %>%
   mutate(age = str_extract(label, "\\d+"),
          age = as.numeric(age) - str_detect(label, "Under"),
          sex = case_when(str_detect(label, "Female") ~ "female",
@@ -82,69 +82,90 @@ var_dhc_2020 <-
   filter(age %in% 0:17,
          !(sex == "all"))
 
+# Examine the mapping
+if (FALSE) {
+  var_dhc_2020 %>% 
+    select(label, age, sex)
+}
+```
+
+
+```{r pull single-age population counts aged 0 - 17 from 2020 DHC}
 #Tract-level pop count by age
 pop_tract_2020_dhc <-
   get_decennial(
     geography = "tract",
     variables = var_dhc_2020$name,
-    year = 2020,
-    sumfile = "dhc",
-    state  = my_state_fip,
-    county = county_arg,
-    geometry = F) %>% 
+    year      = 2020,
+    sumfile   = "dhc",
+    state     = my_state_fip,
+    county    = county_arg,
+    geometry  = F) %>% 
   merge(var_dhc_2020 %>% select(-label, -concept),
         by.x = "variable",
         by.y = "name",
         all = TRUE) %>% 
   rename(GEOID_TR20 = GEOID)
-  
 ```
 
-```{r generate pop est by age groups using DHC, echo = FALSE, message = FALSE}
+```{r establish an age grouping function for use in all recodings below}
+group_census_ages <- function(age) {
+  case_when(age %in% 0:5         ~ as.character(age),
+            between(age,  6, 12) ~ "612",
+            between(age, 13, 17) ~ "1317",
+            TRUE                 ~ NA)
+}
+```
+
+
+```{r generate pop est by age groups using DHC}
 pop_age_groups_2020_dhc <-
   pop_tract_2020_dhc %>% 
   select(-variable, NAME) %>%
-  mutate(agegroup = 
-           case_when(between(age,  0,  2) ~ "02",
-                     age == 3             ~ "3",
-                     age == 4             ~ "4",
-                     age == 5             ~ "5",
-                     between(age,  6, 12) ~ "612",
-                     between(age, 13, 17) ~ "1317")) %>% 
-  group_by(GEOID_TR20, agegroup) %>%
-  summarise(value = sum(value))
+  mutate(agegroup = group_census_ages(age)) %>% 
+  summarise(value = sum(value),
+            .by = c(GEOID_TR20, agegroup))
 
 ```
 
 ## Census Population Data from 2010 Summary File 1
 
-```{r pull single-age population counts aged 0, ..., 17 from 2010 SF1}
-#Load variables for 2020 DHC
+```{r develop metadata for the 2021 SF1 data}
+# Load variables for 2010 SF1
 var_sf1_2010 <- load_variables(2010, dataset = "sf1")
 
-#Filter variables
+# Filter variables
 var_sf1_2010 <- 
   var_sf1_2010 %>% 
   filter(str_detect(name, "P014")) %>% #name, ("PCT012|P012|P014")
   mutate(age = str_extract(label, "\\d+"),
          age = as.numeric(age) - str_detect(label, "Under"),
-         age = ifelse(is.na(age), "all", age),
+         #age = ifelse(is.na(age), "all", age),
          sex = case_when(str_detect(label, "Female") ~ "female",
                          str_detect(label, "Male")   ~ "male",
                          TRUE                        ~ "all")) %>% 
   filter(age %in% 0:17,
          !(sex == "all"))
 
-#Block-group-level pop count by age
+# Examine the mapping
+if (FALSE) {
+  var_sf1_2010 %>% 
+    select(label, age, sex)
+}
+```
+
+
+```{r pull single-age population counts aged 0 - 17 from 2010 SF1}
+# Block-group-level pop count by age
 pop_bg_2010_sf1 <-
   get_decennial(
     geography = "block group",
     variables = var_sf1_2010$name,
-    year = 2010,
-    sumfile = "sf1",
-    state  = my_state_fip,
-    county = county_arg,
-    geometry = F) %>% 
+    year      = 2010,
+    sumfile   = "sf1",
+    state     = my_state_fip,
+    county    = county_arg,
+    geometry  = F) %>% 
   merge(var_sf1_2010 %>% select(-label, -concept),
         by.x = "variable",
         by.y = "name",
@@ -154,7 +175,7 @@ pop_bg_2010_sf1 <-
 
 ```
 
-```{r develop 2010 block group to 2020 tract crosswalk, echo = FALSE, message = FALSE}
+```{r develop 2010 block group to 2020 tract crosswalk}
 # See https://www.nhgis.org/geographic-crosswalks#from-block-groups
 # Download crosswalks from 2010 block groups to 2020 census tracts
 # url: https://data2.nhgis.org/crosswalks/nhgis_bg2010_tr2020.zip 
@@ -162,216 +183,80 @@ pop_bg_2010_sf1 <-
 
 xwk_bg2010_tr2020 <-
   read_nhgis(glue("{input_path}nhgis_bg2010_tr2020.zip")) %>% 
-  #wt_pop: Expected proportion of source zone's `population` located in target zone
+  # wt_pop: Expected proportion of source zone's `population` located in target zone
   select(GEOID_BG10 = bg2010ge, 
          GEOID_TR20 = tr2020ge, 
          wt_pop) %>%
   mutate(statefip = as.character(substr(GEOID_TR20, 1, 2))) %>%
   filter(statefip == {my_state_fip})
 
+# Confirm that all necessary geographies are represented
+stopifnot(all(   pop_bg_2010_sf1$GEOID_BG10 %in% xwk_bg2010_tr2020$GEOID_BG10))
+stopifnot(all(pop_tract_2020_dhc$GEOID_TR20 %in% xwk_bg2010_tr2020$GEOID_TR20))
+
 ```
 
-```{r implement use of crosswalk, echo = FALSE, message = FALSE}
-#Merge crosswalk and 2010 block group data to get 2010 pop counts for 2020 tracts
-pop_bg_2010_tr2020 <-
-  merge(pop_bg_2010_sf1,
-        xwk_bg2010_tr2020,
-        by = "GEOID_BG10",
-        all.x = T) %>% 
-  select(-variable, -statefip) %>% 
-  rename(pop_bg2010 = value,
-         NAME_BG10  = NAME) %>%
-  #Multiply 2010 pop counts for 2010 block group (pop_bg2010) by interpolation weights (wt_pop)
-  mutate(pop_tr2020 = pop_bg2010*wt_pop,
-         GEOID_TR10 = str_sub(GEOID_BG10, 1, 11)) %>%
-  select(GEOID_BG10, GEOID_TR10, GEOID_TR20, sex, age, pop_bg2010, wt_pop, pop_tr2020, NAME_BG10)
-
-head(pop_bg_2010_tr2020)
-
-pop_bg_2010_agegroup <- 
+```{r implement use of crosswalk}
+pop_bg2010_tr2020_agegroup <- 
   pop_bg_2010_sf1 %>% 
-  group_by(GEOID_BG10, age) %>%
-  summarise(value = sum(value)) %>% 
-  ungroup() %>% 
-  mutate(big_agegroup = 
-           case_when(age %in% 0:4   ~ "pop_0004",
-                     age %in% 5:9   ~ "pop_0509",
-                     age %in% 10:14 ~ "pop_1014",
-                     age %in% 15:17 ~ "pop_1517",
-                     TRUE           ~ NA)) %>%
-  group_by(GEOID_BG10, big_agegroup) %>%
-  summarise(bigpop_bg2010 = sum(value))
-
-pop_bg_2010_tr2020_agegroup <-
-  merge(pop_bg_2010_agegroup,
-        xwk_bg2010_tr2020,
-        by = "GEOID_BG10",
-        all.x = T) %>% 
-  mutate(bigpop_tr2020 = bigpop_bg2010*wt_pop)
-
-pop_bg_2010_tr2020_agegroup <- 
-  pop_bg_2010_sf1 %>% 
-  group_by(GEOID_BG10, age) %>%
-  summarise(value = sum(value)) %>% 
-  ungroup() %>% 
-  mutate(agegroup = 
-           case_when(age %in% 0:2   ~ "02",
-                     age == 3       ~ "3",
-                     age == 4       ~ "4",
-                     age == 5       ~ "5",
-                     age %in% 6:12  ~ "612",
-                     age %in% 13:17 ~ "1317",
-                     TRUE           ~ NA)) %>%
-  group_by(GEOID_BG10, agegroup) %>%
-  summarise(grvalue = sum(value)) %>%
+  summarise(value = sum(value),
+            .by = c(GEOID_BG10, age)) %>%
   merge(xwk_bg2010_tr2020,
         by = "GEOID_BG10",
         all.x = T) %>%
-  select(-statefip) %>%
-  mutate(est = (grvalue*wt_pop) %>% round(0)) %>%
-  group_by(GEOID_TR20, agegroup) %>%
-  summarise(est_2010 = sum(est))
-
-pop_bg_2010_tr2020_agegroup_test <- 
-  pop_bg_2010_sf1 %>% 
-  group_by(GEOID_BG10, age) %>%
-  summarise(value = sum(value)) %>%
-  merge(xwk_bg2010_tr2020,
-        by = "GEOID_BG10",
-        all.x = T) %>%
-  mutate(pop_tr2020 = (value*wt_pop) %>% round(0)) %>%
-  ungroup() %>% 
-  mutate(agegroup = 
-           case_when(age %in% 0:2   ~ "02",
-                     age == 3       ~ "3",
-                     age == 4       ~ "4",
-                     age == 5       ~ "5",
-                     age %in% 6:12  ~ "612",
-                     age %in% 13:17 ~ "1317",
-                     TRUE           ~ NA)) %>%
-  group_by(GEOID_TR20, agegroup) %>%
-  summarise(est_2010 = sum(pop_tr2020))
+  mutate(pop_tr2020 = (value*wt_pop)) %>%
+  mutate(agegroup = group_census_ages(age)) %>%
+  summarise(est_2010 = sum(pop_tr2020),
+            .by = c(GEOID_TR20, agegroup))
 
 ```
 
-```{r develop 2010 block to 2020 block crosswalk, echo = FALSE, message = FALSE}
-# See https://www.nhgis.org/geographic-crosswalks#from-block-groups
-# Download crosswalks from 2010 block groups to 2020 census tracts (GEOID identifiers)
-# url: https://data2.nhgis.org/crosswalks/nhgis_blk2010_blk2020_ge.zip
-# It's necessary to sign in to download
-xwk_bl2010_bl2020 <-
-  read_nhgis(glue("{input_path}nhgis_blk2010_blk2020_ge.zip")) %>% 
-  select(GEOID_BL10 = GEOID10,
-         GEOID_BL20 = GEOID20,
-         WEIGHT) %>%
-  mutate(statefip = as.character(substr(GEOID_BL20, 1, 2))) %>%
-  filter(statefip == {my_state_fip})
-
+```{r recode remaining zeros in the 2010 final}
+if (any(sapply(pop_bg2010_tr2020_agegroup, function(x) mean(is.na(x)) %>% sort()) != 0)) {
+  pop_bg2010_tr2020_agegroup <-
+    pop_bg2010_tr2020_agegroup %>% 
+    mutate(est_2010 = replace_na(est_2010, 0)) 
+}
 ```
 
-```{r census tract10 to tract20 crosswalk}
-# See this link, and search for "Census Tract Relationship Files":
-#   https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.html
-# Documentation is here:
-#   https://www2.census.gov/geo/pdfs/maps-data/data/rel2020/tract/explanation_tab20_tract20_tract10.pdf
-rel_tr2020_tr2010 <- 
-  fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/tract/tab20_tract20_tract10_natl.txt") %>% 
-  mutate(GEOID_TR20 = str_pad(GEOID_TRACT_20, width = 11, side = "left", pad = "0"),
-         GEOID_TR10 = str_pad(GEOID_TRACT_10, width = 11, side = "left", pad = "0"),
-         statefip   = substr(GEOID_TR20, 1, 2)) %>%
-  filter(statefip == {my_state_fip}) %>% 
-  select(GEOID_TR20, GEOID_TR10, AREALAND_TRACT_20, AREALAND_TRACT_10) %>% 
-  mutate(GEOID_TR20        = as.character(GEOID_TR20),
-         GEOID_TR10        = as.character(GEOID_TR10),
-         AREALAND_TRACT_20 = as.numeric(AREALAND_TRACT_20),
-         AREALAND_TRACT_10 = as.numeric(AREALAND_TRACT_10)) %>% 
-  group_by(GEOID_TR20) %>% 
-  mutate(pct_10_in_20 = AREALAND_TRACT_10 / sum(AREALAND_TRACT_10)) %>% 
-  #ungroup() %>% 
-  group_by(GEOID_TR10) %>% 
-  mutate(pct_20_in_10 = AREALAND_TRACT_20 / sum(AREALAND_TRACT_20))
 
-# Inspect calculations
-if (FALSE) {
-  rel_tr2020_tr2010 %>% filter(GEOID_TR20 == "17001000100")
-  rel_tr2020_tr2010 %>% filter(GEOID_TR10 == "17001010400")
-}
-if (FALSE) {
-  rel_tr2020_tr2010 %>% filter(GEOID_TR20 == "23001010100")
-  rel_tr2020_tr2010 %>% filter(GEOID_TR10 == "23001010400")
-}
-
-#Inspect distinct number of each GEOID_TRACT
-if (FALSE) {
-  rel_tr2020_tr2010$GEOID_TR20 %>% unique() %>% length() #3,265 for IL, #407 for MA
-  rel_tr2020_tr2010$GEOID_TR10 %>% unique() %>% length() #3,124 for IL, #358 for MA
-}
-
-#Inspect NAs
-if (FALSE) {
-  rel_tr2020_tr2010 %>% filter(is.na(pct_10_in_20)|is.na(pct_20_in_10))
-  rel_tr2020_tr2010 %>% filter(AREALAND_TRACT_10 == 0 | AREALAND_TRACT_20 == 0)
-  rel_tr2020_tr2010 %>% filter(str_detect(GEOID_TR10, "990000$|990100$") | str_detect(GEOID_TR10, "990000$|990100$"))
-}
-
-```
-
-```{r recode remaining zeros in the 2010 final, echo = FALSE, message = FALSE}
-sapply(pop_bg_2010_tr2020_agegroup, function(x) mean(is.na(x)) %>% sort())
-pop_bg_2010_tr2020_agegroup <- replace(pop_bg_2010_tr2020_agegroup, is.na(pop_bg_2010_tr2020_agegroup), 0)
-sapply(pop_bg_2010_tr2020_agegroup, function(x) mean(is.na(x)) %>% sort())
-
+```{r check recoding of remaining zeros in the 2010 final, eval = developer_mode}
+sapply(pop_bg2010_tr2020_agegroup, function(x) mean(is.na(x)) %>% sort())  
 ```
 
 ### Combine 2010 and 2020 at tract level to prep for interpolation of years between Census
 
-```{r merge tract, echo=FALSE}
+```{r merge tract-level estimates}
 pop_2010_2020_tract <-
-  merge(pop_age_groups_2020_dhc %>% rename(est_2020 = value),
-        pop_bg_2010_tr2020_agegroup,
+  pop_age_groups_2020_dhc %>% 
+  rename(est_2020 = value) %>% 
+  merge(pop_bg2010_tr2020_agegroup,
         by = c("GEOID_TR20",   "agegroup"),
-        #by.y = c("GEOID_TR20", "agegroup"),
         all.x = TRUE) %>%
   pivot_longer(cols = c("est_2010", "est_2020"),
-               names_to = 'variable',
-               values_to = 'pop_est') %>%
+               names_to = "variable",
+               values_to = "pop_est") %>%
   separate(variable, 
            into = c("pop","year")) %>%
-  select(-pop)
-
-#replace zeros with 1
-pop_2010_2020_tract$pop_est <-
-  replace(pop_2010_2020_tract$pop_est, 
-          pop_2010_2020_tract$pop_est < 1,
-          1) 
+  select(-pop) %>% 
+  # Set minimum population of 1
+  mutate(pop_est = ifelse(pop_est < 1, 1, pop_est))
 
 ```
 
 
 ### Interpolate estimates for intercensal years
 
-Borrow from Nick's 2019 code here. Note that we do a linear interpolation between 2010 and 2020 estimates. 
-Although this is a very simplistic scheme, we noted in previous work that estimates for
-the total population aged 14 and below follows a nearly linear pattern. 
-
-
-```{r generate data frame for interpolate}
+```{r generate data frame for interpolation}
 # Take all unique tract/age-group combinations from the 2010/2020 data,
 # create a frame with all years from 2010 to 2020, and merge in endpoint data.
-allyears <-
-  pop_2010_2020_tract %>%
-  select(-pop_est,-year) %>%
-  distinct(GEOID_TR20, agegroup) %>%
-  group_by(GEOID_TR20, agegroup) %>% 
-  mutate(year = list(2010:2020)) %>% 
-  unnest(cols = year)
-
-interp_frame <-
-  merge(allyears,
-        pop_2010_2020_tract,
+interp_frame <- 
+  pop_2010_2020_tract %>% 
+  reframe(year = min(year):max(year),
+          .by = c(GEOID_TR20, agegroup)) %>% 
+  merge(pop_2010_2020_tract,
         by = c("GEOID_TR20", "agegroup", "year"),
-        all.x = T)
-
+        all.x = TRUE)
 ```
 
 
@@ -380,15 +265,21 @@ insufficient_interp_tracts <-
   interp_frame %>% 
   mutate(n = sum(!is.na(pop_est)))
 
-mean(insufficient_interp_tracts$n < 2)
-
-unique(insufficient_interp_tracts %>% filter(n < 2) %>% pull(GEOID_TR20))
-
-insufficient_interp_tracts <-
+if (mean(insufficient_interp_tracts$n < 2) != 0) {
+  # Identify insufficient tracts
   insufficient_interp_tracts %>% 
-  filter(n < 2)
+    filter(n < 2) %>% 
+    pull(GEOID_TR20) %>% 
+    unique()
+  
+  insufficient_interp_tracts <-
+    insufficient_interp_tracts %>% 
+    filter(n < 2)  
+}
+```
 
-### Interpolate ----------------------------------------------------------------
+
+```{r perform interpolation}
 # na.interp is from forecast package
 ests_interp <-
   interp_frame %>% 
@@ -396,25 +287,31 @@ ests_interp <-
   mutate(pop_interp = na.interp(pop_est))
 
 # Examine structure
-head(ests_interp, 12)
+if (FALSE) {
+  head(ests_interp, 12)  
+}
+
 
 ```
 
 ### Use the forecast package to get 2021 estimates 
 
 ```{r get next year estimate}
-#Make a tibble
-ests_interp <- ests_interp %>%
-  #mutate(Year = year(year)) %>%
+# Make a tibble
+ests_interp_ts <- 
+  ests_interp %>%
+  ungroup() %>% 
+  #filter(GEOID_TR20 == GEOID_TR20[1], agegroup == 0) %>% 
   as_tsibble(key = c(GEOID_TR20, agegroup),
              index = year)
 
-#forecasts for 2021 generated from Holt's method.
-system.time({fit <- 
-  ests_interp %>%
-  model(
-    AAN = ETS(pop_interp ~ error("A") + trend("A") + season("N")) 
-  )
+# Forecasts for 2021 generated from Holt's method
+system.time({
+  fit <- 
+    ests_interp_ts %>%
+    model(
+      AAN = ETS(pop_interp ~ error("A") + trend("A") + season("N")) 
+    )
 })
 
 # Damped Holt's method
@@ -424,11 +321,21 @@ system.time({fit <-
 
 fc <- fit %>% forecast(h = max(1, base_year + 1 - 2020))
 
-#We end up with some negative values here - 190 observations (<5%)
-#These are tracts with no kids in that age group in ACS - I think this is okay - we'll round up to 0
+# We end up with some negative values here - 190 observations (<5%)
+# These are tracts with no kids in that age group in ACS - I think this is okay - we'll round up to 0
+```
+
+
+```{r examine number of estimates that go below zero}
+est_forecast <-
+  as.data.frame(fc)
+
+est_forecast %>% 
+  summarize(pct_neg = mean(.mean < 0),
+            .by = agegroup)
 
 est_forecast <-
-  as.data.frame(fc) %>%
+  est_forecast %>%
   mutate(pop_interp = ifelse(.mean < 0, 0, floor(.mean))) %>%
   select(GEOID_TR20, agegroup, year, pop_interp)
 
@@ -437,131 +344,122 @@ est_forecast <-
 ### Reshape the estimates and export
 
 ```{r reshape and export to H drive}
-#Round interpolated estimates
-ests20102020 <-
+# Round interpolated estimates
+ests_20102020 <-
   as.data.frame(ests_interp) %>%
   mutate(pop_interp = round(pop_interp, 0)) %>% 
   select(GEOID_TR20, agegroup, year, pop_interp)
 
 ests_with_forecast <- 
-  rbind(ests20102020, est_forecast)
+  bind_rows(ests_20102020, 
+            est_forecast)
 
 ```
 
 ```{r examine forecast estimates}
-ests_with_forecast %>% 
+ests_with_forecast_change <- 
+  ests_with_forecast %>% 
+  mutate(pop_interp_pct_change = 
+           (pop_interp[year == base_year + 1] - pop_interp[year == 2010]) / pop_interp[year == 2010],
+         change_cat = 
+           case_when(pop_interp_pct_change < 0.3 ~ "down30pct",
+                     pop_interp_pct_change > 0.3 ~ "up30pct",
+                     TRUE                        ~ "mid"),
+         .by = c(GEOID_TR20, agegroup)) %>% 
+  mutate(agegroup = sort_by_char_nums(agegroup))
+
+ests_with_forecast_change %>% 
+  filter(GEOID_TR20 %in% sample(GEOID_TR20, 200)) %>% 
   ggplot(aes(x = year,
-             y = pop_interp)) +
-  geom_point(alpha = 0.3) +
-  geom_smooth() + 
+             y = pop_interp,
+             group = GEOID_TR20,
+             color = change_cat)) +
+  geom_line(alpha = 0.1) +
   geom_vline(xintercept = 2020.5,
+             color = "red") +
+  geom_hline(yintercept = 0,
              color = "red") +
   scale_x_continuous(breaks = 2010:(base_year+1),
                      labels = 2010:(base_year+1)) +
-  facet_wrap(~ agegroup) +
+  scale_color_manual(breaks = c("down30pct", "mid", "up30pct"),
+                     values = c("red", "black", "green")) +
+  facet_wrap(~ agegroup,
+             scales = "free") +
   theme_minimal()
 
-if (str_detect(my_output_tag, "Dirigo")) {
-  ests_with_forecast %>% 
-    filter(agegroup == "02" & year == 2010 & pop_interp > 300) %>% 
-    head()
-  ests_with_forecast %>%                                                        #pop02 fallen by ~30% over the past 10 years
-    filter(GEOID_TR20 == "23019000900" & agegroup == "02") %>% 
-    View()
-  geo_crosswalk %>% filter(GEOID %in% c("23019000900")) %>% head()              #belongs to Penobscot county           
-  geo_crosswalk_sd %>% filter(GEOID %in% c("23019000900")) %>% head()           #belongs to Bangor SD
-}
-
-if (str_detect(my_output_tag, "Dirigo")) {
-  ests_with_forecast %>% 
-    filter(agegroup == "1317" & year == 2020 & pop_interp > 500) %>% 
-    head()
-  ests_with_forecast %>%                                                        #pop1317 increased by ~5% over the past 10 years
-    filter(GEOID_TR20 == "23005004100" & agegroup == "1317") %>% 
-    View() 
-  geo_crosswalk %>% filter(GEOID %in% c("23005004100")) %>% head()              #belongs to Cumberland county
-  geo_crosswalk_sd %>% filter(GEOID %in% c("23005004100")) %>% head()           #belongs to Gorham school district
-}
-
+# Examine distribution of amounts of change from 2010 to 
+ests_with_forecast_change %>% 
+  select(GEOID_TR20, agegroup, pop_interp_pct_change) %>% 
+  unique() %>% 
+  ggplot(aes(x = pop_interp_pct_change,
+             color = agegroup)) +
+  geom_density() + 
+  geom_vline(xintercept = 0) +
+  scale_x_continuous(labels = percent,
+                     limits = c(-1.0, 1.0)) +
+  labs(title = glue("Distribution of Changes in Overall Population Between 2010 and {base_year+1}, by Age"),
+       x = "Percent Change",
+       y = "") +
+  theme_minimal()
 ```
 
 ```{r examine time path of pct 0-2 out of under 6}
 pcts_0to5 <-
   ests_with_forecast %>% 
-  filter(agegroup %in% c("02", "3", "4", "5")) %>% 
-  group_by(GEOID_TR20, year) %>% 
-  mutate(pct = pop_interp / sum(pop_interp))
+  filter(agegroup %in% as.character(0:5)) %>% 
+  mutate(pct = pop_interp / sum(pop_interp),
+         .by = c(GEOID_TR20, year))
 
 pcts_0to5 %>%
-  filter(agegroup == "02") %>%
+  filter(agegroup %in% as.character(c(0:2))) %>%
+  summarize(pct_02of0to5 = sum(pct),
+            .by = c(GEOID_TR20, year)) %>% 
   ggplot(aes(x = year,
-             y = pct,
+             y = pct_02of0to5,
              group = GEOID_TR20)) +
   geom_line(alpha = 0.1) +
+  scale_y_continuous(labels = percent) +
   theme_minimal()
 
 ```
 
 ```{r examine breakdown of ages based on size of the under 6 population}
-pcts_0to5 %>%
-  filter(agegroup == "02",
-         year == {base_year}) %>% 
+breakdown_02 <- 
+  pcts_0to5 %>%
+  filter(agegroup %in% 0:2,
+         year %in% base_year:(base_year+1)) %>% 
+  summarize(pop_interp = sum(pop_interp),
+            pct = sum(pct),
+            .by = c(GEOID_TR20, year))
+
+# Examine breakdown vs population for base year and year after
+breakdown_02 %>% 
   ggplot(aes(x = pop_interp,
-             y = pct)) +
+             y = pct,
+             color = factor(year))) +
   geom_point(alpha = 0.2) +
   geom_smooth() +
+  scale_y_continuous(labels = percent) +
   theme_minimal()
 
-pcts_0to5 %>%
-  filter(agegroup == "02",
-         year == {base_year+1}) %>% 
-  ggplot(aes(x = pop_interp,
-             y = pct)) +
+# Examine in base year vs year after
+breakdown_02 %>% 
+  pivot_wider(values_from = c("pop_interp", "pct"),
+              names_from = "year") %>% 
+  ggplot(aes(x = get(glue("pct_{base_year}")),
+             y = get(glue("pct_{base_year+1}")))) +
   geom_point(alpha = 0.2) +
   geom_smooth() +
+  scale_y_continuous(labels = percent) +
+  labs(title = "Age 0-2 as % of All Ages <5",
+       x = base_year,
+       y = base_year + 1) +
   theme_minimal()
 
 ```
 
-```{r convert the current population tracts from 2020 to 2010 to conform with SAE methods}
-#/!\hk: is this necessary? ACS1 no longer uses 2010 geography
-if (FALSE) {
-  ests_tracts <- unique(ests_with_forecast$GEOID_TR20)
-  mean(ests_tracts %in% rel_tr2020_tr2010$GEOID_TR20)
-  mean(ests_tracts %in% rel_tr2020_tr2010$GEOID_TR10)
-  
-  ests_with_forecast_xwalk <- 
-    ests_with_forecast %>% 
-    merge(rel_tr2020_tr2010,
-          by.x = "GEOID_TR20",
-          by.y = "GEOID_TR20",
-          all.x = TRUE) %>%
-    mutate(pop_interp_part = pop_interp*pct_20_in_10) %>% 
-    group_by(GEOID_TR10, agegroup, year) %>% 
-    summarize(pop_interp = sum(pop_interp_part))
-  
-  mean(unique(ests_with_forecast_xwalk$GEOID_TR10) %in% rel_tr2020_tr2010$GEOID_TR10)
-}
-
-```
-
-```{r reshape and save}
-if (FALSE) {
-  ests_with_forecast_wide <-
-    ests_with_forecast_xwalk %>% 
-    pivot_wider(id_cols = c(GEOID_TR10, agegroup), 
-                names_from = year,
-                names_prefix = "est",
-                values_from = pop_interp)
-  
-  write.csv(ests_with_forecast_wide,
-            glue("{output_path}est_age0017_2010_{base_year + 1}_{my_output_tag}.csv"), 
-            row.names = FALSE)
-}
-
-```
-
-```{r reshape and save with GEOID_tr20}
+```{r reshape long by age and save with GEOID_tr20}
+# Generate a cut of population data wide by year, long by age
 ests_with_forecast_wide <-
   ests_with_forecast %>% 
   pivot_wider(id_cols = c(GEOID_TR20, agegroup), 
@@ -575,71 +473,86 @@ write.csv(ests_with_forecast_wide,
 
 ```
 
-```{r source population data}
-# /!\ When further developed, it would be valuable to address standard errors
-# of population counts based on sampling and statistical forecasting. The
-# 02b script currently assumes that standard errors are 0 (i.e. that these 
-# estimates are perfectly precise).
+```{r reshape long by year and save with GEOID_tr20}
+# Generate a cut of population data wide by age, long by year
 pop_by_age <- 
-  ests_with_forecast_wide %>% 
+  ests_with_forecast %>% 
   mutate(GEOID_TR20 = as.character(GEOID_TR20),
-         age        = case_when(agegroup == "02"   ~ "age_0to2_count",
+         age        = case_when(agegroup == "0"    ~ "age_0_count",
+                                agegroup == "1"    ~ "age_1_count",
+                                agegroup == "2"    ~ "age_2_count",
                                 agegroup == "3"    ~ "age_3_count",
                                 agegroup == "4"    ~ "age_4_count",
                                 agegroup == "5"    ~ "age_5_count",
                                 agegroup == "612"  ~ "age_6to12_count",
                                 agegroup == "1317" ~ "age_13to17_count")) %>% 
-  pivot_longer(cols = starts_with("est")) %>% 
-  group_by(GEOID_TR20, name, age) %>% 
-  summarize(value = sum(value)) %>% 
+  summarize(pop_interp = sum(pop_interp),
+            .by = c(GEOID_TR20, year, age)) %>% 
   pivot_wider(names_from  = "age",
-              values_from = "value") %>% 
-  mutate(age_0to5_count = age_0to2_count + age_3_count + age_4_count + age_5_count,
-         age_3to5_count = age_3_count + age_4_count + age_5_count,
-         year = str_extract(name, "\\d+") %>% as.numeric()) %>% 
-  ungroup() %>% 
-  select(-name)
+              values_from = "pop_interp") %>% 
+  mutate(age_0to5_count = age_0_count + age_1_count + age_2_count + age_3_count + age_4_count + age_5_count,
+         age_3to5_count = age_3_count + age_4_count + age_5_count)
 
 ```
 
-```{r compare these population estimates to those in ACS5}
+```{r compare these population estimates to those in ACS5, eval = developer_mode}
 load(glue("{output_path}acs5_data_{my_output_tag}.Rda"))
 
 comp_pop <- 
   pop_by_age %>% 
-  filter(year == {acs5_year-2}) %>% # midpoint of the ACS5 data that currently have been pulled
-  merge(acs5tract %>% select(GEOID, age_0to5_count, age_6to12_count),
-        by.x = "GEOID_TR20",
-        by.y = "GEOID",
-        #all = TRUE,
+  filter(year == acs5_year - 2) %>% # midpoint of the ACS5 data that currently have been pulled
+  pivot_longer(cols = -c(GEOID_TR20, year)) %>% 
+  merge(acs5tract %>% 
+          select(GEOID_TR20 = GEOID, age_0to5_count, age_6to12_count) %>% 
+          pivot_longer(cols = - GEOID_TR20),
+        by = c("GEOID_TR20", "name"),
         suffixes = c(".pop", ".acs5"))
 
 ggplot(comp_pop,
-       aes(x = age_0to5_count.pop,
-           y = age_0to5_count.acs5)) +
+       aes(x = value.acs5,
+           y = value.pop)) +
   geom_point(alpha = 0.3) + 
-  geom_45(color = "blue") +
+  geom_abline(color = "blue") +
   geom_smooth(color = "red") +
+  facet_wrap(~name) +
   theme_minimal()
-
-ggplot(comp_pop,
-       aes(x = age_6to12_count.pop,
-           y = age_6to12_count.acs5)) +
-  geom_point(alpha = 0.3) + 
-  geom_45(color = "blue") +
-  geom_smooth(color = "red") +
-  theme_minimal()
-
 ```
 
-```{r save}
+```{r save long-by-year population data}
 save(pop_by_age,
      file = glue("{output_path}pop_data_{my_output_tag}.Rda"))
 ```
 
-```{r reapportion population estimates to 2010 census geographies and save data}
+```{r census tract10 to tract20 crosswalk}
+# See this link, and search for "Census Tract Relationship Files":
+#   https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.html
+# Documentation is here:
+#   https://www2.census.gov/geo/pdfs/maps-data/data/rel2020/tract/explanation_tab20_tract20_tract10.pdf
+rel_tr2020_tr2010 <- 
+  fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/tract/tab20_tract20_tract10_natl.txt") %>% 
+  mutate(GEOID_TR20 = str_pad(GEOID_TRACT_20, width = 11, side = "left", pad = "0"),
+         GEOID_TR10 = str_pad(GEOID_TRACT_10, width = 11, side = "left", pad = "0"),
+         statefip   = substr(GEOID_TR20, 1, 2)) %>%
+  filter(statefip == my_state_fip) %>% 
+  select(GEOID_TR20, GEOID_TR10, AREALAND_TRACT_20, AREALAND_TRACT_10) %>% 
+  mutate(GEOID_TR20        = as.character(GEOID_TR20),
+         GEOID_TR10        = as.character(GEOID_TR10),
+         AREALAND_TRACT_20 = as.numeric(AREALAND_TRACT_20),
+         AREALAND_TRACT_10 = as.numeric(AREALAND_TRACT_10)) %>% 
+  mutate(pct_10_in_20 = AREALAND_TRACT_10 / sum(AREALAND_TRACT_10),
+         .by = GEOID_TR20) %>% 
+  mutate(pct_20_in_10 = AREALAND_TRACT_20 / sum(AREALAND_TRACT_20),
+         .by = GEOID_TR10)
+```
+
+
+```{r reapportion population estimates to 2010 census geographies if the base year is 2021 or before}
+
+# A base year of 2021 or earlier implies use of 2010 census geographies, given 
+# that ACS1 data--the key driver in the data pulls--only changed to 2020 geographies
+# in 2022.
 if (base_year <= 2021) {
-  rel_10_20 <- 
+  rel_tr2010_tr2020 <- 
     fread("https://www2.census.gov/geo/docs/maps-data/data/rel2020/tract/tab20_tract20_tract10_natl.txt", sep = "|") %>% 
     mutate(GEOID_TR10        = str_pad(GEOID_TRACT_10, width = 11, side = "left", pad = "0"),
            GEOID_TR20        = str_pad(GEOID_TRACT_20, width = 11, side = "left", pad = "0"),
@@ -649,32 +562,45 @@ if (base_year <= 2021) {
             # Note -- the `as.numeric()` functions are necessary to convert values
             # from integer64 values, which can cause errors in calculation
            ) %>% 
-    filter(statefip == {my_state_fip}) %>% 
-    mutate(part_of_20 = AREALAND_PART / AREALAND_TRACT_20)
-
-  ests_with_forecast_long <- 
-    ests_with_forecast_wide %>%
-    pivot_longer(cols = starts_with("est")) %>% 
-    mutate(year = str_extract(name, "\\d+") %>% as.numeric(),
-           age = case_when(agegroup == "02"   ~ "age_0to2_count",
-                           agegroup == "34"   ~ "age_3to5_count",
-                           agegroup == "5"    ~ "age_3to5_count",
-                           agegroup == "612"  ~ "age_6to12_count",
-                           agegroup == "1317" ~ "age_13to17_count")) %>% 
-    group_by(age, GEOID_TR20, year) %>%
-    summarise(value = sum(value))
+    filter(statefip == my_state_fip) %>% 
+    mutate(part_of_20 = AREALAND_PART / AREALAND_TRACT_20) %>% 
+    select(GEOID_TR10, GEOID_TR20, part_of_20)
+  
+  if (FALSE) {
+    intersected_geos <- 
+      rel_tr2010_tr2020 %>% 
+      filter(0 < part_of_20 & part_of_20 < 1) %>% 
+      pull(GEOID_TR20)
+    
+    rel_tr2010_tr2020 %>% 
+      filter(GEOID_TR20 %in% intersected_geos)
+  }
   
   pop_by_age <- 
-    ests_with_forecast_long %>% 
-    merge(rel_10_20 %>% select(GEOID_TR20, GEOID_TR10, part_of_20),
+    pop_by_age %>% 
+    pivot_longer(cols = -c(GEOID_TR20, year),
+                 names_to = "age") %>% 
+    merge(rel_tr2010_tr2020 %>% select(GEOID_TR20, GEOID_TR10, part_of_20),
           by = "GEOID_TR20",
           all.x = TRUE) %>% 
     mutate(value = value * part_of_20) %>% 
-    group_by(GEOID_TR10, age, year) %>% 
-    summarize(value = sum(value))
+    summarize(value = sum(value),
+              .by = c(GEOID_TR10, age, year)) %>% 
+      pivot_wider(names_from = age)
 
   save(pop_by_age,
        file = glue("{output_path}pop_data_{my_output_tag}.Rda"))
 }
 
 ```
+
+
+```{r inspect crosswalk NAs, eval = developer_mode}
+(na_pcts <- 
+   rel_tr2020_tr2010 %>% 
+   filter(is.na(pct_10_in_20) | is.na(pct_20_in_10)))
+
+with(na_pcts, all(c(AREALAND_TRACT_20, AREALAND_TRACT_10) == 0))
+# In these cases, seems that the areas are all 0. 
+```
+

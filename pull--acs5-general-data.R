@@ -16,7 +16,7 @@
 
 library(glue)
 source(glue("{code_path}settings--main.R"))
-source(glue("{code_path}settings--profile.R"))
+source(glue("{code_path}settings--config.R"))
 source(glue("{code_path}method--general-helper-functions.R"))
 
 my_state_fip <- 

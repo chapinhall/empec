@@ -12,8 +12,8 @@ print_documentation <- FALSE
 
 ```{r }
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
@@ -203,6 +203,15 @@ Besides the indicators above, all other relevant characteristics are measured re
   - 0-100% FPL, 100-200%, 200-300%, 300-400%, 400%+ (useful for simpler reference)
 * Combinations of partitions defined above to both represent share categories predicted in the SAE method, as well as direct calculation of CCDF eligibility rates in the baseline year
 
+```{r get fpl threshold for ccdf for ACS1 calcs}
+# It's not strictly the case that this is provided directly by users, because a
+# custom income threshold such as based on state median income may have been 
+# provided
+
+ccdf_inc_thresh_fpl <- get_fpl_thresh_for_ccdf()
+```
+
+
 ```{r prepare ACS 1-year microdata for children}
 acs1_child <- 
   acs1[AGEP <= kid_age_thres_p+1] %>% 
@@ -220,7 +229,7 @@ acs1_child <-
                        TRUE ~ "other_multiple"),
            child_hispanic = 1*(HISP != 1),
            fam_incpov_ratio_cat_mix     = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 4.00)),
-           fam_incpov_ratio_cat_hs_ccdf = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 1.00, local_ccdf_incratio_base/100, 3.50, 5.00)),
+           fam_incpov_ratio_cat_hs_ccdf = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 1.00, ccdf_inc_thresh_fpl/100, 4.00)),
            fam_incpov_ratio_cat_to185   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 4.00)),
            fam_incpov_ratio_cat_by50    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 0.5)),
            fam_incpov_ratio_cat_by75    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.75, 1.50, 2.25, 4.00)),
@@ -340,7 +349,7 @@ acs1_child <-
                           glue("NotWorkElig_0%_{local_ccdf_incratio_base}%"),
              str_detect(work_incpov_statushs,
                         glue("NotWorkElig_[^(0%|100%)]")) ~
-                          glue("NotWorkElig_{local_ccdf_incratio_base}_500%"),
+                          glue("NotWorkElig_{local_ccdf_incratio_base}%+"),
              TRUE ~ work_incpov_statushs))
   # Note that we intentionally leave "WorkElig_0%_100%" as an often-smaller
   # cell because it represents an important single quantity of children in
@@ -517,84 +526,11 @@ acs1_puma_stats <-
                    pct_pov_check = apply(acs1_boot$t, 2, mean)),
                    pct_pov_se    = sqrt(apply(acs1_boot$t, 2, var)))
 ```
-## Pull Relevant ACS 1-Year Data Aggregate Tables
 
-```{r}
-# Auto-pulls of ACS1 aggregate data is yielding some NA values for estimates
-# Other attempts to automatically pull PUMA-level data in batches from the Census
-# (https://data.census.gov/) produced the same error. Only when PUMAs were 
-# pulled manually, individually 
-
-acs1_tables <- 
-  get_acs(geography = "puma", 
-          state     = my_state_abbr,
-          county    = unlist(ifelse(exists("my_county"), my_county, list(NULL))),
-          survey    = "acs1",
-          table     = "B17024",
-          year      = base_year)
-
-devtools::install_github("CT-Data-Haven/cwi")
-library(cwi)
-
-acs1_tables_labeled <- 
-  label_acs(acs1_tables,
-            year = base_year,
-            survey = "acs1")  
-
-acs1_5pct_puma <- 
-  acs1_tables_labeled %>% 
-  mutate(age = 
-           case_when(str_detect(label, "Under 6") ~ "lt6",
-                     str_detect(label, "6 to 11") ~ "6to11"),
-         faminc = 
-           label %>% 
-           str_replace(".+Under \\.50", "lt50") %>% 
-           str_replace(".+!(\\d?\\.\\d+) to (\\d?\\.\\d+)", "\\1to\\2") %>% 
-           str_replace(".+5.00 and over", "ge500") %>% 
-           str_replace_all("\\.", ""),
-         faminc = ifelse(faminc == label, "tot", faminc)) %>% 
-  filter(!is.na(age)) %>% 
-  rename(est = estimate) %>% 
-  pivot_longer(cols = c(est, moe)) %>% 
-  unite("meas", name, faminc) %>% 
-  select(-label, -variable, -NAME) %>% 
-  pivot_wider(names_from = "meas",
-              values_from = "value") %>% 
-  
-  # Recreate a range of values to accord with our income-to-poverty categories
-  mutate(acs1_agg_0_50_n     = est_lt50,
-         acs1_agg_0_100_n    = est_lt50 + est_50to74 + est_75to99,
-         acs1_agg_50_100_n   =            est_50to74 + est_75to99,
-         acs1_agg_100_200_n  = est_100to124 + est_125to149 + est_150to174 +
-                               est_175to184 + est_185to199,
-         acs1_agg_200_300_n  = est_200to299,
-         acs1_agg_300_400_n  = est_300to399,
-         acs1_agg_200_400_n  = est_200to299 + est_300to399,
-         acs1_agg_400_n      = est_400to499 + est_ge500,
-         
-         acs1_agg_0_50_pct     = acs1_agg_0_50_n    / est_tot,
-         acs1_agg_0_100_pct    = acs1_agg_0_100_n   / est_tot,
-         acs1_agg_50_100_pct   = acs1_agg_50_100_n  / est_tot,
-         acs1_agg_100_200_pct  = acs1_agg_100_200_n / est_tot,
-         acs1_agg_200_300_pct  = acs1_agg_200_300_n / est_tot,
-         acs1_agg_300_400_pct  = acs1_agg_300_400_n / est_tot,
-         acs1_agg_200_400_pct  = acs1_agg_200_400_n / est_tot,
-         acs1_agg_400_pct      = acs1_agg_400_n     / est_tot,
-         
-         PUMA = str_replace(GEOID, glue("^{my_state_fip}"), "")) %>% 
-  select(-matches("^(est|moe)"))
-
-if (FALSE) {
-  acs1_5pct_puma %>% 
-    filter(PUMA == "03167") %>% 
-    pivot_longer(cols = -c(GEOID, PUMA, age))  
-}
-```
 
 
 ```{r}
 save(acs1_child,
      acs1_puma_stats,
-     acs1_5pct_puma,
      file = glue("{output_path}acs1_data_{my_output_tag}.Rda"))
 ```

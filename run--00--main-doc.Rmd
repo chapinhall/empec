@@ -194,7 +194,7 @@ if (!file.exists(glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rd
 
 ## Selecting and Examining a Preferred Specification
 
-```{r child = "run--03a--postestimation-display-and-output.Rmd"}
+```{r child = c("run--03a--postestimation-display-and-output.Rmd", "run--03b--postestimation-disaggregate-estimates.Rmd", "run--03c--gen-output.Rmd")}
 
 ```
 

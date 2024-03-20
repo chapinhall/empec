@@ -13,14 +13,14 @@ print_documentation <- FALSE
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 
 load(glue("{output_path}geo_data_{my_output_tag}.Rda"))
-```
 
-```{r run acs5 data pull if data is not available}
+source("method--pull-and-process-acs5.R")
+
 acs5_filename <- glue("{output_path}acs5_variables_{my_output_tag}.csv")
 if (!file.exists(acs5_filename)) {
   source("pull--acs5-general-data.R")
@@ -199,9 +199,154 @@ acs5tract_test <-
 #View(acs5tract_test %>% select(wgt, n, r, incpov_r0to50_est, incpov_r0to50_est))
 ```
 
-
 ```{r}
 save(acs5tract, acs5puma,
      file = glue("{output_path}acs5_data_{my_output_tag}.Rda"))
 ```
+
+```{r prepare county argument for fresh pull of acs5 data}
+if (exists("my_county_fip")) county_val <- my_county_fip else county_val <- NULL
+```
+
+```{r fresh pull of both income and work status tables}
+# "Age by Ratio of Income to Poverty Level In the Past 12 Months"
+acs5_incpov_byage_raw    <- pull_table("B17024", state = my_state_abbr, county = county_val, year = acs5_year)
+
+# "Presence of Own Children Under 18 Years by Family Type by Employment Status"
+acs5_famconfig_wKids_raw <- pull_table("B23007", state = my_state_abbr, county = county_val, year = acs5_year)
+
+```
+
+```{r determine closest fpl cutoff to ccdf eligibility threshold}
+ccdf_inc_thresh_fpl <- get_fpl_thresh_for_ccdf()
+
+# Determine which inc-to-pov value from the tables is closest to the ccdf fpl
+# cutoff
+acs5_income_cutpoints <- c(0, 50, 75, 100, 125, 150, 175, 185, 200, 300, 400, 500)
+dev <- 
+  (acs5_income_cutpoints - ccdf_inc_thresh_fpl) %>% 
+  abs()
+
+nearest_incpov_cutpoint_to_ccdf <- 
+  acs5_income_cutpoints[which(dev == min(dev))]
+```
+
+```{r perform basic incpov calculations}
+acs5_incpov_byage_wide <- 
+  construct_fields(
+    df = acs5_incpov_byage_raw,
+    numerator = "inc_to_pov_ratio",
+    by_vars = "age",
+    subset_cond = "age %in% c('Age0to6', 'Age6to11')",
+    subset_descr = "")
+
+acs5_incpov_byage <- 
+  construct_fields(
+    df = acs5_incpov_byage_raw,
+    numerator = "inc_to_pov_ratio",
+    by_vars = "age",
+    subset_cond = "age %in% c('Age0to6', 'Age6to11')",
+    subset_descr = "", 
+    wide = FALSE)
+```
+
+```{r construct desired work eligibility field}
+inspect_fields(acs5_famconfig_wKids_raw)
+
+# /!\ These constructions have problems with respect handling complicated
+# and non-parallel hierarchies in the "InLfp" field
+# acs5_workelig_withKids_old_wide <- 
+#   construct_fields(
+#     df = acs5_famconfig_wKids_raw,
+#     subset_cond = "own_kids_under18 == 'SomeKidsUnder18'",
+#     #denom_subset = "status == 'All'",
+#     numerator = "status", 
+#     numerator_vals = c("HusbandEmplWifeEmpl", "Empl"),
+#     numerator_lab  = c("WorkEligFam"),
+#     subset_descr = "")
+# 
+# acs5_workelig_withKids_old <- 
+#   construct_fields(
+#     df = acs5_famconfig_wKids_raw,
+#     subset_cond = "own_kids_under18 == 'SomeKidsUnder18' & !(family_type == 'Married' & lfp %in% c('HusbandInLfp', 'HusbandNotInLfp'))",
+#     #denom_subset = "status == 'All'",
+#     numerator = "status", 
+#     numerator_vals = c("HusbandEmplWifeEmpl", "Empl"),
+#     numerator_lab  = c("WorkEligFam"),
+#     subset_descr = "",
+#     wide = FALSE)
+
+# Calculating work eligibility by hand
+acs5_workelig_withKids_denom <- 
+  acs5_famconfig_wKids_raw %>% 
+  filter(own_kids_under18 == "SomeKidsUnder18",
+         family_type %in% c("Married", "UnmarriedMaleHh", "UnmarriedFemaleHh"),
+         lfp == "All",
+         status == "All")
+
+acs5_workelig_withKids_num <- 
+  acs5_famconfig_wKids_raw %>% 
+  filter(own_kids_under18 == "SomeKidsUnder18",
+         (family_type == "Married" & status == "HusbandEmplWifeEmpl") | 
+         (str_detect(family_type, "Unmarried") & status == "Empl"))
+
+acs5_workelig_withKids <- 
+  merge(acs5_workelig_withKids_num   %>% summarize(nEmpl = sum(estimate), .by = GEOID),
+        acs5_workelig_withKids_denom %>% summarize(nAll  = sum(estimate), .by = GEOID),
+        by = "GEOID") %>% 
+  mutate(r = nEmpl / nAll,
+         n = nEmpl,
+         w = nAll,
+         status = "WorkEligFam")
+
+acs5_workelig_withKids <- 
+  bind_rows(acs5_workelig_withKids,
+            acs5_workelig_withKids %>% mutate(r = 1 - r, n = w - n, status = "NotWorkEligFam")) 
+
+# Audit the constructions here
+if (FALSE) {
+  my_g <- acs5_workelig_withKids$GEOID[1]
+  
+  acs5_workelig_withKids_old %>% filter(GEOID == my_g)  
+  acs5_workelig_withKids     %>% filter(GEOID == my_g)  
+  
+  acs5_famconfig_wKids_raw %>% filter(GEOID == my_g, own_kids_under18 == "SomeKidsUnder18") %>% select(-variable, -se, -geography, -table, -GEOID) %>% as.data.frame()
+  
+  # All families: 367
+  # Married: HusbandEmplWifeEmpl -- 130
+  # UnmarriedMaleHh: Empl = 28
+  # UnmarriedFemaleHh: Empl = 102
+  # Hand calc: (130+28+102)/367 = 70.8% ... this is below the 36% calculation
+  # Solutions -- 
+  # 1. either need to add handling in the meta data for these cases, or
+  # 2. split the calculations for married and for single families? 
+  #    - not sure if/how well this would work given the issues with the InLfp field
+  # 3. ... Maybe do this fully by hand?
+  
+  # New example -- 
+  # All families: 186
+  # Married: HusbandEmplWifeEmpl -- 88
+  # UnmarriedMaleHh: Empl = 19
+  # UnmarriedFemaleHh: Empl = 9
+  # Hand calc: (88+19+9)/186 = 62.3% ... WOking Fam est is 42%
+  
+}
+
+```
+
+
+```{r merge together data sets intended for estimating ccdf eligibility}
+merge_by_geoid <- function(x, y) {
+  # Remove duplicate fields
+  non_dup_fields <- c(cn(y)[!cn(y) %in% cn(x)], "GEOID")
+  merge(x, y %>% select(one_of(non_dup_fields)), by = "GEOID", all = TRUE)
+}
+# acs5_ccdf <-
+#   Reduce(merge_by_geoid,
+#          list(acs5_incpov_byage_wide, acs5_workelig_withKids_wide))
+
+save(list = c("acs5_incpov_byage", "acs5_workelig_withKids"), 
+     file = glue("{output_path}acs5_ccdf_{my_output_tag}.Rda"))
+```
+
 

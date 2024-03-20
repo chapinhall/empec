@@ -8,8 +8,8 @@ pubic audiences are suppressed or moved to code chunks that can optionally be
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 if (!"calc_cps_transitions" %in% objects()) source_rmd("method--nowcasting-functions.Rmd", echo = FALSE)
 ```
@@ -63,13 +63,11 @@ visualize_cps_transitions <- function(trans_calcs, # transition calculations out
   geom_bar(stat = "identity",
            position = "dodge") +
   geom_hline(yintercept = 1.0) +
-  scale_fill_manual(name = vul2_label,
-                    values = chHexs) +
+  scale_fill_discrete(name = vul2_label) +
   facet_grid(~ outcome_label) +
   labs(x = vul1_label,
        y = "# Children Eligible in Post\nper 1.0 Children at Baseline",
-       title = title) +
-  myTheme
+       title = title)
 }
 ```
 
@@ -294,12 +292,10 @@ ggplot(comp_ratios_loc,
                 width = 0.2,
                 position = position_dodge(0.9)) +
   facet_wrap(~ fam_incpov_ratio_cat_by100) +
-  scale_fill_manual(name = "",
-                    values = chHexs) +
+  scale_fill_discrete(name = "") +
   labs(x = "",
        y = "Transition Ratio",
-       title = "Transition Ratios by CPS Geographic Subset") +
-  myTheme
+       title = "Transition Ratios by CPS Geographic Subset")
 ```
 
 #### Examine transitions into income bands by CPS cohort
@@ -338,9 +334,7 @@ ggplot(comp_ratios_cohort,
                 width = 0.2,
                 position = position_dodge(0.9)) +
   facet_wrap(~ fam_incpov_ratio_cat_by100) +
-  scale_fill_manual(name = "",
-                    values = chHexs) +
-  myTheme
+  scale_fill_discrete(name = "")
 ```
 
 ## Implement the Now-Casting Method
@@ -402,7 +396,7 @@ if (FALSE) {
 ```{r pivot SAE measures wide}
 # Reshape the SAE data wide for the sake of prediction.
 pivot_sae_wide <- function(sae_spec, share_var) {
-  sae_spec[["sae_out"]] %>% 
+  sae_spec[["sae_out_decompress"]] %>% 
     select(one_of(c("GEOID", "vc_value", share_var))) %>% 
     mutate(vc_value = paste0("share_", vc_value) %>% 
              str_replace_all("%|\\+", "") %>% 
@@ -432,23 +426,6 @@ pivot_sae_wide <- function(sae_spec, share_var) {
 transition_pred_vars_acs5 <- 
   c("ed_lths", "ed_hs", "ed_somecoll", "ed_coll",
     "pctFemale_noSp_est", "pctMale_noSp_est", "pctMarried_est")
-
-transition_pred_vars_toadd_pov_mix <- 
-  c("share_0_50", "share_50_100", "share_100_200", "share_200_300", "share_300_400", "share_400")
-
-transition_pred_vars_toadd_pov_by100s <- 
-  c("share_0_100", "share_100_200", "share_200_300", "share_300_400", "share_400")
-
-transition_pred_vars_toadd_ccdf_elig_pov <- 
-    str_subset(cn(cps_child_base_post),
-               "share_(Not)?WorkElig_(0_100|100_ccdf|ccdf_350|350_500|500)") #/!\hk: since we changed the name in lines 431-436, not sure if this will detect the _ccdf part? Just double checking.
-  # the prior specification, which was not necessarily aligned with 
-  # poverty
-  # ccdf_spec_vars 
-
-transition_pred_vars_toadd_ccdf_elig_spouse <- 
-  str_subset(colnames(cps_child_base_post),
-             "share_(Not)?WorkElig_(No)?Spouse")
 
 # Set reference group categories
 transition_pred_vars_toomit <- 
@@ -597,6 +574,10 @@ For each count category of deep poverty, in poverty (i.e. Head Start eligibility
 nowcast_out <- NULL
 nowcast_betas_out <- NULL
 
+# /!\ Exclude the `wk_sp` specification at least temporarily since decompression
+# methods have not been built for it
+specs <- setdiff(specs, str_subset(specs, "wk_sp"))
+
 # Loop across CPS 
 for (cps_recency in c("most_recent", "allbase")) {
   
@@ -628,6 +609,11 @@ for (cps_recency in c("most_recent", "allbase")) {
         cps_reg_use <- cps_reg_data_sample[between(AGE, 6, 12)]
       }
       
+      share_calc_var_use <- 
+          ifelse(use_only_sae_model_estimates,
+                 "share_model_redis_pct01_infl",
+                 "share_fh_redis_pct01_infl")
+      
       if (str_detect(sae_spec, "^incpov")) {
         # Using the poverty estimates to predict poverty-related eligibility, 
         # as well as CCDF eligibility because why not. Also there's reason to 
@@ -639,22 +625,8 @@ for (cps_recency in c("most_recent", "allbase")) {
                           "incpov_le225_post_adj", 
                           "incpov_le400_post_adj")
         
-        # The new strategy of using ACS1 means and ACS5 variance to redistribute
-        # the sae calculations is only available so far for income-to-poverty
-        # calculations
-        # share_calc_var_use <- 
-        #   ifelse(use_only_sae_model_estimates,
-        #          "share_model_redis_pct01_infl",
-        #          "share_fh_redis_pct01_infl")
-        #share_calc_var_use <- "share_acs5_redis_pct01_infl"
-        share_calc_var_use <- "share_acs5_redis_mult_wgt01_infl"
-
       } else if (str_detect(sae_spec, "^ccdf")) {
         outcome_vars <- str_subset(cn(cps_reg_use), "ccdf_elig_incratio_")
-        share_calc_var_use <- 
-          ifelse(use_only_sae_model_estimates,
-                 "share_model_trunc",
-                 "share_fh_trunc")
       }
     
       for (outcome_var in outcome_vars) {
@@ -763,8 +735,7 @@ compare_betas <- function(betas, title, subtitle, comp_var, comp_var_label, prin
                       ymax = estimate + 1.96*std.error),
                   width = 0.1,
                   position = position_dodge(.9)) +
-    scale_fill_manual(name = comp_var_label, 
-                      values = chHexs,
+    scale_fill_discrete(name = comp_var_label,
                       # breaks = c("cond", "uncond"),
                       # labels = c("Conditional", "Unconditional")
     ) +
@@ -903,7 +874,7 @@ plot_trans_sensitivity_comp <- function(data, comp_col, base_val) {
          aes(x = elig_base,
              y = elig_share)) +
     geom_point(alpha = 0.1) +
-    geom_45(color = "blue") +
+    geom_abline(color = "blue") +
     scale_x_continuous(labels = percent) +
     scale_y_continuous(labels = percent) +
     facet_wrap(as.formula(glue("~ {paste(setdiff(keep_cols, 'GEOID'), collapse = ' + ')}"))) +
@@ -924,13 +895,13 @@ plot_trans_sensitivity_comp(nowcast_out[outcome_var == "incpov_le100_post_adj" &
 ```
 
 ```{r compare SAE specifications for CCAP prediction}
-plot_trans_sensitivity_comp(nowcast_out[outcome_var == glue("ccdf_elig_incratio_{local_ccdf_incratio_base}") & age == "age_0to5"],
-                            comp_col = "sae_spec",
-                            base_val = "ccdf_wk_pov") +
-  labs(title = case_when(my_output_tag == "IL" ~ "For CCDF Eligibility, Work and Spouse Specification consistently produces lower estimates",
-                         TRUE ~ ""),
-       x = "Specification: Work and Poverty",
-       y = "Specification: Work and Spouse Present")
+# plot_trans_sensitivity_comp(nowcast_out[outcome_var == glue("ccdf_elig_incratio_{local_ccdf_incratio_base}") & age == "age_0to5"],
+#                             comp_col = "sae_spec",
+#                             base_val = "ccdf_wk_pov") +
+#   labs(title = case_when(my_output_tag == "IL" ~ "For CCDF Eligibility, Work and Spouse Specification consistently produces lower estimates",
+#                          TRUE ~ ""),
+#        x = "Specification: Work and Poverty",
+#        y = "Specification: Work and Spouse Present")
 ```
 
 ```{r compare CPS subsetting sensitivity for HS prediction - spec 1}

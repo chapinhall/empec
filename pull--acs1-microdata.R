@@ -23,7 +23,7 @@
 # If desiring to run this manually, run the following scripts to load relevant
 # libraries and functions:
 # - settings--main.R
-# - settings--profile.R
+# - settings--config.R
 # - method--general-helper-functions.R
 
 #list necessary variables
