@@ -33,8 +33,8 @@ See the `run--00--main-doc.Rmd` script for the most recent description of the st
 6. Click "View cart"
 7. Click "Create Data Extract"
 8. When the data extract is complete, download the data and the DDI file to the input folder. For the DDI file, right-click on the "DDI" link to save the file in the input folder.
-9. Go to [url](https://data2.nhgis.org/crosswalks/nhgis_bg2010_tr2020.zip) and save the file in the input folder
-10. Go to [url](https://data2.nhgis.org/crosswalks/nhgis_blk2010_blk2020_ge.zip) and save the file in the input folder
+9. Download 2010 Block Groups to 2020 Census tracts crosswalk from NHGIS (IPUMS log in required). Click this [url](https://data2.nhgis.org/crosswalks/nhgis_bg2010_tr2020.zip) and a pop-up window for download will appear. Save the file in the input folder
+10. Download 2010 Block to 2020 Block (GEOID Identifiers) crosswalk from NHGIS (IPUMS log in required). Click this [url](https://data2.nhgis.org/crosswalks/nhgis_blk2010_blk2020_ge.zip) and a pop-up window for download will appear. Save the file in the input folder
 
 You will now have the following four files in the input folder: CPS data, CPS documentation, and two crosswalk files.
 
@@ -44,8 +44,6 @@ You will now have the following four files in the input folder: CPS data, CPS do
 2. Create FRED API [here](https://fred.stlouisfed.org/docs/api/api_key.html).
 
 #### Step 4. Create a new R script, copy and paste the following, and save it as `settings--config.R` in the folder with all other codes:
-
-#### Step 5. Running this code requires 64-bit Java. If Java is not installed or you have 32-bit Java installed, 64-bit Java can be downloaded here [url](https://www.java.com/en/download/manual.jsp).
 
 ```
 ### Set Run Information --------------------------------------------------------
@@ -71,7 +69,7 @@ cps_raw  <- "cps_000XX" # this is the name given to the IPUMS data extract of Cu
 # input files (census data, geographic shapefiles, etc), and output files (such
 # as estimates and plots)
 # Note: Windows users need to change all "\"s in file paths to "/"s
-code_path   <- "<root directory for all this code>"
+code_path   <- "<root directory for all this code>" (e.g., "C:/Users/jdoe/Downloads/elpep/")
 input_path  <- "<file path where the CPS data was saved, and other input files will be auto-downloaded to>"
 output_path <- "<file path where all intermediate and final output will be saved to"
 
@@ -222,12 +220,13 @@ developer_mode <- FALSE
 
 ```
 
-Also note that, throughout the codebase, there are two marker that signal attention to users:
+#### Step 5. Running this code requires 64-bit Java. If Java is not installed or you have 32-bit Java installed, 64-bit Java can be downloaded here [url](https://www.java.com/en/download/manual.jsp).
 
-* /!\\ -- this is used in comments that are primarily advisory, explaining a key assumption, decision, or opportunity for future reconsideration
-* /*\\ -- this is used to invite users to alter or add to the code. Examples include diagnostics where some local information can be provided, or titling or explanation of figures to describe the patterns seen in the user's own data. Efforts have been made to ensure that the code is structured to allow for multiple users to contribute to a common codebase (e.g. by using conditional statements that select the appropriate figure title based on the `my_output_tag` value relevant to the local context), but for cases where larger deviation is required (e.g. where the codebase is modified to focus on a different public program requiring different data development) we recommend "forking" this repository for parallel development.
+#### Step 6. Open `run--00--main-doc.Rmd` file and click the "Knit" button.
 
 # Updating the Estimates
+After running the codebase once, updating the estimates with the most recent CPS or ACS data is simple. 
+
 To update with new CPS basic monthly file:
 
 1. Go to [IPUMS CPS](https://cps.ipums.org/cps/) website
@@ -319,3 +318,10 @@ The diagnostic scripts generally represent one-time examinations that were run t
 ## Sandbox Scripts
 
 * `sandbox--emdi_package_functionality.Rmd` -- this file used as a place to explore functions, output, speed, and specifications of functions in the `emdi` package, which generates the Small Area Estimation output
+
+## Notes on the Scripts
+
+Throughout the codebase, there are two marker that signal attention to users:
+* /!\\ -- this is used in comments that are primarily advisory, explaining a key assumption, decision, or opportunity for future reconsideration
+* /*\\ -- this is used to invite users to alter or add to the code. Examples include diagnostics where some local information can be provided, or titling or explanation of figures to describe the patterns seen in the user's own data. Efforts have been made to ensure that the code is structured to allow for multiple users to contribute to a common codebase (e.g. by using conditional statements that select the appropriate figure title based on the `my_output_tag` value relevant to the local context), but for cases where larger deviation is required (e.g. where the codebase is modified to focus on a different public program requiring different data development) we recommend "forking" this repository for parallel development.
+
