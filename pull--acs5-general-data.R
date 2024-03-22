@@ -16,7 +16,7 @@
 
 library(glue)
 source(glue("{code_path}settings--main.R"))
-source(glue("{code_path}settings--profile.R"))
+source(glue("{code_path}settings--config.R"))
 source(glue("{code_path}method--general-helper-functions.R"))
 
 my_state_fip <- 
@@ -43,7 +43,6 @@ Sys.setenv(CENSUS_KEY = census_key)
 # Identify tables/years of data that are available through Census API 
 
 apis <- listCensusApis()
-apis %>% filter(grepl("acs1", name)) %>% with(table(vintage))
 apis %>% filter(grepl("acs5", name)) %>% with(table(vintage))
 
 # Identify tables of interest from ACS on Social Explorer (https://www.socialexplorer.com/data/ACS2019/metadata/?ds=ACS19) 
@@ -75,13 +74,8 @@ apis %>% filter(grepl("acs5", name)) %>% with(table(vintage))
 # Pull ACS metadata for tables of interest
 # ------------------------------------ #
 
-# Pull metadata for ACS 1-year and 5-year tables
+# Pull metadata for ACS 5-year tables
 
-acs1_years <- {base_year}:{base_year}
-acs1_tables <- c("B01001", "B09001", "B17024", "B17026", 
-                 "B03002", "B08006", "B08013", "B10051", "B23001", "C15002", 
-					       paste0("B17001", c("", LETTERS[1:9])),
-                 "B17012", "B01003", "B10063", "B08303")
 acs5_years <- {acs5_year}:{acs5_year}
 acs5_tables <-  c("B01001", "B09001", "B17024", "B17026",
                   "B03002", "B08006", "B08013", "B10051", "B23001", "C15002", 
@@ -90,20 +84,6 @@ acs5_tables <-  c("B01001", "B09001", "B17024", "B17026",
 
 if (update_meta) {
 
-	## Pull ACS 1-year data
-	
-	# acs1_meta <- NULL
-	# for (y in acs1_years) {
-	# 	print(paste("Pulling metadata for ACS 1-year data with endyear", y))
-	# 	meta <- 
-	# 		listCensusMetadata(name = "acs/acs1", vintage = y) %>%
-	# 		mutate(endyear = y, source = "acs1")
-	# 		
-	# 	acs1_meta <- bind_rows(acs1_meta, meta)
-	#   }
-	# 	
-	# save(acs1_meta, file = glue("{input_path}acs1_metadata.Rda"))
-	
 	## Pull ACS 5-year data
 	
 	acs5_meta <- NULL
@@ -121,7 +101,6 @@ if (update_meta) {
 	     file = glue("{input_path}acs5_metadata.Rda"))
 	
 } else {
-  #load(file = glue("{input_path}acs1_metadata.Rda"))
   load(file = glue("{input_path}acs5_metadata.Rda"))
 }
 
@@ -132,11 +111,9 @@ if (update_meta) {
 
 # Subset metadata to tables of interest
 
-#acs1_meta_sub <- acs1_meta %>% filter(grepl(paste(acs1_tables, collapse="|"), name))
-acs5_meta_sub <- acs5_meta %>% filter(grepl(paste(acs5_tables, collapse="|"), name))
-meta_sub <-  bind_rows(acs5_meta_sub) # acs1_meta_sub, 
+meta_sub <- acs5_meta %>% filter(grepl(paste(acs5_tables, collapse="|"), name))
 
-# Cross-tabulate tables and sources (not all tables are available for both ACS 1 and 5 year releases)
+# Cross-tabulate tables and sources
 
 meta_sub  %>% with(table(group, source))
 
@@ -596,7 +573,7 @@ meta_renames_B01003 <- meta_renames_B01003 %>% dplyr::select(-group, -concept, -
 # ---------------------------------------------------------------------------- #
 
 tablenums <- 
-  c(acs1_tables, acs5_tables) %>% 
+  acs5_tables %>% 
   str_replace("[A-I]$", "") %>% 
   unique()
 
@@ -622,58 +599,6 @@ all_fields <-
 # PULL ACS DATA ----------------------------------------------------------------
 # ---------------------------------------------------------------------------- #
 # ---------------------------------------------------------------------------- #
-
-# ---------------------------------------------------------------------------- #
-# Pull ACS 1-year data (tract-level geographies not available for ACS 1-year data, so I pull data for PUMAs instead)
-# ---------------------------------------------------------------------------- #
-
-# if (update_acs_pulls) {
-#   
-#   acs1 <- data.frame()
-#   
-#   for (year in acs1_years) {
-#     
-#     print(paste("Pulling ACS 1-year data for endyear", year))
-#     acs1pull <- 
-#       getCensus(name = "acs/acs1", 
-#                 vintage = year, 
-#                 vars = c("NAME", all_fields %>% filter(source == "acs1") %>% pull(name)),
-#                 region = "public use microdata area:*", 
-#                 regionin = glue("state:{my_state_fip}"))
-#     
-#     #setnames(acs1pull, acs1names$field, acs1names$newname)
-#     acs1pull_long <-
-#       acs1pull %>% 
-#       rename(puma = public_use_microdata_area) %>% 
-#       mutate(source = "acs1",
-#              endyear = year,
-#              geo = "puma") %>% 
-#       rename(geo_val = puma) %>% 
-#       # Note: we create general structure with the `geo`, `geo_val`, and `source`
-#       # fields so that we can do a single, unified processing step with all equivalent
-#       # calculation fields below.
-#       dplyr::select(-state) %>% 
-#       gather(field, val, -source, -endyear, -geo, -geo_val, -NAME) %>% 
-#       dplyr::select(source, endyear, geo, geo_val, NAME, field, val)
-#     
-#     # Make data wide by stat (estimate and moe)
-#     acs1pull_wide.stat <-
-#       acs1pull_long %>% 
-#       separate(field, 
-#                into = c("field", "stat"),
-#                sep = -1) %>% 
-#       mutate(stat = case_when(stat == "E" ~ "est",
-#                               stat == "M" ~ "moe")) %>% 
-#       pivot_wider(names_from = "stat",
-#                   values_from = "val")
-#     
-#     acs1 <- bind_rows(acs1, acs1pull_wide.stat)
-#   }
-#   
-#   # Subset to 2012 and later for 1-year data (inconsistencies in PUMA codes over time, documented by Nick Mader)
-#   acs1 <- acs1 %>% filter(endyear >= 2012)
-# }
-
 
 # ---------------------------------------------------------------------------- #
 # Pull ACS 5-year data (tract-level geographies are available for 5-year data)
@@ -732,50 +657,48 @@ if (update_acs_pulls) {
 # ---------------------------------------------------------------------------- #
 
 # ---------------------------------------------------------------------------- #
-# Parse, rename and save the various tables from the ACS 1- and 5-year data
+# Parse, rename and save the various tables from 5-year data
 # ---------------------------------------------------------------------------- #
 
 if (update_acs_pulls) {
   tableList <- NULL
-  for (source in c("acs5")) { # "acs1", 
+  source_tables <- 
+    acs5_tables %>% 
+    str_replace("[A-I]$", "") %>% 
+    unique()
+  source <- "acs5"
+  
+  for (tablenum in source_tables){
     
-    source_tables <- 
-      get(paste0(source, "_tables")) %>% 
-      str_replace("[A-I]$", "") %>% 
+    print(paste("Working on table number", tablenum))
+    
+    # Prep metadata
+    meta_table <-
+      get(paste0("meta_renames_", tablenum)) %>% 
+      dplyr::select(-source) %>% 
+      unique() %>% 
+      # Remove last character (should just be "E") which inappropriately 
+      # indicates only "e"stimates rather than the full field name
+      mutate(field = str_replace(name, "\\w$", "")) %>% 
+      dplyr::select(-matches("^name$|^stat$|^est$"))
+    
+    # Merge in metadata and reshape to long by measure, wide by stat (i.e. est vs moe)
+    d <- 
+      get(source) %>% 
+      filter(str_detect(field, paste0("^", tablenum))) %>% 
+      merge(meta_table,
+            by = "field") %>% 
+      # We're performing an inner join here. This keeps only fields in the metadata we've
+      # developed in effect drops source data columns which correspond to counts that are
+      # less than the full depth. E.g in by-age variables, we don't keep the field which
+      # is the sum across all ages.
+      dplyr::select(-field) %>% 
       unique()
     
-    for (tablenum in source_tables){
-      
-      print(paste("Working on source", source, "and table number", tablenum))
-      
-      # Prep metadata
-      meta_table <-
-        get(paste0("meta_renames_", tablenum)) %>% 
-        dplyr::select(-source) %>% 
-        unique() %>% 
-        # Remove last character (should just be "E") which inappropriately 
-        # indicates only "e"stimates rather than the full field name
-        mutate(field = str_replace(name, "\\w$", "")) %>% 
-        dplyr::select(-matches("^name$|^stat$|^est$"))
-      
-      # Merge in metadata and reshape to long by measure, wide by stat (i.e. est vs moe)
-      d <- 
-        get(source) %>% 
-        filter(str_detect(field, paste0("^", tablenum))) %>% 
-        merge(meta_table,
-              by = "field") %>% 
-        # We're performing an inner join here. This keeps only fields in the metadata we've
-        # developed in effect drops source data columns which correspond to counts that are
-        # less than the full depth. E.g in by-age variables, we don't keep the field which
-        # is the sum across all ages.
-        dplyr::select(-field) %>% 
-        unique()
-      
-      tableName <- paste(source, tablenum, sep = "_")
-      assign(tableName, d)
-      tableList <- c(tableList, tableName)
-    } #  End of loop across table numbers
-  } # End of loop across acs1 and acs5 data
+    tableName <- paste0("acs5_", tablenum)
+    assign(tableName, d)
+    tableList <- c(tableList, tableName)
+  } #  End of loop across table numbers
   save(list = tableList,
        file = glue("{input_path}acs_tables.Rda"))
 } else {
@@ -803,7 +726,7 @@ if (update_acs_pulls) {
 # Extract variables of interest.
 
 acs_age <-
-  bind_rows(acs5_B01001) %>% # acs1_B01001, 
+  acs5_B01001 %>% 
   filter(raceeth == "All")
 
 age_list <- unique(acs_age$age)
@@ -819,7 +742,7 @@ acs_age <-
   spread(colname, val) 
 
 acs_age_all <-
-  bind_rows(acs5_B01001) %>% # acs1_B01001, 
+  acs5_B01001 %>% 
   filter(raceeth == "All") %>%
   group_by(source, endyear, geo, geo_val, NAME) %>%
   summarize(All_est = sum(est), All_se = se_sum(moe))  
@@ -875,7 +798,7 @@ summary(acs_age[!exclude_vars])
 # Extract variables of interest.
 
 acs_childpop <-
-  bind_rows(acs5_B09001) %>% # acs1_B09001, 
+  acs5_B09001 %>%
   mutate(se = moe/1.645) %>%
   dplyr::select(-moe) %>%
   rename(count = est) %>%
@@ -911,7 +834,7 @@ summary(acs_childpop[!exclude_vars])
 # for ACS data
 
 # acs_incpov_raceeth <-
-#   bind_rows(acs1_B17001, acs5_B17001) %>%  
+#   acs5_B17001 %>%  
 #   gather(stat, val, est, moe) %>%
 #   unite(colname, ratio, stat) %>%
 #   spread(colname, val) 
@@ -922,7 +845,7 @@ summary(acs_childpop[!exclude_vars])
 # ------------------------------------ #
 
 acs_incpov_age <- 
-  bind_rows(acs5_B17024) %>% # acs1_B17024
+  acs5_B17024 %>% 
   mutate(se = moe/1.645) %>% 
   select(-moe) %>% 
   filter(age %in% c("lt6", "6to11", "12to17"))
@@ -989,7 +912,7 @@ if (FALSE) {
 # Extract variables of interest.
 
 acs_incpov <-
-  bind_rows(acs5_B17026) %>% # acs1_B17026, 
+  acs5_B17026 %>%
   gather(stat, val, est, moe) %>%
   unite(colname, ratio, stat) %>%
   spread(colname, val) 
@@ -1091,7 +1014,7 @@ acs_incpov %>%
 # universe is "Workers 16 years and over" for table [B08006].
 
 acs_count <-
-  bind_rows(acs5_B08006) %>% # acs1_B08006, 
+  acs5_B08006 %>%
   group_by(source, endyear, geo, geo_val, NAME) %>%
   filter(transportwork=="All" | transportwork=="WorkAtHome") %>%
   gather(stat, val, est, moe) %>%
@@ -1108,7 +1031,7 @@ acs_count <-
 # Produce average travel time variables.
 
 acs_timetransport <-
-  left_join(bind_rows(acs5_B08013), acs_count) %>% # acs1_B08013, 
+  left_join(acs5_B08013, acs_count) %>% 
   mutate(
     timetransport_est = ifelse(count_est!=0, est/count_est, NA),
     timetransport_se = se_ratio(est, count_est, (moe/1.645), count_se),
@@ -1129,7 +1052,7 @@ summary(acs_timetransport[!exclude_vars])
 # Produce share variables for mode of transportation.
 
 acs_modetransport <-
-  bind_rows(acs5_B08006) %>% # acs1_B08006, 
+  acs5_B08006 %>%
   gather(stat, val, est, moe) %>%
   unite(colname, transportwork, stat) %>%
   spread(colname, val) %>%
@@ -1168,7 +1091,7 @@ summary(acs_modetransport[!exclude_vars])
 # Produce labor market rate variables.
 
 acs_emp <- 
-  bind_rows(acs5_B23001) %>% # acs1_B23001, 
+  acs5_B23001 %>%
   gather(stat, val, est, moe) %>%
   unite(colname, gender, stat) %>%
   spread(colname, val) %>%
@@ -1206,7 +1129,7 @@ acs_emp <-
          -pop_m_est, -pop_m_se, -lf_m_est, -lf_m_se, -emp_m_est, -emp_m_se )
 
 acs_emp_age25to34 <- 
-  bind_rows(acs5_B23001) %>% # acs1_B23001, 
+  acs5_B23001 %>%
   gather(stat, val, est, moe) %>%
   unite(colname, gender, stat) %>%
   spread(colname, val) %>%
@@ -1286,7 +1209,7 @@ for (gender_value in c("Female", "Male")) {
   # Extract female race/ethnicity -by- education category variables.
   
   acs_educfem <-
-    bind_rows(acs5_C15002) %>% # acs1_C15002, 
+    acs5_C15002 %>% 
     filter(gender == gender_value) %>%
     pivot_longer(cols = c(est, moe),
                  names_to = "stat",
@@ -1296,7 +1219,7 @@ for (gender_value in c("Female", "Male")) {
                 values_from = val)
     
   # acs_educfem <-
-  #   bind_rows(acs5_C15002) %>% # acs1_C15002, 
+  #   acs5_C15002 %>%  
   #   filter(gender == gender_value) %>%
   #   gather(stat, val, est, moe) %>%
   #   unite(colname, raceeth, educ, stat) %>%
@@ -1500,7 +1423,7 @@ sapply(dplyr::select(acs_educfem, matches("est$")),
 # Extract race/ethnicity variables.
 
 acs_raceeth <-
-  bind_rows(acs5_B03002) %>% # acs1_B03002, 
+  acs5_B03002 %>%
   gather(stat, val, est, moe) %>%
   unite(colname, raceeth, stat) %>%
   spread(colname, val) 
@@ -1558,7 +1481,7 @@ summary(acs_raceeth[!exclude_vars])
 # Extract variables of interest, and construct new share variables.
 
 acs_grandparents <-
-  bind_rows(acs5_B10063) %>% # acs1_B10063, 
+  acs5_B10063 %>% 
   gather(stat, val, est, moe) %>%
   unite(colname, hhtype, stat) %>%
   spread(colname, val) %>%
@@ -1579,7 +1502,7 @@ summary(acs_grandparents[!exclude_vars])
 # Extract variables of interest, and construct new variables.
 
 acs_povline <-
-  bind_rows(acs5_B17012) %>% # acs1_B17012, 
+  acs5_B17012 %>%
   filter(is.na(fam_type)) %>% 
   gather(stat, val, est, moe) %>%
   unite(colname, hhpov, stat) %>%
@@ -1605,7 +1528,7 @@ summary(acs_povline[!exclude_vars])
 # family type.
 
 acs_famtype <-
-  bind_rows(acs5_B17012) %>% # acs1_B17012, 
+  acs5_B17012 %>%
   filter(!is.na(fam_type)) %>% 
   group_by(source, endyear, geo, geo_val, NAME, fam_type) %>% # hhpov, 
   summarize(est = sumNA(est),
@@ -1653,22 +1576,12 @@ acs_final <-
   full_join(acs_age) %>%
   full_join(acs_educ)
 
-# Produce 1-year ACS (PUMA-level) file.
-
-# acs_final1 <-
-#   acs_final %>%
-#   filter(source == "acs1")
-# 
-# save(acs_final1, 
-#      file = glue("{output_path}acs1_variables.Rda"))
-# write.csv(acs_final1, glue("{output_path}acs1_variables.csv"))
-
 # Produce 5-year ACS (tract-level) file.
 
 acs_final5 <-
   acs_final %>%
   filter(source == "acs5")
 
-save(acs_final5, 
-     file = glue("{output_path}acs5_variables.Rda"))
+#save(acs_final5, 
+#     file = glue("{output_path}acs5_variables.Rda"))
 write.csv(acs_final5, glue("{output_path}acs5_variables_{my_output_tag}.csv"))

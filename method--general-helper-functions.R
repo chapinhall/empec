@@ -183,18 +183,20 @@ faminc_bounds <- tribble(~faminc, ~faminc_lb, ~faminc_ub,
 # Source for 2019: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/prior-hhs-poverty-guidelines-federal-register-references/2019-poverty-guidelines/2019-poverty-guidelines-computations-page
 # Source for 2020: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/prior-hhs-poverty-guidelines-federal-register-references/2020-poverty-guidelines/2020-poverty-guidelines-computations
 # Source for 2021: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/prior-hhs-poverty-guidelines-federal-register-references/2021-poverty-guidelines/2021-poverty-guidelines-computations
-# Source for 2022: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines
+# Source for 2022: https://aspe.hhs.gov/sites/default/files/documents/175e430d7dd4b1622d7245bc8664b3c2/HHS-Poverty-Guidelines-Fed-Register-2022.pdf
 # Source for 2023: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/prior-hhs-poverty-guidelines-federal-register-references/2023-poverty-guidelines-computations
+# Source for 2024: https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines
+
 fpl_by_year <- 
-  tribble(~fpl_fam_size, ~fpl_2018, ~fpl_2019, ~fpl_2020, ~fpl_2021, ~fpl_2022, ~fpl_2023,
-                      1,     12140,     12490,    12760,      12880,     13590,     14580,
-                      2,     16460,     16910,    17240,      17420,     18310,     19720,
-                      3,     20780,     21330,    21720,      21960,     23030,     24860,
-                      4,     25100,     25750,    26200,      26500,     27750,     30000,
-                      5,     29420,     30170,    30680,      31040,     32470,     35140,
-                      6,     33740,     34590,    35160,      35580,     37190,     40280,
-                      7,     38060,     39010,    39640,      40120,     41910,     45420,
-                      8,     42380,     43430,    44120,      44660,     46630,     50560)
+  tribble(~fpl_fam_size, ~fpl_2018, ~fpl_2019, ~fpl_2020, ~fpl_2021, ~fpl_2022, ~fpl_2023, ~fpl_2024,
+                      1,     12140,     12490,    12760,      12880,     13590,     14580,     15060,
+                      2,     16460,     16910,    17240,      17420,     18310,     19720,     20440,
+                      3,     20780,     21330,    21720,      21960,     23030,     24860,     25820,
+                      4,     25100,     25750,    26200,      26500,     27750,     30000,     31200,
+                      5,     29420,     30170,    30680,      31040,     32470,     35140,     36580,
+                      6,     33740,     34590,    35160,      35580,     37190,     40280,     41960,
+                      7,     38060,     39010,    39640,      40120,     41910,     45420,     47340,
+                      8,     42380,     43430,    44120,      44660,     46630,     50560,     52720)
 
 # Augment the table to generate FPL values for families up to size 20
 fpl_by_year_fam_size7 <- fpl_by_year %>% filter(fpl_fam_size == 7) %>% dplyr::select(-fpl_fam_size)
@@ -283,6 +285,27 @@ if (FALSE) {
   cbind(sapply(1:8, old_fpl),
         sapply(1:8, function(x) get_pov_threshold(x, year = base_year, month = 1)))
 }
+
+get_fpl_thresh_for_ccdf <- function(fam_size_calc = 4) {
+  if (exists("custom_income_thresh")) {
+    custom_inc_thresh_fam4 <- 
+      custom_income_thresh %>% 
+      filter(fam_size == fam_size_calc) %>% 
+      pull(inc_thresh)*(local_ccdf_incratio_base/100)
+    
+    fpl_fam4 <- 
+      fpl_by_year %>% 
+      filter(fpl_fam_size == fam_size_calc) %>% 
+      pull(glue("fpl_{base_year}"))
+    
+    ccdf_inc_thresh_fpl <- 
+      (custom_inc_thresh_fam4 / fpl_fam4)*100
+  } else {
+    ccdf_inc_thresh_fpl <- local_ccdf_incratio_base  
+  }  
+  return(ccdf_inc_thresh_fpl)
+}
+
 
 draw_inc <- function(faminc, fixed_results = TRUE) {
   # This function randomly draws income from FAMINC categories
@@ -474,3 +497,27 @@ label_vars_prevec <- function(var) {
 # Vectorize the previous function
 label_vars <- Vectorize(label_vars_prevec)
 
+
+# Sort a character field using embedded numeric values ------------------------#
+
+sort_by_char_nums <- function(x) {
+  # This function sorts x based on:
+  # 1. the first character chunk, as delimited by underscores
+  # 2. any embedded numeric content AS numeric
+  # and then returns an ordered factor
+  
+  q <- unique(x)
+  df <- 
+    data.frame(q, 
+               first = str_replace(q, "^([^\\d]*).*", "\\1"),
+               num = str_extract(q, "\\d+") %>% as.numeric()) %>% 
+    arrange(first, num)
+  
+  factor(x, levels = unique(df$q))
+    
+}
+
+if (FALSE) {
+  sort_by_char_nums(c("ABC_10", "ABC_5", "ABC_20", "DEF_40", "DEF_1")) %>% levels()
+  sort_by_char_nums(c("ABC10", "ABC5", "ABC20", "DEF40", "DEF1")) %>% levels()
+}

@@ -94,13 +94,6 @@ the sections of this document:
 https://bookdown.org/yihui/rmarkdown-cookbook/child-document.html
 -->
 
-```{r}
-# Change `developer_mode` to FALSE if intending to hide extra output that should
-# not be present in the final report draft
-developer_mode <- FALSE
-```
-
-
 ```{r child = c("run--01a--prep-geo-data.Rmd", "run--01b--prep-acs1-data.Rmd", "run--01c--prep-cps-data.Rmd", "run--01d--prep-acs5-data.Rmd", "run--01e--prep-pop-by-age-data.Rmd"), envir = new.env()}
 
 ```
@@ -201,7 +194,7 @@ if (!file.exists(glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rd
 
 ## Selecting and Examining a Preferred Specification
 
-```{r child = "run--03a--postestimation-display-and-output.Rmd"}
+```{r child = c("run--03a--postestimation-display-and-output.Rmd", "run--03b--postestimation-disaggregate-estimates.Rmd", "run--03c--gen-output.Rmd")}
 
 ```
 

@@ -1,8 +1,8 @@
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
@@ -24,31 +24,95 @@ calc_breakdown <- function(acs1_outcome_sub, outcome_var) {
   acs1_age_breakdown <-
     acs1_outcome_sub %>% 
     filter(child_agegroup %in% c("0to2", "3to5")) %>% 
-    mutate(child_agegroup = paste0("age_", child_agegroup)) %>% 
-    group_by(child_agegroup) %>% 
-    summarize(n = sum(PWGTP)) %>% 
-    mutate(pct_age_of_lt5 = n / sum(n),
-           outcome_var = outcome_var)
+    mutate(age_0to2 = between(AGEP, 0, 2),
+           age_3to5 = between(AGEP, 3, 5),
+           age_0    = AGEP == 0,
+           age_1    = AGEP == 1,
+           age_2    = AGEP == 2,
+           age_3    = AGEP == 3,
+           age_4    = AGEP == 4,
+           age_5    = AGEP == 5) %>% 
+    summarize(age_0to2 = sum(PWGTP[age_0to2]) / sum(PWGTP),
+              age_3to5 = sum(PWGTP[age_3to5]) / sum(PWGTP),
+              age_0    = sum(PWGTP[age_0])    / sum(PWGTP),
+              age_1    = sum(PWGTP[age_1])    / sum(PWGTP),
+              age_2    = sum(PWGTP[age_2])    / sum(PWGTP),
+              age_3    = sum(PWGTP[age_3])    / sum(PWGTP),
+              age_4    = sum(PWGTP[age_4])    / sum(PWGTP),
+              age_5    = sum(PWGTP[age_5])    / sum(PWGTP)) %>% 
+    mutate(outcome_var = outcome_var)
+      
+  if (FALSE) {
+    acs1_outcome_sub %>% 
+      filter(child_agegroup %in% c("0to2", "3to5")) %>% 
+      mutate(age_0to2 = between(AGEP, 0, 2),
+             age_3to5 = between(AGEP, 3, 5),
+             age_0    = AGEP == 0,
+             age_1    = AGEP == 1,
+             age_2    = AGEP == 2,
+             age_3    = AGEP == 3,
+             age_4    = AGEP == 4,
+             age_5    = AGEP == 5) %>% 
+      select(AGEP, child_agegroup, age_0to2, age_3to5, age_4, age_5) %>% 
+      unique() %>% 
+      arrange(AGEP)
+  }
+  
+  return(acs1_age_breakdown)
 }
 
 age_breakdown_byoutcome <-
  bind_rows(
-   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_mix   == "0%-50%"),
-                  "incpov_le50_post_adj"),
-   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 == "0%-100%"), 
-                  "incpov_le100_post_adj"),
-   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_to185 %in% c("0%-50%", "50%-125%", "125%-185%")), 
-                  "incpov_le185_post_adj"),
-   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 %in% c("0%-100%", "100%-200%")), 
-                  "incpov_le200_post_adj"),
-   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by75  %in% c("0%-75%", "75%-150%", "150%-225%")), 
-                  "incpov_le225_post_adj"),
-   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio_cat_by100 %in% c("0%-100%", "100%-200%", "200%-300%", "300%-400%")), 
-                  "incpov_le400_post_adj"),
-   calc_breakdown(acs1_child %>% filter(work_incpov_statushs %in% c("WorkElig_0%-100%", glue("WorkElig_100%-{local_ccdf_thresh}%"))),
-                  "ccdf_elig_tight_inc_adj")
-   )
+   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio <= 0.50), "incpov_le50_post_adj"),
+   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio <= 1.00), "incpov_le100_post_adj"),
+   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio <= 1.85), "incpov_le185_post_adj"),
+   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio <= 2.00), "incpov_le200_post_adj"),
+   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio <= 2.25), "incpov_le225_post_adj"),
+   calc_breakdown(acs1_child %>% filter(fam_incpov_ratio <= 4.00), "incpov_le400_post_adj"))
+```
 
+
+```{r add breakdowns for all relevant ccdf sensitivities}
+
+for (ccdf_spec in unique(str_subset(nowcast_parallel_counts$outcome_var, "ccdf_elig_incratio"))) {
+  
+  age_breakdown_byoutcome <- 
+    bind_rows(age_breakdown_byoutcome,
+              calc_breakdown(acs1_child %>% filter(get(ccdf_spec) == TRUE),
+                             ccdf_spec))
+  
+} 
+```
+
+```{r examine the age dispersion across outcomes, eval = developer_mode}
+
+age_breakdown_byoutcome_long <- 
+  age_breakdown_byoutcome %>% 
+  pivot_longer(cols = -outcome_var,
+               names_to = "child_agegroup",
+               values_to = "pct_age_of_0to5") %>%
+  mutate(outcome_var = sort_by_char_nums(outcome_var))
+
+plot_age_in_outcome <- function(outcome_regex, subtitle) {
+  ggplot(age_breakdown_byoutcome_long %>% filter(str_detect(outcome_var, outcome_regex)),
+       aes(x = child_agegroup,
+           y = pct_age_of_0to5,
+           fill = outcome_var)) +
+  geom_bar(stat = "identity",
+           position = "dodge") +
+  scale_y_continuous(labels = percent) + 
+  scale_fill_viridis_d(option = "H",
+                       direction = -1) +
+  labs(title = "Percent of Children Under 5 by Sub-Age Group, by Outcome",
+       subtitle = subtitle,
+       x = "",
+       y = "% of children <= 5 in group") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+}
+
+plot_age_in_outcome("incpov", "Income-to-Poverty Outcomes")
+plot_age_in_outcome("ccdf",   "CCDF Outcomes")
 ```
 
 ```{r merge and disaggregate tract-level estimates}
@@ -59,9 +123,17 @@ nowcast_parallel_counts <-
   data.table()
 
 # Prep overall population for under 5 breakdown
-pop_by_age_under5 <- 
+pop_by_age_0to5 <- 
   pop_by_age %>% 
-  select(GEOID, year, age_0to2 = age_0to2_count, age_3to5 = age_3to5_count) %>% 
+  select(GEOID = GEOID_TR20, year, 
+         # age_3to5 = age_3to5_count, 
+         # age_0to5 = age_0to5_count, 
+         age_0 = age_0_count,
+         age_1 = age_1_count,
+         age_2 = age_2_count,
+         age_3 = age_3_count,
+         age_4 = age_4_count,
+         age_5 = age_5_count) %>% 
   pivot_longer(cols = matches("age"),
                names_to = "child_agegroup",
                values_to = "pop_count")
@@ -69,23 +141,170 @@ pop_by_age_under5 <-
 nowcast_elig_counts_0to5 <- 
   nowcast_parallel_counts %>% 
   filter(age == "age_0to5") %>% 
-  merge(age_breakdown_byoutcome %>% select(outcome_var, child_agegroup, pct_age_of_lt5),
+  merge(age_breakdown_byoutcome_long,
         by = "outcome_var",
+        all.x = TRUE,
         allow.cartesian = TRUE) %>% 
-  select(-pop_count) %>% 
-  merge(pop_by_age_under5,
+    select(-pop_count) %>% 
+  merge(pop_by_age_0to5,
         by = c("GEOID", "year", "child_agegroup"),
         all.x = TRUE) %>% 
-  mutate(count    = pct_age_of_lt5 * count,
-         count_se = pct_age_of_lt5 * count_se)
+  mutate(count    = pct_age_of_0to5 * count,
+         count_se = pct_age_of_0to5 * count_se) %>% 
+  select(-age, age = child_agegroup)
 
-nowcast_elig_counts_final <- 
-  bind_rows(nowcast_elig_counts_0to5 %>% select(-age, age = child_agegroup),
+nowcast_elig_counts_added_ages <- 
+  bind_rows(nowcast_elig_counts_0to5,
             nowcast_parallel_counts) %>% 
-  select(outcome_var, GEOID, pd, year, age, share, share_se, count, count_se, pop_count, pop_count_se) %>% 
+  select(outcome_var, GEOID, cps_base_recency, pd, year, age, share, share_se, count, count_se, pop_count, pop_count_se) %>% 
   arrange(outcome_var, GEOID, pd, age) %>% 
   data.table()
 
+```
+
+```{r function to build single ages--and portions thereof--into larger age groups}
+# Note: we interpret months to be the nth month that a child is "inside" of, rather
+# than a month of age that they have achieved. Thus: a child that has just been
+# born is in their first month, i.e. month 1, and a child that is in month 12 is
+# in their 12 month since birth, and this is an age just before turning 1. This
+# means that children aged 1-12 months are age 0, 13-24 are age 1, etc.
+
+apportion_ages <- function(low_month, high_month, age_desc, verbose = FALSE) {
+   low_age <- floor(( low_month - 1)/12)
+  high_age <- floor((high_month - 1)/12)
+  
+    low_keep_pct <- 1 - ((low_month - 1) %% 12) / 12
+   high_keep_pct <-     ( high_month     %% 12) / 12
+   if (high_month %% 12 == 0) {
+     high_keep_pct <- 1
+   }
+   
+   if (verbose) {
+     glue("Low/high months: {low_month}-{high_month}\n",
+          "Low/high ages: {low_age}-{high_age}\n",
+          "To preserve from low age/high age groups: {percent(low_keep_pct)}, {percent(high_keep_pct)}\n\n") %>% 
+       print()
+   }
+   
+   apportion_ages <- low_age:high_age
+   
+   apportioned <- 
+     nowcast_elig_counts_added_ages %>% 
+     # Collapse ages
+     filter(age %in% paste0("age_", apportion_ages)) %>% 
+     mutate(
+       # Determine keep pct for age of given row
+       keep_pct = 
+         case_when(age == glue("age_{low_age}")  ~ low_keep_pct,
+                   age == glue("age_{high_age}") ~ high_keep_pct,
+                   TRUE                          ~ 1),
+       
+       # Apply keep pct to each key field
+           count_upd     = keep_pct*count,
+           count_se_upd  = keep_pct*count_se,
+       pop_count_upd     = keep_pct*pop_count,
+       pop_count_se_upd  = keep_pct*pop_count_se,
+     )
+   
+   if (verbose) {
+     print(
+       apportioned %>% 
+         filter(GEOID == GEOID[1],
+                outcome_var == outcome_var[1],
+                pd == "nowcast",
+                cps_base_recency == cps_base_recency[1]) %>% 
+       ggplot(aes(x = count,
+                  y = count_upd)) +
+         geom_point() + 
+         geom_abline() + 
+         facet_wrap(~age)
+     )
+   }
+   
+   collapsed <- 
+     apportioned %>% 
+     # Calculate variances from std err's for summing
+     mutate(    count_var_upd =     count_se_upd^2,
+            pop_count_var_upd = pop_count_se_upd^2) %>% 
+     # Aggregate ages to create the new group
+     summarize(    count    =      sum(count_upd),
+                   count_se = sqrt(sum(count_var_upd)),
+               pop_count    =      sum(pop_count_upd),
+               pop_count_se = sqrt(sum(pop_count_var_upd)),
+               .by = c(GEOID, outcome_var, cps_base_recency, pd, year)) %>% 
+     mutate(age = age_desc,
+            share = count / pop_count,
+            share_se = se_ratio(count, pop_count, count_se, pop_count_se)) %>% 
+     as.data.table()
+   
+   if (verbose) {
+     return(0)
+   } else {
+     return(collapsed)
+   }
+}
+
+# Check accuracy
+if (FALSE) {
+  apportion_ages( 1, 12, verbose = TRUE, age_desc = "age0")
+  apportion_ages(13, 24, verbose = TRUE, age_desc = "age1")
+  apportion_ages( 1, 15, verbose = TRUE, age_desc = "infant")
+  apportion_ages(16, 36, verbose = TRUE, age_desc = "toddler")
+  apportion_ages(1,  68, verbose = TRUE, age_desc = "age0to5")
+}
+
+```
+
+
+```{r specify and run reaggregations to new age groups}
+
+kindergarten_cutoff <- 
+  ifelse(exists("kindergarten_date_cutoff"), 
+         kindergarten_date_cutoff,
+         "09-01")
+
+end_month_pre_schoolage <- 
+  (interval(ymd(glue("{base_year+1}-01-01")),
+           ymd(glue("{base_year+1}-{kindergarten_cutoff}"))) %/%
+  days(1) /  # Get difference in days
+  30.5 +     # Get difference in (roughly) monthly
+  60)        # Add to number of months up until age 5
+
+# Round to the nearest half month
+end_month_pre_schoolage <- 
+  round(end_month_pre_schoolage/0.5)*0.5
+  
+age_aggs <- 
+  tribble(~age_group, ~age_group_lab, ~low_month, ~high_month,
+          "age_infant",   "Infant",   1, 15,
+          "age_toddler",  "Toddler", 16, 36,
+          "age_3",        "Pre-K 3", 37, 48,
+          "age_4",        "Pre-K 4", 49, 60,
+          "age_0to2",     "Age 0-2",  1, 36,
+          "age_3to5",     "Age 3-5", 37, end_month_pre_schoolage,
+          "age_0to5",     "Age 0-5",  1, end_month_pre_schoolage)
+
+nowcast_elig_counts_final <- NULL
+for (r in 1:nrow(age_aggs)) {
+  #print(age_aggs$age_group[r])
+  print(age_aggs[r, ])
+  nowcast_elig_counts_final <-
+    bind_rows(nowcast_elig_counts_final,
+              apportion_ages( low_month = age_aggs$low_month[r],
+                             high_month = age_aggs$high_month[r],
+                             age_desc   = age_aggs$age_group[r]))
+  tabyl(nowcast_elig_counts_final$age)
+}
+
+# Examine a GEOID/outcome combo to check on reasonableness of aggregates/disaggregates
+if (FALSE) {
+  nowcast_elig_counts_final %>% 
+    filter(outcome_var == outcome_var[1],
+           GEOID == GEOID[1],
+           pd == "nowcast",
+           cps_base_recency == "allbase") %>% 
+    select(age, count, pop_count)
+}
 ```
 
 ### Aggregate Estimates to Larger Geographies
@@ -100,12 +319,18 @@ add_agg_level <- function(ests, agg_level) {
         transmute(GEOID    = GEOID, 
                   ZCTA     = ZCTA,
                   geo_part = TRLANDPCT)
+    } else if (agg_level == "school") {
+      geo_merge_data <-
+        geo_crosswalk_sd %>%
+        transmute(GEOID    = GEOID,
+                  school   = school,
+                  geo_part = pct_sd)
     } else if (agg_level == "aux_geo_label") {
       geo_merge_data <- 
         geo_crosswalk_aux %>% 
         transmute(GEOID         = GEOID, 
                   aux_geo_label = aux_geo_label, 
-                  geo_part     = pct_area)
+                  geo_part      = pct_area)
     } else {
       geo_merge_data <- 
         geo_crosswalk[j = c("GEOID", agg_level), with = FALSE] %>% 
@@ -143,7 +368,7 @@ agg_tracts_up <- function(ests, agg_level) {
             count_se     = se_sum(se_product(pop_count*geo_part, share, pop_count_se*geo_part, share_se)),
             pop_count    = sumNA(pop_count*geo_part),
             pop_count_se = se_sum(pop_count_se*geo_part)),
-      by = c(agg_level, "age", "pd", "outcome_var")] %>% 
+      by = c(agg_level, "age", "pd", "outcome_var", "cps_base_recency")] %>% 
     mutate(share    = count / pop_count,
            share_se = se_proportion(count, pop_count, count_se, pop_count_se))
 }
@@ -157,6 +382,7 @@ agg_tracts_up <- function(ests, agg_level) {
 nowcast_agg_tract <- agg_tracts_up(nowcast_elig_counts_final, "GEOID")
 nowcast_agg_zip   <- agg_tracts_up(nowcast_elig_counts_final, "ZCTA")
 nowcast_agg_cty   <- agg_tracts_up(nowcast_elig_counts_final, "County")
+nowcast_agg_sd    <- agg_tracts_up(nowcast_elig_counts_final, "school")
 
 if (exists("my_aux_geo")) {
   nowcast_agg_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  
@@ -165,14 +391,17 @@ if (exists("my_aux_geo")) {
 
 ```{r produce simple output of the aggregates}
 my_write.csv <- function(x, suffix) {
-  write.csv(x, 
-            file = glue("{output_path}Simple elig output by age, period, and outcome -- {suffix}_{my_output_tag}.csv"),
-            row.names = FALSE)
+  x %>% 
+    filter(cps_base_recency == "most_recent") %>% 
+    select(-cps_base_recency) %>% 
+    write.csv(file = glue("{output_path}Simple elig output by age, period, and outcome -- {suffix}_{my_output_tag}.csv"),
+              row.names = FALSE)
 }
 
 my_write.csv(nowcast_agg_tract, "by tract")
 my_write.csv(nowcast_agg_zip,   "by zcta")
 my_write.csv(nowcast_agg_cty,   "by county")
+my_write.csv(nowcast_agg_sd,    "by school districts")
 
 if (exists("my_aux_geo")) {
   my_write.csv(nowcast_agg_aux, glue("by {my_aux_geo_desc}"))
@@ -180,429 +409,17 @@ if (exists("my_aux_geo")) {
 
 ```
 
-
-#### Generate Excel Tables with Estimates at Each Geographic Aggregation for CCDF
-
-```{r develop time period indication for output }
-# Automate the calculation of the time period
-# /!\ This currently assumes that "most_recent" is the chosen sensitivity from 
-# 03a. Need to find a way to pass the actual choice from 03a to here. This is not
-# complicated, but just needs light planning.
-
-most_recent_range <- 
-  most_recent_months %>% 
-  sort() %>% 
-  paste0("-01") %>% 
-  as.Date()
-date1 <- most_recent_range[1]
-date2 <- most_recent_range %>% .[length(.)]
-if (year(date1) == year(date2)) {
-  date_range <- paste0(format(date1, "%b"), "-",
-                       format(date2, "%b %Y"))
-} else {
-  date_range <- paste0(format(date1, "%b %Y"), "-",
-                       format(date2, "%b %Y"))
-}
-```
-
-
-```{r function to output excel sheets for various levels of geographic aggregation}
-write_agg_output <- function(x, agg_level, sheet_name, add, out_label) {
-
-  add_sheet <-
-    copy(x) %>% 
-    arrange(agg_level) %>% 
-    setnames(agg_level, sheet_name) %>% 
-    filter(pd == "nowcast") %>% 
-    # convert age to narrative
-    mutate(Age = str_replace(age, "age_(\\d+)to(\\d+)", "Age \\1-\\2"),
-           
-           #Outcome = str_replace(outcome_var, "^([a-z]+)_.+", "\\1"),
-           Outcome = case_when(str_detect(outcome_var, "^ccdf") ~ glue("{local_ccdf_name_short}-Elig"),
-                               str_detect(outcome_var, "_le50_")  ~ "Below 50% FPL",
-                               str_detect(outcome_var, "_le100_") ~ "Below 100% FPL",
-                               str_detect(outcome_var, "_le185_") ~ "Below 185% FPL",
-                               str_detect(outcome_var, "_le200_") ~ "Below 200% FPL",
-                               str_detect(outcome_var, "_le225_") ~ "Below 225% FPL",
-                               str_detect(outcome_var, "_le400_") ~ "Below 400% FPL"),
-           
-           # Calculate bounds, and round
-           count_lb = round(count + qnorm(.1)*count_se),
-           count_ub = round(count + qnorm(.9)*count_se),
-           count    = round(count),
-           pop_count = round(pop_count), # This is in order to get "round" values of share
-           
-           # (Re)calculate share to be consistent with the rounded counts.
-           # This is most significant for small geographies, where counts may
-           # be small--and thus likely a familiar percentage, or even 0
-           share = (count / pop_count) %>% replace_na(0),
-           share_se = se_proportion(count, pop_count, count_se, pop_count_se),
-           share_lb = pmax(share + qnorm(.1)*share_se, 0) %>% replace_na(0),
-           share_ub = pmin(share + qnorm(.9)*share_se, 1) %>% replace_na(0)) %>% 
-    dplyr::select(-count_se, -share_se, -pop_count, -pop_count_se) %>% 
-    pivot_longer(cols = matches("(count|share)(_|$)")) %>% 
-    mutate(stat = case_when(name %like% "count" ~ "#",
-                            name %like% "share" ~ "%"),
-           calc = case_when(name %like% "_lb" ~ ", lower bound",
-                            name %like% "_ub" ~ ", upper bound",
-                            TRUE ~ ""),
-           
-           label = glue("{Age} {Outcome}, {date_range} -- {stat}{calc}")) %>% 
-    dplyr::select(-age, -pd, -outcome_var, -Age, -Outcome, -name, -stat, -calc) %>% 
-    pivot_wider(names_from = label,
-                values_from = value)
-  
-  # Mothballed syntax for `xlsx`, for which we couldn't resolve an error
-  xlsx::write.xlsx(as.data.frame(add_sheet),
-                   file = glue("{output_path}{out_label} eligibility estimates by geography - {my_output_tag}.xlsx"),
-                   row.names = FALSE,
-                   sheetName = sheet_name,
-                   append = add)
-  
-  # Experimental code with `openxlsx`, which has the potential to automate output
-  # formatting
-  # workbook_name <- glue("{output_path}{out_label} eligibility estimates by geography - {my_output_tag}.xlsx")
-  # if (!add) {
-  #   openxlsx::write.xlsx(add_sheet,
-  #                        file = workbook_name,
-  #                        rowNames = FALSE,
-  #                        sheetName = sheet_name)
-  # } else {
-  #   wb <- openxlsx::read.xlsx(workbook_name)
-  #   openxlsx::addWorksheet(wb,
-  #                          sheetName = sheet_name)
-  #   openxlsx::writeData(wb,
-  #                       sheet = sheet_name,
-  #                       x = add_sheet,
-  #                       rowNames = FALSE)
-  # }
-}
-```
-
-
-```{r write various levels of geographic aggregation out to file for ccdf}
-write_agg_output(x = nowcast_agg_zip %>% filter(outcome_var %like% "ccdf"), 
-                 agg_level = "ZCTA",   
-                 sheet_name = "Zip Code", 
-                 add = FALSE,
-                 out_label = local_ccdf_name_short)
-
-write_agg_output(x = nowcast_agg_cty %>% filter(outcome_var %like% "ccdf"), 
-                 agg_level = "County", 
-                 sheet_name = "County",
-                 add = TRUE,
-                 out_label = local_ccdf_name_short)
-
+```{r save final aggregates}
+to_save <- 
+  c("nowcast_agg_tract",
+    "nowcast_agg_zip",
+    "nowcast_agg_cty",
+    "nowcast_agg_sd")
 if (exists("my_aux_geo")) {
-  nowcast_ests_aux <- agg_tracts_up(nowcast_elig_counts_final, "aux_geo_label")  
-  write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "ccdf"),
-                   agg_level = "aux_geo_label",
-                   sheet_name = my_aux_geo_desc, 
-                   add = TRUE,
-                   out_label = local_ccdf_name_short)
-}
-```
-
-```{r write various levels of geographic aggregation out to file for le50 100 and 200}
-if (exists("my_aux_geo")) {
-  write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "le50"),
-                   agg_level = "aux_geo_label",
-                   sheet_name = my_aux_geo_desc, 
-                   add = FALSE,
-                   out_label = "Pov_below_50")
-  
-  write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "le100"),
-                   agg_level = "aux_geo_label",
-                   sheet_name = my_aux_geo_desc, 
-                   add = FALSE,
-                   out_label = "Pov_below_100")
-  
-  write_agg_output(x = nowcast_ests_aux %>% filter(outcome_var %like% "le200"),
-                   agg_level = "aux_geo_label",
-                   sheet_name = my_aux_geo_desc, 
-                   add = FALSE,
-                   out_label = "Pov_below_200")
-}
-```
-
-
-```{r optionally add other custom aggregations, eval = str_detect(my_output_tag, "^IL")}
-# Adding reporting by an additional level of aggregation for just Illinois
-
-# See this website reference for how counties are grouped within payment regions:
-#   https://www.dhs.state.il.us/page.aspx?item=121213
-
-map_county_to_payreg <- function(cty) {
-  case_when(str_detect(cty, "Cook|DeKalb|DuPage|Kane|Kendall|Lake|McHenry") ~ "Group 1A Counties",
-            str_detect(cty, "Boone|Champaign|Kankakee|Madison|McLean|Monroe|Ogle|Peoria|Rock Island|Sangamon|St\\. Clair|Tazewell|Whiteside|^Will$|Winnebago|Woodford") ~ "Group 1B Counties",
-            TRUE ~ "Group 2 Counties")
+  to_save <- c(to_save, "nowcast_agg_aux")
 }
 
-nowcast_elig_counts_final_aug <- 
-  nowcast_elig_counts_final %>% 
-  merge(geo_crosswalk[j = .(GEOID, County)] %>% unique(),
-        by = "GEOID",
-        all.x = TRUE) %>% 
-  mutate(payment_reg = map_county_to_payreg(County))
-if (FALSE) {
-  nowcast_elig_counts_final_aug %>% 
-    dplyr::select(payment_reg, County) %>% 
-    unique() %>% 
-    arrange(payment_reg, County)
-}
-
-nowcast_agg_pay <- agg_tracts_up(nowcast_elig_counts_final_aug, "payment_reg") %>% arrange(payment_reg)
-write_agg_output(x = nowcast_agg_pay %>% filter(outcome_var %like% "ccdf"), 
-                 agg_level = "payment_reg", 
-                 sheet = "Payment Region", 
-                 add = TRUE,
-                 out_label = local_ccdf_name_short)
-```
-
-### Examine Final Estimates
-
-#### Compare Nowcast Estimates vs Baseline
-
-```{r function to compare pre-post changes in aggregates, eval = "my_aux_geo" %in% objects(), results = "asis"}
-
-cat("#### For Auxiliary Geography -- Examine Pre-Post CCDF Changes Directly")
-
-# Generate paired bar at aux level
-aux_lvl_ests_long <- 
-  ccdf_ests_aux %>% 
-  dplyr::select(my_aux_geo_field, ccdf_share_pre, ccdf_share_post) %>% 
-  pivot_longer(cols = -my_aux_geo_field) %>% 
-  filter(!is.na(my_aux_geo_field))
-
-ggplot(aux_lvl_ests_long,
-       aes(x = my_aux_geo_field,
-           y = value,
-           fill = factor(name, levels = c("ccdf_share_pre", "ccdf_share_post")))) +
-  geom_bar(stat = "identity",
-           width = 0.5,
-           position = position_dodge(width = 0.5)) +
-  scale_fill_manual(name = "",
-                    breaks = c("ccdf_share_pre", "ccdf_share_post"),
-                    labels = c("2021", "Sept-Nov 2022"),
-                    values = chHexs[c(2, 4)]) +
-  scale_y_continuous(labels = percent) +
-  labs(title = case_when(my_output_tag == "IL" ~ "CCAP Eligibility Generally Declines, but Unevenly Across SDAs",
-                         TRUE ~ ""),
-       x = "",
-       y = "") +
-  #theme_minimal() +
-  myTheme +
-  theme(axis.text.x = element_text(angle = 90,
-                                   vjust = 0.5,
-                                   hjust = 1.0))
-```
-
-#### Compare Estimates At Different Levels of Aggregation
-
-```{r}
-
-```
-
-
-#### Map Levels and Differences
-
-```{r generate static plots}
-static_map_val <- function(estimates,
-                           geo_level,
-                           geo_level_merge_field = geo_level,
-                           geo_level_desc = geo_level,
-                           outcome,
-                           field_desc,
-                           plot_stat, # can take values "nowcast" or "diff"
-                           save_map = TRUE, 
-                           val_limits = NULL,
-                           show_legend = TRUE,
-                           fill_trans  = "identity") { # an alternative is "sqrt"
-  
-  ### Prepare estimates -------------------------------------------------------#
-  est_plot <- 
-    estimates %>% 
-    filter(outcome_var %like% outcome) %>% 
-    dplyr::select(-count, -count_se, -pop_count, -pop_count_se, -share_se)
-  
-  est_wide <- 
-    est_plot %>% 
-    pivot_wider(names_from = pd,
-                values_from = share) %>% 
-    mutate(diff = nowcast - base,
-           Age = str_replace_all(age, ".+(\\d+)to(\\d+)", "Age \\1-\\2"))
-  
-  ### Join Geographic Data ----------------------------------------------------#
-  myShp <- get(glue("{str_to_lower(geo_level)}Shp"))
-  est_geo <- 
-    est_wide %>% 
-    merge(myShp,
-          by = geo_level_merge_field) %>% 
-    st_as_sf()
-  
-  ### Set plot options --------------------------------------------------------#
-  # See this reference for setting `option` for scale_fill_viridis_c():
-  #   https://ggplot2.tidyverse.org/reference/scale_viridis.html
-  # See this as a visual reference for viridis color maps:
-  #   https://cran.r-project.org/web/packages/viridis/vignettes/intro-to-viridis.html
-  color_opt <- ifelse(plot_stat == "nowcast", 
-                      "plasma",  # this is roughly yellow-red-purple
-                      "viridis") # this is roughly yellow-green-purple
-  
-  if (plot_stat == "nowcast") {
-    measure_label <- glue("Levels of {field_desc}")  
-  } else {
-    field_desc <- str_replace(field_desc, "\\(", glue("\\({base_year} - "))
-    measure_label <- glue("Pct Pt Diff in {field_desc}")  
-  }
-  
-  # Prep outcome description to work with filenaming
-  measure_label_out <- 
-    measure_label %>% 
-    str_replace("<", "Below") %>% 
-    str_replace("%", "pct")
-  
-  ### Generate Map Plot -------------------------------------------------------#
-  my_plot <- 
-    ggplot() +
-    geom_sf(data = est_geo,
-            aes_string(fill = plot_stat),
-            linewidth = 0.025,
-            color = "black")
-  
-  # # Add PUMA layer if requested
-  # if (show_puma){
-  #   my_plot <-
-  #     my_plot +
-  #     geom_sf(data = st_as_sf(pumaShp),
-  #           color = "red",
-  #           size = 1,
-  #           fill = NA)
-  # }
-  # 
-  # # Add aux geo if defined
-  # if (show_aux) {
-  #   my_plot <- 
-  #     my_plot +
-  #     geom_sf(data = st_as_sf(auxShp),
-  #           color = "black",
-  #           size = 0.1,
-  #           fill = NA)
-  # }
-  
-  # Finish map
-  my_plot <-
-    my_plot + 
-    scale_fill_viridis_c(name = measure_label,
-                         limits = val_limits, 
-                         option = color_opt,
-                         trans = fill_trans,
-                         labels = percent,
-                         alpha = .4) +
-    facet_wrap(~Age) +
-    theme_void() 
-  
-  # Remove legend if not desired
-  if (!show_legend) {
-    my_plot <- 
-      my_plot +
-      theme(legend.position = "none")
-  }
-      
-  if (save_map) {
-    ggsave(plot = my_plot,
-           filename = glue("{output_path}Map of {measure_label_out} for {geo_level_desc}_{my_output_tag}.png"),
-           #width = 7,
-           height = 7,
-           units = "in")  
-  }
-  
-  return(my_plot)
-}
-```
-
-
-```{r map to generate maps for both levels and differences}
-static_map_level_diff <- function(plot_stats = c("nowcast", "diff"),
-                                  ...) {
-  
-  for (ps in plot_stats) {
-    static_map_val(plot_stat = ps,
-                   ...)
-  }
-}
-```
-
-
-```{r generate static plots of ccdf eligibility in levels and differences}
-
-for (out_var in c("ccdf", "le100", "le200")) {
-  out_var_desc <- 
-    switch(out_var,
-           "ccdf"  = glue("CCAP Eligibility ({date_range})"),
-           "le100" = glue("Head Start Eligibility ({date_range})"),
-           "le200" = glue("Income <200% FPL ({date_range})"))
-  
-  static_map_level_diff(estimates = nowcast_agg_zip %>% filter(age == "age_0to5"),
-                        geo_level = "ZCTA",
-                        outcome = out_var,
-                        field_desc = out_var_desc,
-                        save_map = TRUE, 
-                        #val_limits = c(0, 0.6),
-                        show_legend = TRUE)
-  
-  static_map_level_diff(estimates = nowcast_agg_cty %>% filter(age == "age_0to5"),
-                        geo_level = "County",
-                        outcome = out_var,
-                        field_desc = out_var_desc,
-                        save_map = TRUE, 
-                        #val_limits = c(0, 0.6),
-                        show_legend = TRUE)
-  
-  static_map_level_diff(estimates = nowcast_agg_aux %>% filter(age == "age_0to5"),
-                        geo_level = "aux",
-                        geo_level_merge_field = "aux_geo_label",
-                        geo_level_desc = my_aux_geo_desc,
-                        outcome = out_var,
-                        field_desc = out_var_desc,
-                        save_map = TRUE, 
-                        #val_limits = c(0, 0.6),
-                        show_legend = TRUE) 
-}
-```
-
-<!-- /!\ Could also consider generating a series of maps to show the logical progression of 
-  ## ACS1 (PUMA)                    ... shows basic, baseline data
-  -> ACS5 (tract w/PUMA overlay)    ... shows heterogeneity, as a predictor for SAE 
-  -> SAE (tract with PUMA overlay)  ... shows SAE result
-  -> Now-cast (tract)               ... shows changes
-  -> geo aggregation                ... shows conversion to useful basis
-
--->
-
-```{r compare levels of outcomes}
-comp_out <-
-  nowcast_agg_aux %>%
-    filter(pd == "nowcast" & age == "age_0to5") %>%
-    select(aux_geo_label, outcome_var, share) %>% 
-    pivot_wider(names_from = "outcome_var",
-                values_from = "share")
-
-  ggplot(comp_out,
-         aes(x = incpov_le225_post_adj,
-             y = ccdf_elig_tight_inc_adj)) +
-  geom_point() +
-  geom_abline()
-  
-  ggplot(comp_out,
-         aes(x = incpov_le225_post_adj,
-             y = incpov_le100_post_adj)) +
-  geom_point() +
-  geom_abline()
-
-```
-
-```{r}
-nowcast_parallel_counts
+save(list = to_save,
+     file = glue("{output_path}Final ELPEP Estimates in Multiple Geographic Aggregates - {my_output_tag}.Rda"))
 ```
 

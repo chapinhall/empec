@@ -2,7 +2,7 @@
 
 This is a project intended to estimate counts of children eligible for a range of child care subsidies and supports. This is relevant to Chapin Hall's work as part of its federally-funded Child Care Policy Research Partnership (CCPRP) project in partnership with the Illinois Department of Human Services (IDHS) as well as local work in collaboration with the Chicago Department of Family and Support Services (DFSS). Each agency is tasked with managing public funding to ensure adequate access to quality childcare in their jurisdictions, and understanding the quantity of need--and eligibility for public supports--is a key consideration.
 
-E-mail [Nick Mader](mailto:nmader@chapinhall.org) for questions related to this method or this codebase.
+E-mail [Nick Mader](mailto:nmader@chapinhall.org) and [Hyein Kang](mailto:hkang@chapinhall.org) for questions related to this method or this codebase.
 
 # Methodology
 
@@ -10,7 +10,40 @@ See the `run--00--main-doc.Rmd` script for the most recent description of the st
 
 # Running This Code
 
-Running this code requires contributors to set up a `settings--profile.R` file with the following structure, which you can copy and paste:
+#### Step 1. Create an input folder and an output folder. The path of these folders will be used in Step 4.
+
+#### Step 2. Download datasets manually
+
+1. Go to [IPUMS CPS](https://cps.ipums.org/cps/) website
+2. Create account and log in
+3. Click "Browse and select data" under "Data" section
+4. Click "Select Samples", make sure "cross-sectional" is selected for the sample selections. Under "BASIC MONTHLY", select January 2007-December 2009 and January 2019-most recent month, and click "Submit Sample Selections"
+5. Select the following variables:
+* HOUSEHOLD - CORE
+	- TECHNICAL: YEAR, SERIAL, MONTH, HWTFINL, ASECFLAG
+	- GEOGRAPHIC: STATEFIP, COUNTY, METAREA, METRO
+	- ECONOMIC CHARACTERISTICS: HHINCOME, FAMINC
+* PERSON - CORE
+	- DEMOGRAPHICS: RELATE, AGE, SEX, RACE, MARST
+	- FAMILY INTERRELATIONSHIPS: MOMLOC, MOMLOC2, POPLOC, POPLOC2, SPLOC, FAMUNIT
+	- ETHNICITY/NATIVITY: HISPAN
+	- WORK: EMPSTAT, LABFORCE, OCC, IND, CLASSWKR
+	- EDUCATION: EDUC, SCHLCOLL
+	- TECHNICAL: PERNUM, WTFINL, FAMID
+6. Click "View cart"
+7. Click "Create Data Extract"
+8. When the data extract is complete, download the data and the DDI file to the input folder. For the DDI file, right-click on the "DDI" link to save the file in the input folder.
+9. Download 2010 Block Groups to 2020 Census tracts crosswalk from NHGIS (IPUMS log in required). Click this [url](https://data2.nhgis.org/crosswalks/nhgis_bg2010_tr2020.zip) and a pop-up window for download will appear. Save the file in the input folder
+10. Download 2010 Block to 2020 Block (GEOID Identifiers) crosswalk from NHGIS (IPUMS log in required). Click this [url](https://data2.nhgis.org/crosswalks/nhgis_blk2010_blk2020_ge.zip) and a pop-up window for download will appear. Save the file in the input folder
+
+You will now have the following four files in the input folder: CPS data, CPS documentation, and two crosswalk files.
+
+#### Step 3. Create APIs (if you already have APIs for the Census and FRED, this step may be skipped)
+
+1. Create Census API [here](https://api.census.gov/data/key_signup.html).
+2. Create FRED API [here](https://fred.stlouisfed.org/docs/api/api_key.html).
+
+#### Step 4. Create a new R script, copy and paste the following, and save it as `settings--config.R` in the folder with all other codes:
 
 ```
 ### Set Run Information --------------------------------------------------------
@@ -24,7 +57,7 @@ my_output_tag <- "<run tag>"
 
 # Indicate base year of analysis
 base_year <- 2022 # This will drive the pull of ACS 1-year data
-acs5_year <- 2021 # This will drive the pull of ACS 5-year data
+acs5_year <- 2022 # This will drive the pull of ACS 5-year data
 
 # Provide the names of the CPS data extract to be used in the script
 # `run--01c--prep-cps-data.Rmd`. Include the file name but not the file extension.
@@ -36,8 +69,8 @@ cps_raw  <- "cps_000XX" # this is the name given to the IPUMS data extract of Cu
 # input files (census data, geographic shapefiles, etc), and output files (such
 # as estimates and plots)
 # Note: Windows users need to change all "\"s in file paths to "/"s
-code_path   <- "<root directory for all this code>"
-input_path  <- "<file path where the CPS data will be saved, and other input files will be atuo-downloaded to>"
+code_path   <- "<root directory for all this code>" (e.g., "C:/Users/jdoe/Downloads/elpep/")
+input_path  <- "<file path where the CPS data was saved, and other input files will be auto-downloaded to>"
 output_path <- "<file path where all intermediate and final output will be saved to"
 
 ### Set API Keys ---------------------------------------------------------------
@@ -73,14 +106,17 @@ fred_key <- "xxx"
 # Provide your state's two character postal code
 my_state_abbr <- "xx"
 
-# Here, specify the starting digits for zip codes for your select region
+# Here, specify the starting and ending digits for zip codes for your select region
 # Values can be looked up on this webpage: https://codigo-postal.co/en-us/usa/
-# Note that these codes treat zip codes as if they were character strings, and
-# not numeric. Thus, to identify Illinois zip codes--which range from 60001 to
-# 62999--it's necessary to specify `zcta_starts <- c("60", "61", "62")` and
-# not simply `zcta_starts <- "600"`
-zcta_starts <- c("XX", "XX", "XX")
-
+# Note that `0` should be dropped for those zip codes starting with `0`s
+# Example 1) for IL where ZIP range is 60001 to 62999, set the following
+# zcta_min <- 60001
+# zcta_max <- 62999
+# Example 2) for ME where ZIP ranges from 03901 to 04992, set the following
+# zcta_min <- 03901
+# zcta_max <- 04992
+zcta_min <-
+zcta_max <-
 
 # (Optional) -- If choosing to focus analysis on a single county, uncomment the
 #   following line and provide its name. Note that providing even just "Cook"
@@ -108,13 +144,52 @@ zcta_starts <- c("XX", "XX", "XX")
 # 4. (Optional) One among the auxiliary geographies to highlight, e.g. "Cook County"
   # my_aux_geo_focal_val <- "<if desired, single value of `my_aux_geo_field` to highlight in figures>"
 
+# 5. A list of specific geographies to use in maps and figures of final estimates
+#     E.g. map_geos <- c("Los Angeles", "San Francisco", "San Diego", "Sacramento")
+  map_geos <- c(<list of values in double quotes, separated by commas>)
+
+# 6. An indication of which geographic level the names in #5 belong, e.g. "school", "county", "zip"
+  map_geo_level <- "<school/county/zip>"
+
 ### Set Local CCDF Parameters --------------------------------------------------
 
-# Specify name and rules for local CCDF program: abbrev, long name, and income
-# threshold as a % of the Federal Poverty Line (e.g. a value of 225 for 225% of FPL)
+# Specify name of the local CCDF program, in both long and short forms:
 local_ccdf_name_short <- "<local abbreviation for childcare subsidy, if not 'CCDF'>"
 local_ccdf_name_long  <- "<local name for childcare subsidy>"
-local_ccdf_thresh <- <numeric value for income-to-poverty line threashold for initial CCDF eligibility>
+
+# Specify one or more cutpoints--e.g. representing the current and other proposed
+# threshold(s)--using either a single value or the `c`ombination function `c()`
+local_ccdf_incratio_cuts <- 225
+# or alternatively, replace the above with the following, for multiple
+# local_ccdf_incratio_cuts <- c(185, 225, 275)
+
+# It is also necessary to provide a single default choice among these cutpoints
+# as a choice for baseline, as the `local_ccdf_incratio_base` variable
+local_ccdf_incratio_base <- 225
+
+# The default threshold value is the Federal Poverty Line (FPL), which is already
+# present in the Census data. If a custom threshold is desired, such as state
+# median income, then it must be provided here as table named `custom_income_thresh`
+# with fields:
+#  - "fam_size", and
+#  - "inc_thresh"
+# This can be done by uncommenting and modifying the following code:
+#  custom_income_thresh <-
+#    tribble(~fam_size, ~inc_thresh,
+#                    1, <income threshold for 1 family member>,
+#                    2, <income threshold for 2 family members>,
+#                    ...)
+#
+# If this table is not provided, then the default of FPL will be used.
+
+# If providing custom income thresholds, provide a short label for use in describing
+# the output. For example, if using State Median Income, this could be specified
+# as "SMI"
+# ccdf_income_thresh_label <- "SMI"
+
+# Speficy age threshold eligible for programs
+kid_age_thres_p  <- 13
+kid_age_thres_hs <- 5
 
 ### Set Other Run Parameters ---------------------------------------------------
 
@@ -129,12 +204,47 @@ local_ccdf_thresh <- <numeric value for income-to-poverty line threashold for in
 # greater accuracy
 use_only_sae_model_estimates <- TRUE
 
+# Specify an Excel file that contains a single tab to be inserted as a "front page"
+# to the output of final estimates. For example, this file may have information
+# about details of what the estimates represent (CCDF estimates, income-to-poverty
+# estimates) and contact information
+
+excel_front_page_file <- "path/to/file.xlsx"
+
+# Many auxiliary diagnostics are produced for chunks that only run on the 
+# condition of `eval = developer_mode`. Setting `developer_mode` to FALSE would
+# hide these diagnostics and extra output that should not be present in the final
+# report draft. Set `developer_mode` to TRUE if intending to render these in place 
+# (i.e. throughout the draft) that they are relevant.
+developer_mode <- FALSE
+
 ```
 
-Also note that, throughout the codebase, there are two marker that signal attention to users:
+#### Step 5. Running this code requires 64-bit Java. If Java is not installed or you have 32-bit Java installed, 64-bit Java can be downloaded here [url](https://www.java.com/en/download/manual.jsp).
 
-* /!\\ -- this is used in comments that are primarily advisory, explaining a key assumption, decision, or opportunity for future reconsideration
-* /*\\ -- this is used to invite users to alter or add to the code. Examples include diagnostics where some local information can be provided, or titling or explanation of figures to describe the patterns seen in the user's own data. Efforts have been made to ensure that the code is structured to allow for multiple users to contribute to a common codebase (e.g. by using conditional statements that select the appropriate figure title based on the `my_output_tag` value relevant to the local context), but for cases where larger deviation is required (e.g. where the codebase is modified to focus on a different public program requiring different data development) we recommend "forking" this repository for parallel development.
+#### Step 6. Open `run--00--main-doc.Rmd` file and click the "Knit" button.
+
+# Updating the Estimates
+After running the codebase once, updating the estimates with the most recent CPS or ACS data is simple. 
+
+To update with new CPS basic monthly file:
+
+1. Go to [IPUMS CPS](https://cps.ipums.org/cps/) website
+2. Log in and click "My Data"
+3. Click "Revise" of your most recent data
+4. Click "Change" for the samples
+5. Add newly released sample
+6. Click "Submit Sample Selections"
+7. Download the data and DDI in the input folder.
+8. Update the data file name (cps_000XX) in the `settings--config.R`
+9. Run the code
+
+To update with new ACS 1-year or 5-year:
+
+1. Assign new year to `base_year` or `acs5_year` in the `settings--config.R`
+2. Run the code
+
+The default income threshold value is the FPL, and is updated in this repository regularly. For the states using other income thresholds, such as state median income, would need to update the `custom_income_thresh` values in `settings--config.R`. 
 
 # Data Sources and their Uses
 
@@ -153,27 +263,6 @@ CPS collects information about each member of surveyed households on a monthly b
 
 The CPS data were downloaded interactively from the [IPUMS CPS](https://cps.ipums.org/cps/) (originally "Integrated Public Use Microdata Series") website. Annual Supplementary Economic Characteristics (ASEC) data and Basic Monthly Data were pulled for 2019 and all months forward for the current exercise, and for both 2007-2009 for the sake of validating our method using data from throughout the Great Recession.
 
-Before making selections of variables, it is necessary within Sample Selections to select the "Cross Sectional" option. This makes it possible to download the Basic Monthly Files which have a more complex longitudinal structure than the Annual Social and Economic Supplement (ASEC) sample. See [this article](https://www.census.gov/topics/population/foreign-born/guidance/cps-guidance/cps-vs-asec.html) for a comparison of the general CPS versus ASEC samples. This selection must be made before selecting variables. Otherwise the existing selections will be lost.
-
-The following fields were pulled:
-
-* HOUSEHOLD
-	- TECHNICAL: YEAR, SERIAL, MONTH, HWTFINL, ASECFLAG
-	- GEOGRAPHIC: STATEFIP, METRO, METAREA, COUNTY
-	- ECONOMIC: HHINCOME, FAMINC
-* PERSON (all included under "CORE")
-	- DEMOGRAPHIC: RELATE, AGE, SEX, RACE, MARST
-	- FAMILY INTERRELATIONSHIP: MOMLOC, MOMLOC2, POPLOC, POPLOC2, SPLOC, FAMUNIT
-	- ETHNICITY/NATIVITY: HISPAN
-	- WORK: EMPSTAT, LABFORCE, OCC, IND, CLASSWKR
-	- EDUCATION: EDUC, SCHLCOLL
-	- TECHNICAL: PERNUM, WTFINL, FAMID
-* PERSON (included under "ANNUAL SOCIAL & ECONOMIC SUPPLEMENT (ASEC)")	
-	- INCOME: INCTOT, INCWAGE, INCUNEMP
-	- POVERTY: POVERTY
-
-Be sure to download the DDI file which has documentation of fields in this pull. To do so, click on the "DDI" link, and right-click to "Save As" this file to the "input/" subfolder within the repository.
-
 ## Poverty Guidelines data
 
 Poverty Guidelines information is a key determinant of eligibility for child care supports. This information is drawn from [this source](https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines/prior-hhs-poverty-guidelines-federal-register-references/).
@@ -186,7 +275,7 @@ Code files in this repository include:
 ## Settings Scripts
 
 * `settings--main.R` -- This script loads libraries, functions, and visual standards whose use is common across multiple scripts below.
-* `settings--profile.R` -- This script sets parameters specific to each user's context, both in terms of computing, and in terms of geographic state of focus. See the `Running this Code` section above.
+* `settings--config.R` -- This script sets parameters specific to each user's context, both in terms of computing, and in terms of geographic state of focus. See the `Running This Code` section above.
 
 ## Pull Scripts
 
@@ -199,21 +288,23 @@ These files can be run manually, but are generally set up to be run automaticall
 ## Run Scripts
 
 * `run--00--main-doc.Rmd` -- run and incorporate all following scripts into a main document
-* `run--01a--prep-geo-data.Rmd` -- this auto-pulls shape files from the Census TIGER service based on state--and if specified, county--indications in the `settings--profile.R` script, and produces useful cross-walks between tracts and PUMA, zip codes, and (if specified) custom geographies
+* `run--01a--prep-geo-data.Rmd` -- this auto-pulls shape files from the Census TIGER service based on state--and if specified, county--indications in the `settings--config.R` script, and produces useful cross-walks between tracts and PUMA, zip codes, school districts, and (if specified) custom geographies
 * `run--01b--prep-acs1-data.Rmd` -- reads pulls of ACS1 microdata and develops necessary structures for use in the Small Area Estimation method
 * `run--01c--prep-cps-data.Rmd` -- reads pulls of CPS microdata (instructions provided above) and develops necessary structures for use in the "now-casting" method
 * `run--01d--prep-acs5-data.Rmd` -- adds onto the output from the `pull--acs5-general-data.R` script, adding some additional fields, and aggregating calculations and standard errors up to the PUMA level
-* `run--01e--prep-pop-by-age-data.Rmd` -- pulls data from the Census redistricting files, SF1 Census files, and ACS5 to get population by age group to use in projecting population counts for young children
+* `run--01e--prep-pop-by-age-data.Rmd` -- pulls data from the Census Demographic and Housing Characteristics File (DHC) and Census Summary File 1 (SF1) to get population by age group to use in projecting population counts for young children by the most recent year.
 * `run--02a--run-and-validate-SAE.Rmd` -- run a range of SAE specifications for a range of measures--including share of households by income-to-poverty ratio, and measures related to predicting CCDF eligibility--and examine their properties to gauge their individual reliability, and compare their output
 * `run--02b--run-and-validate-nowcasting.Rmd` -- run a range of "now-casting" analyses, apply them to baseline+SAE measures to estimate counts, and examine patterns and maps of the output.
-* `run--03a--postestimation-display-and-output.Rmd` -- after selecting sensitivities based on output guidance from the `02` scripts, this script examines patterns of the results, and outputs the final estimates in maps and Excel tables
-* `run--03b--postestimation-disaggregate-estimates.Rmd` -- this file current generates some additional disaggregations of methods by age and by race/ethnicity
+* `run--03a--postestimation-display-and-output.Rmd` -- after selecting sensitivities based on output guidance from the `02` scripts, this script examines patterns of the results
+* `run--03b--postestimation-disaggregate-estimates.Rmd` -- disaggregates the estimates into smaller age ranges, and aggregates all of the results up to various geographic levels including zip code, school district, and county
+* `run--03c--gen-ouput -- outputs the final estimates into a formatted Excel workbook and Powerpoint deck
 
 ## Methods Scripts
 
 * `method--general-helper-functions.R` -- these are general functions used throughout the scripts, including processing for ACS data, calculating income-to-poverty ratios, and converting age, income, and industry codes into categorical groups/classifications
 * `method--small-area-estimation-functions.Rmd` -- run Small Area Estimation (SAE) method to estimate, in prior years, counts of program-eligible children for small geographies
 * `method--nowcasting-functions.Rmd` -- these are functions that use CPS data to "now-cast" the Small Area counts to a recent month
+* `method--pull-and-process-acs5.R` -- these are functions to automatically pull and process ACS5 data
 
 ## Other Diagnostic Scripts
 
@@ -227,3 +318,10 @@ The diagnostic scripts generally represent one-time examinations that were run t
 ## Sandbox Scripts
 
 * `sandbox--emdi_package_functionality.Rmd` -- this file used as a place to explore functions, output, speed, and specifications of functions in the `emdi` package, which generates the Small Area Estimation output
+
+## Notes on the Scripts
+
+Throughout the codebase, there are two marker that signal attention to users:
+* /!\\ -- this is used in comments that are primarily advisory, explaining a key assumption, decision, or opportunity for future reconsideration
+* /*\\ -- this is used to invite users to alter or add to the code. Examples include diagnostics where some local information can be provided, or titling or explanation of figures to describe the patterns seen in the user's own data. Efforts have been made to ensure that the code is structured to allow for multiple users to contribute to a common codebase (e.g. by using conditional statements that select the appropriate figure title based on the `my_output_tag` value relevant to the local context), but for cases where larger deviation is required (e.g. where the codebase is modified to focus on a different public program requiring different data development) we recommend "forking" this repository for parallel development.
+
