@@ -140,18 +140,31 @@ pop_by_age_0to5 <-
 
 nowcast_elig_counts_0to5 <- 
   nowcast_parallel_counts %>% 
-  filter(age == "age_0to5") %>% 
-  merge(age_breakdown_byoutcome_long,
-        by = "outcome_var",
+  filter(age == "age_0to5") %>%
+  select(-age, -pop_count) %>% 
+  # /!\ We are no longer using data from the ACS1 data on the distribution of
+  # single ages <6, given how much apparent sampling variation there is. In 
+  # particular, in sample applications we saw that the overall age distribution 
+  # showed oddly uneven prevalence of certain individual ages, even unconditional
+  # on outcome variables. Now, in practice, we apply the eligibility share for
+  # the overall 0to5 to apply to all individual ages.
+  # merge(age_breakdown_byoutcome_long,
+  #       by = "outcome_var",
+  #       all.x = TRUE,
+  #       allow.cartesian = TRUE) %>% 
+  #   select(-pop_count) %>%
+  # mutate(count    = pct_age_of_0to5 * count,
+  #        count_se = pct_age_of_0to5 * count_se) %>% 
+  merge(pop_by_age_0to5 %>% rename(age = child_agegroup),
+        by = c("GEOID", "year"), # , "age"
         all.x = TRUE,
         allow.cartesian = TRUE) %>% 
-    select(-pop_count) %>% 
-  merge(pop_by_age_0to5,
-        by = c("GEOID", "year", "child_agegroup"),
-        all.x = TRUE) %>% 
-  mutate(count    = pct_age_of_0to5 * count,
-         count_se = pct_age_of_0to5 * count_se) %>% 
-  select(-age, age = child_agegroup)
+  # Apply the overall 0-5 share to the population counts of the individual-age
+  # population groups to obtain the new count and count_se estimates.
+  # /!\ Note that as of the current version of code, pop_count is still assumed
+  # to be measured without error. Otherwise, use of se_product() would be used.
+  mutate(count    = pop_count*share,
+         count_se = pop_count*share_se)
 
 nowcast_elig_counts_added_ages <- 
   bind_rows(nowcast_elig_counts_0to5,
@@ -217,6 +230,8 @@ apportion_ages <- function(low_month, high_month, age_desc, verbose = FALSE) {
                   y = count_upd)) +
          geom_point() + 
          geom_abline() + 
+         scale_x_continuous(limits = c(0, NA)) +
+         scale_y_continuous(limits = c(0, NA)) +
          facet_wrap(~age)
      )
    }
