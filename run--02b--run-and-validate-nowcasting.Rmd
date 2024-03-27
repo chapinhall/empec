@@ -560,6 +560,7 @@ estimate_transition_counts <- function(sae_spec_name, share_calc_var, outcome_va
                   sae_acs5_vals   = pred_data, 
                   count_var       = glue("{age_prefix}_count"),     
                   count_se_var    = glue("{age_prefix}_se"))
+  
 }
 ```
 
@@ -640,6 +641,7 @@ for (cps_recency in c("most_recent", "allbase")) {
                                      outcome_var     = outcome_var,
                                      transition_data = cps_reg_use,
                                      age_prefix      = age_prefix)
+        
         add_run_details <- function(x) {
           mutate(x,
                  sae_spec          = sae_spec,
@@ -675,6 +677,41 @@ nowcast_out <-
                           "612" ~ "age_6to12"),
          sae_spec = str_replace(sae_spec, "_\\d+$", ""))
 ```
+
+```{r examine share estimates outside of [0.0-1.0] and truncate}
+if (developer_mode) {
+  # Examine frequency of 
+  nowcast_out %>% 
+    summarize(elig_share_lt0 = mean(elig_share < 0) %>% percent(accuracy = .1),
+              elig_share_gt1 = mean(elig_share > 1) %>% percent(accuracy = .1),
+              .by = c(sae_spec, outcome_var))
+  
+  # Examine magnitude of negative share estimates
+  nowcast_out %>% 
+    filter(elig_share < 0) %>% 
+    select(elig_share) %>% 
+    summary()
+  
+  # Visually examine which SAE and ACS5 values are associated with negative
+  # estimates
+  nowcast_out %>% 
+    filter(elig_share < 0) %>% 
+    View()
+    # From a quick look, it simply seems that this is the case for tracts with 
+    # very high shares of high income (>400% FPL) households
+}
+
+nowcast_out <- 
+  nowcast_out %>% 
+  mutate(elig_count = ifelse(elig_share < 0, 0, elig_count),
+         elig_share = ifelse(elig_share < 0, 0, elig_share))
+  # Standard errors are preserved given the very small adjustment of negative
+  # values to zero. And although non-0 standard errors are not well behaved,
+  # they are preserved given that they are necessary to reflect noise when
+  # these values are aggregated up.
+  
+```
+
 
 
 ```{r save final results from now-casting}
