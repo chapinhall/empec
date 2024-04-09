@@ -32,7 +32,7 @@ See the `run--00--main-doc.Rmd` script for the most recent description of the st
 	- TECHNICAL: PERNUM, WTFINL, FAMID
 6. Click "View cart"
 7. Click "Create Data Extract"
-8. When the data extract is complete, download the data and the DDI file to the input folder. For the DDI file, right-click on the "DDI" link to save the file in the input folder.
+8. When the data extract is complete, download the data and the DDI file to the input folder. File extension of the data file should appear as `csv.gz` in the input folder. For the DDI file, right-click on the "DDI" link to save the file in the input folder.
 9. Download 2010 Block Groups to 2020 Census tracts crosswalk from NHGIS (IPUMS log in required). Click this [url](https://data2.nhgis.org/crosswalks/nhgis_bg2010_tr2020.zip) and a pop-up window for download will appear. Save the file in the input folder
 10. Download 2010 Block to 2020 Block (GEOID Identifiers) crosswalk from NHGIS (IPUMS log in required). Click this [url](https://data2.nhgis.org/crosswalks/nhgis_blk2010_blk2020_ge.zip) and a pop-up window for download will appear. Save the file in the input folder
 
@@ -43,7 +43,7 @@ You will now have the following four files in the input folder: CPS data, CPS do
 1. Create Census API [here](https://api.census.gov/data/key_signup.html).
 2. Create FRED API [here](https://fred.stlouisfed.org/docs/api/api_key.html).
 
-#### Step 4. Create a new R script, copy and paste the following, and save it as `settings--config.R` in the folder with all other codes:
+#### Step 4-1. Create a new R script, copy and paste the following, and save it as `settings--config.R` in the folder with all other codes:
 
 ```
 ### Set Run Information --------------------------------------------------------
@@ -220,9 +220,11 @@ developer_mode <- FALSE
 
 ```
 
+#### Step 4-2. Modify `settings--config.R` by entering information as necessry, per instruction in the file. Save the file after providing all the information.
+
 #### Step 5. Running this code requires 64-bit Java. If Java is not installed or you have 32-bit Java installed, 64-bit Java can be downloaded here [url](https://www.java.com/en/download/manual.jsp).
 
-#### Step 6. Open `run--00--main-doc.Rmd` file and click the "Knit" button.
+#### Step 6. Open `run--00--main-doc.Rmd` file and click the "Knit" button. Note that knitting this for the first time may take several hours, and the amount of time may vary depending on specified region (state/county) or CPU/RAM of the computer.
 
 # Updating the Estimates
 After running the codebase once, updating the estimates with the most recent CPS or ACS data is simple. 
