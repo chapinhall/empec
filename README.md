@@ -220,7 +220,7 @@ developer_mode <- FALSE
 
 ```
 
-#### Step 4-2. Modify `settings--config.R` by entering information as necessry, per instruction in the file. Save the file after providing all the information.
+#### Step 4-2. Modify `settings--config.R` by entering information per instruction and save.
 
 #### Step 5. Running this code requires 64-bit Java. If Java is not installed or you have 32-bit Java installed, 64-bit Java can be downloaded here [url](https://www.java.com/en/download/manual.jsp).
 
