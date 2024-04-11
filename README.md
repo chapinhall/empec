@@ -194,29 +194,49 @@ kid_age_thres_hs <- 5
 ### Set Other Run Parameters ---------------------------------------------------
 
 # Use only "model" estimates from the Small Area Estimation method, rather than
-# the blended estimates from the Fay-Herriott method
+# the blended estimates from the Fay-Herriott method?
 # Users should consider setting this option to `TRUE` based on diagnostics
-# examining `share_model` vs `share_direct` estimates, to judge whether
+# examining `share_model` vs `share_direct` estimates, to judge whether 
 # "model" estimates are often skewed away from direct estimates within PUMAs
-# (which would lean towards a setting of `TRUE`) or if they are roughly
+# (which would lean towards a setting of `TRUE`) or if they are roughly 
 # consistent with the "direct" estimates (which would lean towards a setting of
 # `FALSE`) meaning that a blended estimate may generate useful moderation and
 # greater accuracy
 use_only_sae_model_estimates <- TRUE
 
+# A flag to elect whether to use the approximation method for the small area
+# estimation method. This is orders of magnitude faster than the alternative,
+# which is the fh() (short for "Fay Herriott") method, which implements the
+# canonical SAE method. Our approximation is quite close in both theory and
+# in tested outcomes, where we perform both direct and model estimation and
+# blend those two components. The key difference is that we perform these pieces
+# of estimation separately, whereas fh() implements them simultaneously via an
+# EBLUP estimation.
+# Our current stance is that it's better to use the approximation method on the
+# way to ensure that estimation for a given application is running and producing
+# sensible results, and then turning off to allow the canonical method to run
+# final estimates (which, even for states of moderate size like Illinois, may
+# require an overnight run; note: if run on a laptop, overnight runs would require
+# users to change their power settings to never allow the computer to sleep while
+# it is plugged in.)
+use_sae_approximation <- FALSE
+
+# Change `developer_mode` to FALSE if intending to hide extra output that should
+# not be present in the final report draft
+developer_mode <- TRUE
+
+# Change `rerun_sae` parameter to TRUE to rerun the often time-consuming small
+# area estimation code in `02a`. Once this has been run, this option can be 
+# set to FALSE to update other aspects of code and rerun 02a and other code
+# without rerunning that time-consuming step.
+rerun_sae <- TRUE
+
 # Specify an Excel file that contains a single tab to be inserted as a "front page"
-# to the output of final estimates. For example, this file may have information
+# to the output of final estimates. For example, this file may have information 
 # about details of what the estimates represent (CCDF estimates, income-to-poverty
 # estimates) and contact information
 
 excel_front_page_file <- "path/to/file.xlsx"
-
-# Many auxiliary diagnostics are produced for chunks that only run on the 
-# condition of `eval = developer_mode`. Setting `developer_mode` to FALSE would
-# hide these diagnostics and extra output that should not be present in the final
-# report draft. Set `developer_mode` to TRUE if intending to render these in place 
-# (i.e. throughout the draft) that they are relevant.
-developer_mode <- FALSE
 
 ```
 

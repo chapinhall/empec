@@ -168,8 +168,11 @@ In practice, we compose $\bar{z}_{gt-1}$ using both SAE estimates as well as ACS
 
 ## Small Area Estimation Results
 
+```{r child = c("method--small-area-estimation-functions.Rmd", "run--02a--run-and-validate-SAE.Rmd")}
+
+```
+
 ```{r}
-rerun_sae <- TRUE
 if (!file.exists(glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rda"))) {
   cat(glue("The Small Area Estimates have not yet been generated for this report.\n",
            "You must run the `run--02a` script--and any necessary 'upstream' scripts ",
@@ -178,13 +181,7 @@ if (!file.exists(glue("{output_path}sae_sensitivity_estimates_{my_output_tag}.Rd
 }
 ```
 
-
-```{r child = c("method--small-area-estimation-functions.Rmd", "run--02a--run-and-validate-SAE.Rmd")}
-
-```
-
 ## Now-Casting Results
-
 
 ```{r child = c("method--nowcasting-functions.Rmd", "run--02b--run-and-validate-nowcasting.Rmd")}
 
