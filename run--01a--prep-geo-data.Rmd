@@ -186,7 +186,7 @@ ggplot() +
 ```{r pull puma and zcta shapefiles from Census website if not available from the tigris package pulls above}
 if (!exists("pumaShp", envir = .GlobalEnv)) {
   pumafile <- glue("{input_path}tl_{tiger_year}_{my_state_fip}_puma20.shp")
-  if (!file.exists("pumafile")) {
+  if (!file.exists(pumafile)) {
     census_path       <- glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/PUMA/")
     download_filename <- glue("state_{my_state_fip}_puma20.zip")
     download.file(url      = glue("{census_path}tl_{tiger_year}_{my_state_fip}_puma20.zip"),
@@ -200,7 +200,7 @@ if (!exists("pumaShp", envir = .GlobalEnv)) {
 
 if (!exists("zctaShp", envir = .GlobalEnv)) {
   zctafile <- glue("{input_path}tl_{tiger_year}_us_zcta520.shp")
-  if (!file.exists("zctafile")) {
+  if (!file.exists(zctafile)) {
     census_path       <- glue("https://www2.census.gov/geo/tiger/TIGER{tiger_year}/ZCTA520/")
     download_filename <- glue("us_zcta520.zip")
     download.file(url      = glue("{census_path}tl_{tiger_year}_us_zcta520.zip"),
@@ -400,7 +400,7 @@ if (FALSE) {
 # Crosswalk can be downloaded from the National Center for Education Statistics
 # Reference: https://nces.ed.gov/programs/edge/geographic/relationshipfiles
 grffile <- glue("{input_path}GRF22/grf22_lea_tract.xlsx")
-if (!file.exists("grffile")) {
+if (!file.exists(grffile)) {
   download.file(url      = glue("https://nces.ed.gov/programs/edge/data/GRF22.zip"),
             destfile = glue("{input_path}GRF22.zip"))
   unzip(glue("{input_path}GRF22.zip"),
