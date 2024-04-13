@@ -1536,7 +1536,7 @@ check_redis_sae %>%
   # slopes of the former are also closer to 1.
 ```
 
-```{r check the results -- final versus acs5, eval = developer_mode}
+```{r check the results -- final_bounded versus acs5, eval = developer_mode}
 # This is done to see if we obtain something relatively close to the 45
 check_redis_sae %>% 
   ggplot(aes(x = share_acs5,

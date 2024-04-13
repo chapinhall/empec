@@ -32,7 +32,7 @@ See the `run--00--main-doc.Rmd` script for the most recent description of the st
 	- TECHNICAL: PERNUM, WTFINL, FAMID
 6. Click "View cart"
 7. Click "Create Data Extract"
-8. When the data extract is complete, download the data and the DDI file to the input folder. For the DDI file, right-click on the "DDI" link to save the file in the input folder.
+8. When the data extract is complete, download the data and the DDI file to the input folder. The file extension of the data file should appear as `csv.gz` in the input folder. For the DDI file, right-click on the "DDI" link to save the file in the input folder.
 9. Download 2010 Block Groups to 2020 Census tracts crosswalk from NHGIS (IPUMS log in required). Click this [url](https://data2.nhgis.org/crosswalks/nhgis_bg2010_tr2020.zip) and a pop-up window for download will appear. Save the file in the input folder
 10. Download 2010 Block to 2020 Block (GEOID Identifiers) crosswalk from NHGIS (IPUMS log in required). Click this [url](https://data2.nhgis.org/crosswalks/nhgis_blk2010_blk2020_ge.zip) and a pop-up window for download will appear. Save the file in the input folder
 
@@ -43,7 +43,7 @@ You will now have the following four files in the input folder: CPS data, CPS do
 1. Create Census API [here](https://api.census.gov/data/key_signup.html).
 2. Create FRED API [here](https://fred.stlouisfed.org/docs/api/api_key.html).
 
-#### Step 4. Create a new R script, copy and paste the following, and save it as `settings--config.R` in the folder with all other codes:
+#### Step 4-1. Create a new R script, copy and paste the following, and save it as `settings--config.R` in the folder with all other codes:
 
 ```
 ### Set Run Information --------------------------------------------------------
@@ -194,35 +194,57 @@ kid_age_thres_hs <- 5
 ### Set Other Run Parameters ---------------------------------------------------
 
 # Use only "model" estimates from the Small Area Estimation method, rather than
-# the blended estimates from the Fay-Herriott method
+# the blended estimates from the Fay-Herriott method?
 # Users should consider setting this option to `TRUE` based on diagnostics
-# examining `share_model` vs `share_direct` estimates, to judge whether
+# examining `share_model` vs `share_direct` estimates, to judge whether 
 # "model" estimates are often skewed away from direct estimates within PUMAs
-# (which would lean towards a setting of `TRUE`) or if they are roughly
+# (which would lean towards a setting of `TRUE`) or if they are roughly 
 # consistent with the "direct" estimates (which would lean towards a setting of
 # `FALSE`) meaning that a blended estimate may generate useful moderation and
 # greater accuracy
 use_only_sae_model_estimates <- TRUE
 
+# A flag to elect whether to use the approximation method for the small area
+# estimation method. This is orders of magnitude faster than the alternative,
+# which is the fh() (short for "Fay Herriott") method, which implements the
+# canonical SAE method. Our approximation is quite close in both theory and
+# in tested outcomes, where we perform both direct and model estimation and
+# blend those two components. The key difference is that we perform these pieces
+# of estimation separately, whereas fh() implements them simultaneously via an
+# EBLUP estimation.
+# Our current stance is that it's better to use the approximation method on the
+# way to ensure that estimation for a given application is running and producing
+# sensible results, and then turning off to allow the canonical method to run
+# final estimates (which, even for states of moderate size like Illinois, may
+# require an overnight run; note: if run on a laptop, overnight runs would require
+# users to change their power settings to never allow the computer to sleep while
+# it is plugged in.)
+use_sae_approximation <- FALSE
+
+# Change `developer_mode` to FALSE if intending to hide extra output that should
+# not be present in the final report draft
+developer_mode <- TRUE
+
+# Change `rerun_sae` parameter to TRUE to rerun the often time-consuming small
+# area estimation code in `02a`. Once this has been run, this option can be 
+# set to FALSE to update other aspects of code and rerun 02a and other code
+# without rerunning that time-consuming step.
+rerun_sae <- TRUE
+
 # Specify an Excel file that contains a single tab to be inserted as a "front page"
-# to the output of final estimates. For example, this file may have information
+# to the output of final estimates. For example, this file may have information 
 # about details of what the estimates represent (CCDF estimates, income-to-poverty
 # estimates) and contact information
 
 excel_front_page_file <- "path/to/file.xlsx"
 
-# Many auxiliary diagnostics are produced for chunks that only run on the 
-# condition of `eval = developer_mode`. Setting `developer_mode` to FALSE would
-# hide these diagnostics and extra output that should not be present in the final
-# report draft. Set `developer_mode` to TRUE if intending to render these in place 
-# (i.e. throughout the draft) that they are relevant.
-developer_mode <- FALSE
-
 ```
+
+#### Step 4-2. Modify `settings--config.R` by entering information pertinent to each section of comments and save.
 
 #### Step 5. Running this code requires 64-bit Java. If Java is not installed or you have 32-bit Java installed, 64-bit Java can be downloaded here [url](https://www.java.com/en/download/manual.jsp).
 
-#### Step 6. Open `run--00--main-doc.Rmd` file and click the "Knit" button.
+#### Step 6. Open `run--00--main-doc.Rmd` file and click the "Knit" button. Note that knitting this for the first time may take several hours, and the amount of time may vary depending on specified region (state/county) or CPU/RAM of the computer.
 
 # Updating the Estimates
 After running the codebase once, updating the estimates with the most recent CPS or ACS data is simple. 
