@@ -1,0 +1,107 @@
+# Background
+
+This R script is designed to read all of the settings customizations that a user has provided in a given Excel interface to ELPEP, and to set off programming code.
+
+To run this script--and consequently ELPEP:
+
+1. provide the name of Excel file that contains your customizations in the indicated area of the gray box below, 
+2. make sure that you have taken all other steps to download necessary files described at https://www.github.com/chapinhall/elpep, and then
+3. in the menu above go to "Code >> Run Region >> Run All"
+
+```{r user specified-elpep customization file}
+#elpep_customization_file <- "Interface for Specifying Custom ELPEP Eligibility Estimates.xlsm"
+elpep_customization_file <- "C:/users/nmader/Downloads/Interface for Specifying Custom ELPEP Eligibility Estimates--Maine.xlsm"
+```
+
+
+# Technical Content
+
+Load all packages necessary for ELPEP--
+
+```{r}
+source("settings--main.R")
+```
+
+Establish function for harvesting customizations from the Excel spec file--
+
+```{r functions to parse contents from the excel file}
+getRange <- function(file, range, istable = FALSE, header = TRUE) {
+  if (istable) {
+    val <- read.xlsx(file, namedRegion = range, colNames = header)
+  } else {
+    val <- read.xlsx(file, namedRegion = range, colNames = FALSE)[, 1]
+  }
+  return(val)
+}
+getInfo <- function(i, ...) getRange(file = elpep_customization_file, i, ...)
+
+```
+
+
+Read all customization parameters from the Excel spec file.
+
+```{r}
+elpep_spec_names <- getNamedRegions(elpep_customization_file)
+
+elpep_params <- NULL
+for (i in 1:length(elpep_spec_names)) {
+  esn <- elpep_spec_names[i]
+  istable <- 
+    !str_detect(
+      attr(elpep_spec_names, "position")[i], 
+      "^\\w+\\d+$")
+  
+  assignment_try <- try(assign(esn, getInfo(esn, istable = istable)))
+  if (is.null(assignment_try) || (length(assignment_try)==1 && !str_detect(assignment_try, "Error"))) {
+    elpep_params <- c(elpep_params, esn)
+  }
+}
+```
+
+```{r set defaults as necessary}
+
+```
+
+```{r recast to correct data types}
+to_numericize_inputs <- c("zcta_min", "zcta_max")
+```
+
+
+```{r recode true and false}
+tf_inputs <- c("")
+```
+
+```{r prepare inputs for age aggregation}
+
+```
+
+```{r prepare inputs for map generation}
+map_geos <- 
+  map_geos %>% 
+  str_split(pattern = ",") %>% 
+  str_trim()
+
+map_geo_level <-
+  case_match(map_geo_level,
+             "School District(s)"                      ~ "school",
+             "Zip Code(s)"                             ~ "zcta",
+             "County (or Counties)"                    ~ "county",
+             "Custom Geography (to be provided below)" ~ "aux")
+
+
+
+```
+
+
+
+Kick off the run
+
+```{r}
+source("method--general-helper-functions.R")
+rmarkdown::render(
+  input = "run--00--main-doc.Rmd",
+  output_file = glue("{output_path}ELPEP Technical Report -- {my_state} -- {my_output_tag}.html")
+  )
+```
+
+
