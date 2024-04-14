@@ -281,6 +281,10 @@ plot_elig_diff_vs_char <-
       filter(str_detect(outcome_var, outcome_string),
              cps_base_recency == "allbase")
     
+    # If all y values are NAs--which can occur if the base share value has not
+    # been specified--then return 0 and exit
+    if (with(dt_plot, mean(is.na(share_nowcast - share_base)) == 1)) return(NULL)
+    
     my_plot <- 
       ggplot(dt_plot,
              aes(x = get(char_field), # ed_lths

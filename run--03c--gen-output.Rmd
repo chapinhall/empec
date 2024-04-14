@@ -197,7 +197,14 @@ write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_l
 
 ```{r write various levels of geographic aggregation out to file for ccdf}
 
-outcomes_out_regex <- "ccdf_elig_incratio_|incpov_le(100|200)"
+output_fpl_cuts_regex <- 
+  output_fpl_cuts %>%
+  str_split(pattern = ",") %>% 
+  unlist() %>% 
+  str_trim() %>% 
+  paste(collapse = "|")
+
+outcomes_out_regex <- glue("ccdf_elig_incratio_|incpov_le({output_fpl_cuts_regex})")
 
 lAgg_for_output <- 
   list(list(agg_table = nowcast_agg_tract,
