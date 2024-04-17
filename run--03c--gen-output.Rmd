@@ -50,7 +50,7 @@ ccdf_income_thresh_label <-
 ```{r function to output excel sheets for various levels of geographic aggregation}
 write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_label) {
 
-  if (exists("excel_front_page_file")) {
+  if (file.exists(excel_front_page_file)) {
     #addWorksheet(wb, "Front page")
     wb <- openxlsx::loadWorkbook(excel_front_page_file)
     # openxlsx::write.xlsx(xlsxFront,
