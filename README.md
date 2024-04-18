@@ -43,7 +43,7 @@ You will now have the following four files in the input folder: CPS data, CPS do
 1. Create Census API [here](https://api.census.gov/data/key_signup.html).
 2. Create FRED API [here](https://fred.stlouisfed.org/docs/api/api_key.html).
 
-#### Step 4-1. Create a new R script, copy and paste the following, and save it as `settings--config.R` in the folder with all other codes:
+#### Step 4. Create a new R script, copy and paste the following, and save it as `settings--config.R` in the folder with all other codes. Modify the file by entering user-specific information, and save the file.
 
 ```
 ### Set Run Information --------------------------------------------------------
@@ -239,8 +239,6 @@ rerun_sae <- TRUE
 excel_front_page_file <- "path/to/file.xlsx"
 
 ```
-
-#### Step 4-2. Modify `settings--config.R` by entering information pertinent to each section of comments and save.
 
 #### Step 5. Running this code requires 64-bit Java. If Java is not installed or you have 32-bit Java installed, 64-bit Java can be downloaded here [url](https://www.java.com/en/download/manual.jsp).
 
