@@ -275,16 +275,15 @@ plot_elig_diff_vs_char <-
            char_field,
            char_desc,
            save_tag = "") {
-    
     dt_plot <-
       share_pre_post_chars %>% 
       filter(str_detect(outcome_var, outcome_string),
              cps_base_recency == "allbase")
-    
+
     # If all y values are NAs--which can occur if the base share value has not
     # been specified--then return 0 and exit
     if (with(dt_plot, mean(is.na(share_nowcast - share_base)) == 1)) return(NULL)
-    
+
     my_plot <- 
       ggplot(dt_plot,
              aes(x = get(char_field), # ed_lths
@@ -301,7 +300,6 @@ plot_elig_diff_vs_char <-
       labs(x = char_desc,
            y = glue("Change in {outcome_desc} - {base_year} to {base_year + 1}")) +
       theme_minimal()
-    
     if (save_tag != "") {
       ggsave(plot = my_plot,
              filename = glue("{output_path}Difference in Eligibility in {outcome_desc} {save_tag}_{my_output_tag}.png"),
