@@ -51,7 +51,7 @@ for (i in 1:length(elpep_spec_names)) {
       attr(elpep_spec_names, "position")[i], 
       "^\\w+\\d+$")
   
-  assignment_try <- try(assign(esn, getInfo(esn, istable = istable)))
+  suppressWarnings(assignment_try <- try(assign(esn, getInfo(esn, istable = istable))))
   if (is.null(assignment_try) || (length(assignment_try)==1 && !str_detect(assignment_try, "Error"))) {
     elpep_params <- c(elpep_params, esn)
   }
@@ -63,13 +63,38 @@ for (i in 1:length(elpep_spec_names)) {
 ```
 
 ```{r recast to correct data types}
-to_numericize_inputs <- c("zcta_min", "zcta_max")
+inputs_to_numericize <- c("kid_age_thres_p")
+for (i in inputs_to_numericize) {
+  assign(i, as.numeric(get(i)))
+}
 ```
 
 
 ```{r recode true and false}
-tf_inputs <- c("")
+inputs_tf <- c("use_only_sae_model_estimates",
+               "developer_mode",
+               "rerun_sae")
+
+for (i in inputs_tf) {
+  assign(i,
+         case_match(get(i),
+                    "True"  ~ TRUE,
+                    "False" ~ FALSE,
+                    TRUE    ~ NA))
+}
 ```
+
+```{r vectorize comma-separated inputs}
+inputs_to_vectorize <- 
+  c("local_ccdf_incratio_cuts",
+    "output_fpl_cuts")
+
+for (i in inputs_to_vectorize) {
+  assign(i,
+         str_split(get(i), pattern = ",") %>% trim() %>% as.numeric())
+}
+```
+
 
 ```{r prepare inputs for age aggregation}
 

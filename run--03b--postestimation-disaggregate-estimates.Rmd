@@ -271,30 +271,7 @@ if (FALSE) {
 ```
 
 
-```{r specify and run reaggregations to new age groups}
-
-kindergarten_cutoff <- 
-  ifelse(exists("kindergarten_date_cutoff"), 
-         kindergarten_date_cutoff,
-         "09-01")
-
-end_month_pre_schoolage <- 
-  (interval(ymd(glue("{base_year+1}-01-01")),
-           ymd(glue("{base_year+1}-{kindergarten_cutoff}"))) %/%
-  days(1) /  # Get difference in days
-  30.5 +     # Get difference in (roughly) monthly
-  60)        # Add to number of months up until age 5
-
-# Round to the nearest half month
-end_month_pre_schoolage <- 
-  round(end_month_pre_schoolage/0.5)*0.5
-  
-# Replace indications of "kind" in the `age_aggs` input with the calculated month of kindergarten entry
-
-age_aggs <- 
-  age_aggs %>% 
-  mutate(low_month =  ifelse(low_month  == "kind", end_month_pre_schoolage, low_month) %>% as.numeric(),
-         high_month = ifelse(high_month == "kind", end_month_pre_schoolage, high_month) %>% as.numeric())
+```{r run reaggregations to new age groups}
 
 nowcast_elig_counts_final <- NULL
 for (r in 1:nrow(age_aggs)) {
