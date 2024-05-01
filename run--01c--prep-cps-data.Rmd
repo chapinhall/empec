@@ -20,6 +20,8 @@ if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R"
 ```
 
 ```{r read in cps data and documentation}
+# Remove the file extension from the `cps_raw` filename
+cps_raw <- str_replace(cps_raw, "\\.\\w+", "")
 cps_documentation <- read_ipums_ddi(glue("{input_path}{cps_raw}.xml"))
 
 if (FALSE) {

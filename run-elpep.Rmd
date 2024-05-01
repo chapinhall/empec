@@ -23,8 +23,7 @@ source("method--read-customization-file.R")
 source("method--general-helper-functions.R")
 rmarkdown::render(
   input = "run--00--main-doc.Rmd",
-  output_file = glue("{output_path}ELPEP Technical Report -- {my_state} -- {my_output_tag}.html")
-  )
+  output_file = glue("{output_path}ELPEP Technical Report -- {my_state} -- {my_output_tag}.html"))
 ```
 
 

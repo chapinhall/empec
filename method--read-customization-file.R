@@ -43,8 +43,25 @@ for (i in 1:length(elpep_spec_names)) {
   # Delete objects that are NAs, to conform with the rest of the codebase that
   # typically checks `exists(<object name>)` to see if default handling should be
   # used.
-  if (!is.null(assignment_try) && all(is.na(get(esn)))) rm(list = esn)
+  if (is.null(assignment_try) ||
+      (all(is.na(get(esn))) || 
+       all(is.null(get(esn))))) {
+         rm(list = esn)
+       }
 }
+
+### Fix potential issues with file paths --------------------------------------#
+
+fix_path <- function(x) { 
+  x %>% 
+    # Ensure final forward-slash
+    paste0("/") %>% 
+    # Remove duplicate forwardslashes
+    str_replace_all("/+", "/") %>% 
+    # Replace backslashes with forward slashes
+    str_replace_all("\\\\+", "/")
+}
+fix_path(output_path)
 
 ### Recast to correct data types ----------------------------------------------#
 inputs_to_numericize <- c("kid_age_thres_p")
