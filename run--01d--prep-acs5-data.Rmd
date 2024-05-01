@@ -14,7 +14,7 @@ print_documentation <- FALSE
 ```{r}
 # run scripts for necessary packages and objects as necessary
 if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("method--read-customization-file.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 
 load(glue("{output_path}geo_data_{my_output_tag}.Rda"))
