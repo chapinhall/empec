@@ -407,8 +407,8 @@ if (exists("my_aux_geo")) {
 ```{r produce simple output of the aggregates}
 my_write.csv <- function(x, suffix) {
   x %>% 
-    filter(cps_base_recency == "most_recent") %>% 
-    select(-cps_base_recency) %>% 
+    # filter(cps_base_recency == "most_recent") %>% 
+    # select(-cps_base_recency) %>% 
     write.csv(file = glue("{output_path}Simple elig output by age, period, and outcome -- {suffix}_{my_output_tag}.csv"),
               row.names = FALSE)
 }
