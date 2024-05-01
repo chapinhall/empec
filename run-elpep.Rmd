@@ -10,7 +10,7 @@ To run this script--and consequently ELPEP:
 
 ```{r user specified-elpep customization file}
 #elpep_customization_file <- "Interface for Specifying Custom ELPEP Eligibility Estimates.xlsm"
-elpep_customization_file <- "C:/users/nmader/Downloads/Interface for Specifying Custom ELPEP Eligibility Estimates--Maine.xlsm"
+elpep_customization_file <- "C:/Users/nmader/Chapin Hall Center for Children/CCPRP Project - Documents/ELPEP/Maine/Interface for Specifying Custom ELPEP Eligibility Estimates--Maine.xlsm"
 ```
 
 
@@ -46,10 +46,12 @@ elpep_spec_names <- getNamedRegions(elpep_customization_file)
 elpep_params <- NULL
 for (i in 1:length(elpep_spec_names)) {
   esn <- elpep_spec_names[i]
+  print(esn)
+  
   istable <- 
-    !str_detect(
+    str_detect(
       attr(elpep_spec_names, "position")[i], 
-      "^\\w+\\d+$")
+      "\\w+\\d+:\\w+\\d+")
   
   suppressWarnings(assignment_try <- try(assign(esn, getInfo(esn, istable = istable))))
   if (is.null(assignment_try) || (length(assignment_try)==1 && !str_detect(assignment_try, "Error"))) {
@@ -76,11 +78,13 @@ inputs_tf <- c("use_only_sae_model_estimates",
                "rerun_sae")
 
 for (i in inputs_tf) {
-  assign(i,
-         case_match(get(i),
-                    "True"  ~ TRUE,
-                    "False" ~ FALSE,
-                    TRUE    ~ NA))
+  if (!get(i) %in% c(TRUE, FALSE)) {
+    assign(i,
+           case_match(get(i),
+                      "True"  ~ TRUE,
+                      "False" ~ FALSE,
+                      TRUE    ~ NA)) 
+  }
 }
 ```
 
@@ -91,19 +95,44 @@ inputs_to_vectorize <-
 
 for (i in inputs_to_vectorize) {
   assign(i,
-         str_split(get(i), pattern = ",") %>% trim() %>% as.numeric())
+         str_split(get(i), pattern = ",") %>% unlist() %>%  trim() %>% as.numeric())
 }
 ```
 
 
 ```{r prepare inputs for age aggregation}
+kindergarten_cutoff <- 
+  ifelse(exists("kindergarten_date_cutoff"), 
+         kindergarten_date_cutoff,
+         "09-01")
 
+end_month_pre_schoolage <- 
+  (interval(ymd(glue("{base_year+1}-01-01")),
+           ymd(glue("{base_year+1}-{kindergarten_cutoff}"))) %/%
+  days(1) /  # Get difference in days
+  30.5 +     # Get difference in (roughly) monthly
+  60)        # Add to number of months up until age 5
+
+# Round to the nearest half month
+end_month_pre_schoolage <- 
+  round(end_month_pre_schoolage/0.5)*0.5
+  
+prep_age_month <- function(x) {
+  x[x == "kind"] <- end_month_pre_schoolage
+  as.numeric(x)
+}
+
+age_aggs <- 
+  age_aggs %>% 
+  mutate(low_month  = prep_age_month(low_month),
+         high_month = prep_age_month(high_month))
 ```
 
 ```{r prepare inputs for map generation}
 map_geos <- 
   map_geos %>% 
   str_split(pattern = ",") %>% 
+  unlist() %>% 
   str_trim()
 
 map_geo_level <-
