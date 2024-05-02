@@ -50,6 +50,14 @@ for (i in 1:length(elpep_spec_names)) {
        }
 }
 
+### Set years for pulling data ------------------------------------------------#
+
+if (!exists("base_year")) base_year <- 2022
+base_year <- min(base_year, 2022)
+
+acs5_year <- min(base_year + 2, 2022)
+
+
 ### Fix potential issues with file paths --------------------------------------#
 
 fix_path <- function(x) { 
@@ -139,7 +147,3 @@ map_geo_level <-
              "Zip Code(s)"                             ~ "zcta",
              "County (or Counties)"                    ~ "county",
              "Custom Geography (to be provided below)" ~ "aux")
-
-### Set ACS 5 year end-year ---------------------------------------------------#
-
-acs5_year <- min(base_year + 2, 2022)
