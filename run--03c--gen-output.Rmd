@@ -50,7 +50,7 @@ ccdf_income_thresh_label <-
 ```{r function to output excel sheets for various levels of geographic aggregation}
 write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_label) {
 
-  if (file.exists(excel_front_page_file)) {
+  if (exists("excel_front_page_file")) {
     #addWorksheet(wb, "Front page")
     wb <- openxlsx::loadWorkbook(excel_front_page_file)
     # openxlsx::write.xlsx(xlsxFront,
@@ -67,25 +67,11 @@ write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_l
       setnames(lvl[["agg_field"]], lvl[["sheet_name"]]) %>% 
       filter(pd == "nowcast",
              cps_base_recency == "most_recent",
-             str_detect(outcome_var, outcomes_regex),
-             str_detect(age, age_regex)) %>% 
+             str_detect(outcome_var, outcomes_regex)) %>% 
       select(-cps_base_recency) %>% 
+      rename(Age = age) %>% 
       # convert age to narrative
       mutate(
-        # Recode numeric age values
-        Age = 
-          age %>% 
-          str_replace("age_(\\d+)to(\\d+)", "Age \\1-\\2") %>% 
-          str_replace("age_(\\d+)$", "Age \\1"),
-        
-        # Recode non-numeric age values
-        Age = 
-          case_when(Age %like% "infant"  ~ "Infant (1-15 months)",
-                    Age %like% "toddler" ~ "Toddler (16-36 months)",
-                    Age == "Age 3" ~ "Pre-K 3 (37-48 months)",
-                    Age == "Age 4" ~ "Pre-K 4 (49-60 months)",
-                    TRUE             ~ Age),
-        
         Outcome = 
           case_when(str_detect(outcome_var, "^ccdf") ~ 
                       str_replace(outcome_var, 
@@ -126,7 +112,7 @@ write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_l
              
              label = glue("{Age}{Outcome}, {date_range} -- {stat}{calc}")) %>% 
       arrange(Age, Outcome) %>% 
-      dplyr::select(-age, -pd, -outcome_var, -Age, -Outcome, -name, -stat, -calc) %>% 
+      dplyr::select(-pd, -outcome_var, -Age, -Outcome, -name, -stat, -calc) %>% 
       # Use a unique() to compress the overall population rows across outcomes
       unique() %>% 
       pivot_wider(names_from = label,
@@ -475,7 +461,7 @@ for (out_var in c("ccdf", "le100", "le200")) {
                "le100" ~ glue("Head Start Eligibility ({date_range})"),
                "le200" ~ glue("Income <200% FPL ({date_range})"))
   
-  static_map_level_diff(estimates = nowcast_agg_zip %>% filter(age == "age_0to5"),
+  static_map_level_diff(estimates = nowcast_agg_zip %>% filter(age == age_agg_main),
                         geo_level = "ZCTA",
                         outcome = out_var,
                         field_desc = out_var_desc,
@@ -483,7 +469,7 @@ for (out_var in c("ccdf", "le100", "le200")) {
                         #val_limits = c(0, 0.6),
                         show_legend = TRUE)
   
-  static_map_level_diff(estimates = nowcast_agg_cty %>% filter(age == "age_0to5"),
+  static_map_level_diff(estimates = nowcast_agg_cty %>% filter(age == age_agg_main),
                         geo_level = "County",
                         outcome = out_var,
                         field_desc = out_var_desc,
@@ -491,7 +477,7 @@ for (out_var in c("ccdf", "le100", "le200")) {
                         #val_limits = c(0, 0.6),
                         show_legend = TRUE)
   
-  static_map_level_diff(estimates = nowcast_agg_sd %>% filter(age == "age_0to5"),
+  static_map_level_diff(estimates = nowcast_agg_sd %>% filter(age == age_agg_main),
                         geo_level = "school",
                         outcome = out_var,
                         field_desc = out_var_desc,
@@ -500,7 +486,7 @@ for (out_var in c("ccdf", "le100", "le200")) {
                         show_legend = TRUE)
   
   if (exists("my_aux_geo")) {
-    static_map_level_diff(estimates = nowcast_agg_aux %>% filter(age == "age_0to5"),
+    static_map_level_diff(estimates = nowcast_agg_aux %>% filter(age == age_agg_main),
                           geo_level = "aux",
                           geo_level_merge_field = "aux_geo_label",
                           geo_level_desc = my_aux_geo_desc,
@@ -533,7 +519,7 @@ if (exists("map_geos")) {
                "school" ~ "school")
   
   # Loop across ages
-  for (a in c("age_0to5")) { # "age_0to2", "age_3to5", "age_0to5", "age_4"
+  for (a in age_agg_main) { 
     ests_a <- 
       nowcast_agg_tract %>% 
       filter(age == a,

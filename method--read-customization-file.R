@@ -54,14 +54,16 @@ for (i in 1:length(elpep_spec_names)) {
 
 fix_path <- function(x) { 
   x %>% 
+    # Replace backslashes with forward slashes
+    str_replace_all("\\\\+", "/") %>% 
     # Ensure final forward-slash
     paste0("/") %>% 
-    # Remove duplicate forwardslashes
-    str_replace_all("/+", "/") %>% 
-    # Replace backslashes with forward slashes
-    str_replace_all("\\\\+", "/")
+    # Remove duplicate forward slashes
+    str_replace_all("/+", "/") 
 }
-fix_path(output_path)
+code_path   <- fix_path(code_path)
+input_path  <- fix_path(input_path)
+output_path <- fix_path(output_path)
 
 ### Recast to correct data types ----------------------------------------------#
 inputs_to_numericize <- c("kid_age_thres_p")
@@ -138,3 +140,6 @@ map_geo_level <-
              "County (or Counties)"                    ~ "county",
              "Custom Geography (to be provided below)" ~ "aux")
 
+### Set ACS 5 year end-year ---------------------------------------------------#
+
+acs5_year <- min(base_year + 2, 2022)

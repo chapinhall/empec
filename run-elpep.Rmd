@@ -1,6 +1,6 @@
 # Background
 
-This R script is designed to read all of the settings customizations that a user has provided in a given Excel interface to ELPEP, and to set off programming code.
+This R script is designed to read all of the customized settings that a user has provided in a given Excel interface to ELPEP, and to set off programming code.
 
 To run this script--and consequently ELPEP:
 
@@ -9,13 +9,18 @@ To run this script--and consequently ELPEP:
 3. in the menu above go to "Code >> Run Region >> Run All"
 
 ```{r user specified-elpep customization file}
-#elpep_customization_file <- "Interface for Specifying Custom ELPEP Eligibility Estimates.xlsm"
 elpep_customization_file <- "C:/Users/nmader/Chapin Hall Center for Children/CCPRP Project - Documents/ELPEP/Maine/Interface for Specifying Custom ELPEP Eligibility Estimates--Maine.xlsm"
 ```
 
 ```{r}
-# This line runs a script to harvest all details specified in the customization file
+# These lines reset the run and load all packages necessary for further steps
+rm(list = setdiff(ls(), "elpep_customization_file"))
 source("settings--main.R")
+```
+
+
+```{r}
+# This line runs a script to harvest all details specified in the customization file
 source("method--read-customization-file.R")
 ```
 
