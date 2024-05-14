@@ -12,6 +12,7 @@ if (!exists("elpep_customization_file")) {
     "(3) open the `run-elpep.Rmd` script to specify `elpep_customization_file <- '/path/to/file/interface.xlsm'"))
 }
 
+
 ### Function for harvesting customizations from the Excel spec file -----------#
   
 getRange <- function(file, range, istable = FALSE, header = TRUE) {
@@ -50,6 +51,7 @@ for (i in 1:length(elpep_spec_names)) {
        }
 }
 
+
 ### Set years for pulling data ------------------------------------------------#
 
 if (!exists("base_year")) base_year <- 2022
@@ -73,7 +75,9 @@ code_path   <- fix_path(code_path)
 input_path  <- fix_path(input_path)
 output_path <- fix_path(output_path)
 
+
 ### Recast to correct data types ----------------------------------------------#
+
 inputs_to_numericize <- c("kid_age_thres_p")
 for (i in inputs_to_numericize) {
   assign(i, as.numeric(get(i)))
@@ -81,6 +85,7 @@ for (i in inputs_to_numericize) {
 
 
 ### recode true and false -----------------------------------------------------#
+
 inputs_tf <- c("use_only_sae_model_estimates",
                "developer_mode",
                "rerun_sae")
@@ -95,7 +100,9 @@ for (i in inputs_tf) {
   }
 }
 
+
 ### vectorize comma-separated inputs ------------------------------------------#
+
 inputs_to_vectorize <- 
   c("local_ccdf_incratio_cuts",
     "output_fpl_cuts")
@@ -106,7 +113,20 @@ for (i in inputs_to_vectorize) {
 }
 
 
+### check validity of custom income inputs ------------------------------------#
+
+# If nothing has been provided, delete the table so that code handles it as missing
+if (all(is.na(custom_income_thresh$inc_thresh))) {
+  rm(custom_income_thresh)
+} else {
+  custom_income_thresh <- 
+    custom_income_thresh %>% 
+    filter(!is.na(inc_thresh))
+}
+
+
 ### prepare inputs for age aggregation ----------------------------------------#
+
 kindergarten_cutoff <- 
   ifelse(exists("kindergarten_date_cutoff"), 
          kindergarten_date_cutoff,
@@ -135,6 +155,7 @@ age_aggs <-
 
 
 ### prepare inputs for map generation -----------------------------------------#
+
 map_geos <- 
   map_geos %>% 
   str_split(pattern = ",") %>% 

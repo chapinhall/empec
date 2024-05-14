@@ -456,7 +456,7 @@ geo_crosswalk <-
 if (exists("my_aux_geo")) {
   
   # Read in auxiliary data shape
-  auxShp <- st_read(my_aux_geo)
+  auxShp <- st_read(glue("{input_path}{my_aux_geo}"))
   
   # Give a generic name to the aux geography's label field
   auxShp$aux_geo_label <- auxShp %>% pull(get(my_aux_geo_field))
