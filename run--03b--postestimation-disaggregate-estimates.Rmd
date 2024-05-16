@@ -12,6 +12,18 @@ for (f in c("geo", "acs1", "cps", "acs5", "pop")) {
   load(file = glue("{output_path}{f}_data_{my_output_tag}.Rda"))
 }
 load(file = glue("{output_path}Now-cast counts at the tract level, pre-disaggregation - {my_output_tag}.Rda"))
+
+geo_crosswalk <- merge(
+  geo_crosswalk,
+  geo_crosswalk_aux %>% filter(pct_area > 0.50) %>% select(GEOID, community),
+  by = "GEOID",
+  all.x = TRUE,
+  all.y = FALSE
+) %>% 
+  mutate(chicago_flag = ifelse(!is.na(community), 1, 0),
+         County2 = case_when(County != "Cook" ~ County,
+                             County == "Cook" & chicago_flag == 0 ~ "Non-Chicago Cook",
+                             County == "Cook" & chicago_flag == 1 ~ "Chicago Cook"))
 ```
 
 
@@ -371,6 +383,7 @@ agg_tracts_up <- function(ests, agg_level) {
 nowcast_agg_tract <- agg_tracts_up(nowcast_elig_counts_final, "GEOID")
 nowcast_agg_zip   <- agg_tracts_up(nowcast_elig_counts_final, "ZCTA")
 nowcast_agg_cty   <- agg_tracts_up(nowcast_elig_counts_final, "County")
+nowcast_agg_cty2  <- agg_tracts_up(nowcast_elig_counts_final, "County2")
 nowcast_agg_sd    <- agg_tracts_up(nowcast_elig_counts_final, "school")
 
 if (exists("my_aux_geo")) {
@@ -390,6 +403,7 @@ my_write.csv <- function(x, suffix) {
 my_write.csv(nowcast_agg_tract, "by tract")
 my_write.csv(nowcast_agg_zip,   "by zcta")
 my_write.csv(nowcast_agg_cty,   "by county")
+my_write.csv(nowcast_agg_cty2,  "by county2")
 my_write.csv(nowcast_agg_sd,    "by school districts")
 
 if (exists("my_aux_geo")) {
@@ -403,6 +417,7 @@ to_save <-
   c("nowcast_agg_tract",
     "nowcast_agg_zip",
     "nowcast_agg_cty",
+    "nowcast_agg_cty2",
     "nowcast_agg_sd")
 if (exists("my_aux_geo")) {
   to_save <- c(to_save, "nowcast_agg_aux")

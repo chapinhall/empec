@@ -202,6 +202,9 @@ lAgg_for_output <-
        list(agg_table = nowcast_agg_cty,
             agg_field = "County",
             sheet_name = "County"),
+       list(agg_table = nowcast_agg_cty2,
+            agg_field = "County2",
+            sheet_name = "County2"),
        list(agg_table = nowcast_agg_sd,
             agg_field = "school",
             sheet_name = "School Districts"))
