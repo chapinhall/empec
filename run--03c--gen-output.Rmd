@@ -48,7 +48,7 @@ ccdf_income_thresh_label <-
 
 
 ```{r function to output excel sheets for various levels of geographic aggregation}
-write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_label) {
+write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, recency = "most_recent", out_label) {
 
   if (exists("excel_front_page_file")) {
     #addWorksheet(wb, "Front page")
@@ -60,13 +60,17 @@ write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_l
     wb <- openxlsx::createWorkbook()
   }
   
+  date_label <- ifelse(recency == "most_recent",
+                       date_range,
+                       glue("Calendar Year {base_year + 1}"))
+  
   for (lvl in agg_levels) {
     add_sheet <-
       copy(lvl[["agg_table"]]) %>% 
       arrange(get(lvl[["agg_field"]])) %>% 
       setnames(lvl[["agg_field"]], lvl[["sheet_name"]]) %>% 
       filter(pd == "nowcast",
-             cps_base_recency == "most_recent",
+             cps_base_recency == recency,
              str_detect(outcome_var, outcomes_regex)) %>% 
       select(-cps_base_recency) %>% 
       rename(Age = age) %>% 
@@ -110,7 +114,7 @@ write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_l
              Outcome = case_when(name == "pop_count" ~ "",
                                  TRUE                ~ paste0(" ", Outcome)),
              
-             label = glue("{Age}{Outcome}, {date_range} -- {stat}{calc}")) %>% 
+             label = glue("{Age}{Outcome}, {date_label} -- {stat}{calc}")) %>% 
       arrange(Age, Outcome) %>% 
       dplyr::select(-pd, -outcome_var, -Age, -Outcome, -name, -stat, -calc) %>% 
       # Use a unique() to compress the overall population rows across outcomes
@@ -141,7 +145,7 @@ write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, out_l
     openxlsx::addStyle(wb, 
              sheet = lvl[["sheet_name"]], 
              style = openxlsx::createStyle(numFmt = "#,##0"), 
-             cols = str_which(cn(add_sheet), "-- #"),
+             cols = str_which(cn(add_sheet), "#$"),
              rows = 1:nrow(add_sheet)+1,
              gridExpand = TRUE)
     
@@ -219,6 +223,7 @@ if (exists("my_aux_geo")) {
 write_agg_output(outcomes_regex = outcomes_out_regex,
                  age_regex      = "age(_3$|_4$|_infant$|_toddler$)", # "_0to2|_3to5|_0to5|_6to12"
                  agg_levels     = lAgg_for_output,
+                 recency        = "allbase",
                  out_label      = local_ccdf_name_short)
 
 ```
