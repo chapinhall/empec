@@ -477,7 +477,7 @@ if (exists("my_aux_geo")) {
     # This above step is recommended to avoid findings of degenerate geometries due
     # to duplicate vertices: https://github.com/r-spatial/sf/issues/1762
   
-  tract_aux_intersection$area <- st_area(tract_aux_intersection)
+  tract_aux_intersection$area <- as.numeric(st_area(tract_aux_intersection))
   
   # Examine duplicates to see whether any existing duplicates 
   if (FALSE) {
@@ -489,12 +489,29 @@ if (exists("my_aux_geo")) {
       View()
   }
   
+  # Merge the original tract file into this intersections file to be able to
+  # reference the total area of each tract
+  # Note: we do this instead of relying on sum(area) because tract_aux_intersection
+  # represents only polygons that intersect with the aux geography, which can
+  # fully remove portions of tracts that are outside of the aux boundaries, leading
+  # to erroneous filtering and proration of tract-level statistics
+  tract_area <- 
+    tractShp %>% 
+    mutate(tract_area = as.numeric(st_area(tractShp)))
+  
+  tract_aux_intersection_pcts <- 
+    tract_aux_intersection %>% 
+    # Merge tract_area contents as new data.frame (which drops the geometry field,
+    # and avoids errors)
+    merge(with(tract_area,
+               data.frame(GEOID = GEOID,
+                          tract_area = tract_area)),
+          all.x = TRUE) %>% 
+    mutate(pct_area = area / tract_area,
+           .by = GEOID)
+  
   # Subset intersected geographies to those with areas that are within 2 orders of
   # magnitude of the largest. This is primarily to rule out idiosyncratic overlaps
-  tract_aux_intersection_pcts <- 
-    tract_aux_intersection  %>%
-    group_by(GEOID) %>% 
-    mutate(pct_area = as.numeric(area) / sum(as.numeric(area)))
   
   # Examine the histogram of prorations
   if (FALSE) {
