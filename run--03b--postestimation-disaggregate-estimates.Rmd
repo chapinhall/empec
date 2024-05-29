@@ -231,6 +231,36 @@ apportion_ages <- function(low_month, high_month, age_desc, verbose = FALSE) {
        pop_count_se_upd  = keep_pct*pop_count_se,
      )
    
+   ### Prorate any overlap with ages 6-12
+   # /!\ Could arguably generalize this together with the above, since the
+   # single-age calculations above are special cases of this below
+   
+   high_month_6to12 <- 12*(12+1) # this is the  last month of age 12
+    low_month_6to12 <- 6*12 + 1  # this is the first month of age 6
+   nMonths_6to12 <- high_month_6to12 - low_month_6to12 + 1
+    
+   # Using a well-known equation to calculate the amount of overlap
+   overlap_6to12 <- min(high_month, high_month_6to12) - max(low_month, low_month_6to12) + 1
+   if (overlap_6to12 > 0) {
+     apportioned_6to12 <- 
+       nowcast_elig_counts_added_ages %>% 
+       # Collapse ages
+       filter(age == "age_6to12") %>% 
+       mutate(
+         # Determine keep pct for age of given row
+         keep_pct = overlap_6to12 / nMonths_6to12,
+         
+         # Apply keep pct to each key field
+         count_upd     = keep_pct*count,
+         count_se_upd  = keep_pct*count_se,
+         pop_count_upd     = keep_pct*pop_count,
+         pop_count_se_upd  = keep_pct*pop_count_se,
+       )
+     apportioned <-
+       bind_rows(apportioned,
+                 apportioned_6to12)
+   }
+   
    if (verbose) {
      print(
        apportioned %>% 
@@ -278,6 +308,7 @@ if (FALSE) {
   apportion_ages( 1, 15, verbose = TRUE, age_desc = "infant")
   apportion_ages(16, 36, verbose = TRUE, age_desc = "toddler")
   apportion_ages(1,  68, verbose = TRUE, age_desc = "age0to5")
+  apportion_ages(68,156, verbose = TRUE, age_desc = "age6to12")
 }
 
 ```
@@ -287,7 +318,7 @@ if (FALSE) {
 
 nowcast_elig_counts_final <- NULL
 for (r in 1:nrow(age_aggs)) {
-  #print(age_aggs$age_group[r])
+  print(age_aggs$age_group[r])
   print(age_aggs[r, ])
   nowcast_elig_counts_final <-
     bind_rows(nowcast_elig_counts_final,
