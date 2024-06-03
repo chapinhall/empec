@@ -521,11 +521,16 @@ if (exists("my_aux_geo")) {
   
   geo_crosswalk_aux <- 
     tract_aux_intersection_pcts %>% 
-    filter(pct_area > 0.01)
-    # /!\ Non-trivial overlaps need to be investigated -- in some practice cases
-    # we've seen overlaps of over 20% where we expected trivial overlaps at best,
-    # suggesting that there's something more than just projection issues.
-    # %>% filter(pct_area > 0.50)
+    # filter(pct_area > 0.01)
+    filter(pct_area >= 0.10)
+  
+  # Recalculate percentages within tract to reestablish adding-up to 100%
+  
+  geo_crosswalk_aux <- 
+    geo_crosswalk_aux %>% 
+    mutate(.by = GEOID,
+           pct_area = pct_area / sum(pct_area))
+  
   #stopifnot(any(table(tract_aux_intersection_keep$GEOID) > 1) == FALSE)
 }
 ```
