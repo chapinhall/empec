@@ -138,20 +138,26 @@ end_month_pre_schoolage <-
      days(1) /  # Get difference in days
      30.5 +     # Get difference in (roughly) monthly
      60)        # Add to number of months up until age 5
+  # Note: this does not produce a round number, which is fine for later 
+  # calculations, which prorate the counts of youth by ages and are already in
+  # decimal (not integer) values
 
 # Round to the nearest half month
 end_month_pre_schoolage <- 
   round(end_month_pre_schoolage/0.5)*0.5
 
-prep_age_month <- function(x) {
-  x[x == "kind"] <- end_month_pre_schoolage
+prep_age_month <- function(x, is_high_month = FALSE) {
+  # We subtract 1 from the "low month" replacements to the kindergarten cutoff 
+  # because we want to avoid overlap.
+  # ensures that 
+  x[str_detect(x, "kind")] <- end_month_pre_schoolage - 1*(is_high_month)
   as.numeric(x)
 }
 
 age_aggs <- 
   age_aggs %>% 
   mutate(low_month  = prep_age_month(low_month),
-         high_month = prep_age_month(high_month))
+         high_month = prep_age_month(high_month, is_high_month = TRUE))
 
 
 ### prepare inputs for map generation -----------------------------------------#
