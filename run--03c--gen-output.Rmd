@@ -73,8 +73,11 @@ write_agg_output <- function(outcomes_regex, age_regex = ".+", agg_levels, recen
              cps_base_recency == recency,
              str_detect(outcome_var, outcomes_regex)) %>% 
       select(-cps_base_recency) %>% 
-      rename(Age = age) %>% 
-      # convert age to narrative
+      merge(age_aggs %>% 
+              transmute(age = age_group_lab, 
+                        Age = glue("{age_group_lab} ({low_month}-{high_month} months)")),
+            by = "age") %>% 
+      select(-age) %>% 
       mutate(
         Outcome = 
           case_when(str_detect(outcome_var, "^ccdf") ~ 
