@@ -345,25 +345,21 @@ add_agg_level <- function(ests, agg_level) {
         transmute(GEOID    = GEOID,
                   school   = school,
                   geo_part = pct_sd)
+    } else if (agg_level == "County") {
+      geo_merge_data <- 
+        geo_crosswalk %>% 
+        transmute(GEOID    = GEOID, 
+                  County   = County, 
+                  geo_part = pct_area) %>% 
+        unique()
     } else if (agg_level == "aux_geo_label") {
       geo_merge_data <- 
         geo_crosswalk_aux %>% 
         transmute(GEOID         = GEOID, 
                   aux_geo_label = aux_geo_label, 
                   geo_part      = pct_area)
-    } else if (agg_level == "County2") {
-      geo_merge_data <- 
-        geo_crosswalk %>% 
-        transmute(GEOID    = GEOID, 
-                  County2  = County2, 
-                  geo_part = pct_area) %>% 
-        unique()
-    } else {
-      geo_merge_data <- 
-        geo_crosswalk[j = c("GEOID", agg_level), with = FALSE] %>% 
-        unique() %>% 
-        .[j = geo_part := 1]
-    }
+    }  
+    
     ests <- 
       ests %>% 
       # Note: while merge() is typically used throughout this codebase, we use
@@ -410,7 +406,6 @@ agg_tracts_up <- function(ests, agg_level) {
 nowcast_agg_tract <- agg_tracts_up(nowcast_elig_counts_final, "GEOID")
 nowcast_agg_zip   <- agg_tracts_up(nowcast_elig_counts_final, "ZCTA")
 nowcast_agg_cty   <- agg_tracts_up(nowcast_elig_counts_final, "County")
-nowcast_agg_cty2  <- agg_tracts_up(nowcast_elig_counts_final, "County2")
 nowcast_agg_sd    <- agg_tracts_up(nowcast_elig_counts_final, "school")
 
 if (exists("my_aux_geo")) {
@@ -430,7 +425,6 @@ my_write.csv <- function(x, suffix) {
 my_write.csv(nowcast_agg_tract, "by tract")
 my_write.csv(nowcast_agg_zip,   "by zcta")
 my_write.csv(nowcast_agg_cty,   "by county")
-my_write.csv(nowcast_agg_cty2,  "by county2")
 my_write.csv(nowcast_agg_sd,    "by school districts")
 
 if (exists("my_aux_geo")) {
@@ -444,7 +438,6 @@ to_save <-
   c("nowcast_agg_tract",
     "nowcast_agg_zip",
     "nowcast_agg_cty",
-    "nowcast_agg_cty2",
     "nowcast_agg_sd")
 if (exists("my_aux_geo")) {
   to_save <- c(to_save, "nowcast_agg_aux")
