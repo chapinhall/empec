@@ -12,23 +12,6 @@ for (f in c("geo", "acs1", "cps", "acs5", "pop")) {
   load(file = glue("{output_path}{f}_data_{my_output_tag}.Rda"))
 }
 load(file = glue("{output_path}Now-cast counts at the tract level, pre-disaggregation - {my_output_tag}.Rda"))
-
-geo_crosswalk <- 
-  geo_crosswalk %>% 
-  merge(geo_crosswalk_aux %>% select(GEOID, community, pct_area),
-        by = "GEOID",
-        all.x = TRUE) %>% 
-  mutate(chicago_flag = ifelse(!is.na(community), 1, 0),
-         County2 = case_when(County != "Cook" ~ County,
-                             County == "Cook" & chicago_flag == 0 ~ "Cook (Non-Chicago)",
-                             County == "Cook" & chicago_flag == 1 ~ "Cook (Chicago)"),
-         pct_area = ifelse(is.na(pct_area), 1, pct_area))
-
-if (FALSE) {
-  cbind(
-    geo_crosswalk     %>% filter(chicago_flag == 1) %>% select(GEOID, pct_area) %>% arrange(GEOID), 
-    geo_crosswalk_aux %>%                               select(GEOID, pct_area) %>% arrange(GEOID))
-}
 ```
 
 

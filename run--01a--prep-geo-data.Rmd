@@ -216,44 +216,48 @@ if (!exists("zctaShp", envir = .GlobalEnv)) {
 ```{r rename certain fields in shapefiles to agree with those in the crosswalks}
 tractShp <- 
   tractShp %>%
-  rename(STATEFIP  = STATEFP,
-         COUNTYFIP = COUNTYFP,
-         TRACTFIP  = TRACTCE)
+  setnames(old = c("STATEFP", "COUNTYFP", "TRACTCE"),
+           new = c("STATEFIP", "COUNTYFIP", "TRACTFIP"),
+           skip_absent = TRUE)
 
 if (base_year <= 2021) {
   pumaShp <- 
     pumaShp %>%
-    rename(STATEFIP  = STATEFP10,
-           PUMA      = PUMACE10,
-           GEOID     = GEOID10)  
+    setnames(old = c("STATEFP10", "PUMACE10", "GEOID10"),
+             new = c("STATEFIP",  "PUMA",     "GEOID"),
+             skip_absent = TRUE)
   
   zctaShp <-
     zctaShp %>% 
-    rename(ZCTA      = ZCTA5CE10,
-           GEOID     = GEOID10)
+    setnames(old = c("ZCTA5CE10", "GEOID10"),
+             new = c("ZCTA",      "GEOID"),
+             skip_absent = TRUE)
 } else {
   pumaShp <- 
     pumaShp %>%
-    rename(STATEFIP  = STATEFP20,
-           PUMA      = PUMACE20,
-           GEOID     = GEOID20)
+    setnames(old = c("STATEFP20", "PUMACE20", "GEOID20"),
+             new = c("STATEFIP",  "PUMA",     "GEOID"),
+             skip_absent = TRUE)
 
   zctaShp <-
     zctaShp %>% 
-    rename(ZCTA      = ZCTA5CE20,
-           GEOID     = GEOID20)
+    setnames(old = c("ZCTA5CE20", "GEOID20"),
+             new = c("ZCTA",      "GEOID"),
+             skip_absent = TRUE)
     
 }
 
 countyShp <-
   countyShp %>% 
-  rename(STATEFIP  = STATEFP,
-         COUNTYFIP = COUNTYFP,
-         County    = NAME)
+  setnames(old = c("STATEFP",  "COUNTYFP",  "NAME"),
+           new = c("STATEFIP", "COUNTYFIP", "County"),
+           skip_absent = TRUE)
 
 schoolShp <-
   schoolShp %>% 
-  rename(school = NAME)
+  setnames("NAME",
+           "school",
+           skip_absent = TRUE)
 ```
 
 ```{r examine potential issues with geography}
@@ -418,31 +422,6 @@ geo_crosswalk_sd <-
 rm(grffile)
 ```
 
-```{r check relationships for the 5 SDs}
-if (FALSE) {
-  geo_crosswalk_sd %>% 
-    filter(School %in% c("Auburn", "Bangor", "Lewiston", "Portland", "Sanford")) %>% 
-    filter(pct_sd < 1)
-  
-  geo_crosswalk_sd %>%
-    filter(GEOID == "23005002400")
-  
-  ggplot() +
-    geom_sf(data = tractShp %>% filter(GEOID %in% c("23005002400")),
-            color = "red",   
-            fill = NA) +
-    geom_sf(data = schoolShp %>% filter(school %in% c("Portland")),
-            color = NA, 
-            fill = "green",
-            alpha = 0.2) + 
-    geom_sf(data = schoolShp %>% filter(school %in% c("Long Island")),
-            color = NA, 
-            fill = "blue",
-            alpha = 0.2) + 
-    theme_void()
-}
-```
-
 ```{r add county name to geo_crosswalk help label estimates}
 geo_crosswalk <- 
   geo_crosswalk %>% 
@@ -532,6 +511,36 @@ if (exists("my_aux_geo")) {
            pct_area = pct_area / sum(pct_area))
   
   #stopifnot(any(table(tract_aux_intersection_keep$GEOID) > 1) == FALSE)
+  
+  # If the user opts to do so, intersect the county file with the auxiliary layer
+  if (intersect_county_and_aux) {
+    # Use the geo_crosswalk_aux to identify:
+    # (1) which counties overlap with the aux geo
+    # (2) within those counties, which tracts are/are not in the aux geo
+    # (3) swap these distinctions into the geo
+    geo_crosswalk <- 
+      geo_crosswalk %>% 
+      merge(geo_crosswalk_aux %>% select(one_of(c("GEOID", my_aux_geo_field, "pct_area"))),
+            by = "GEOID",
+            all.x = TRUE) %>% 
+      setnames(my_aux_geo_field,
+               "my_aux_geo_field") %>% 
+      # Flag whether the tract is present inside of the auxiliary geography
+      mutate(in_aux_flag = ifelse(!is.na(my_aux_geo_field), 1, 0)) %>% 
+      # By county, if no tracts are in the aux geography, maintain the county name
+      # Otherwise, if there is some intersection, rename
+      mutate(.by = "County",
+             County = case_when(max(in_aux_flag) == 0 ~ County,
+                                in_aux_flag      == 0 ~ paste(County, glue("(Non-{my_aux_overall_name})")),
+                                in_aux_flag      == 1 ~ paste(County, glue("({my_aux_overall_name})"))),
+             pct_area = ifelse(is.na(pct_area), 1, pct_area))
+    
+    if (FALSE) {
+      cbind(
+        geo_crosswalk     %>% filter(chicago_flag == 1) %>% select(GEOID, pct_area) %>% arrange(GEOID), 
+        geo_crosswalk_aux %>%                               select(GEOID, pct_area) %>% arrange(GEOID))
+    }
+  }
 }
 ```
 
