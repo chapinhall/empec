@@ -102,11 +102,19 @@ bind_list <-
 ```{r add all relevant ccdf sensitivities}
 
 for (ccdf_spec in unique(str_subset(nowcast_parallel_setup$outcome_var, "ccdf_elig_incratio"))) {
+  
   sensitivity_to_add <- 
     nowcast_parallel_setup %>% 
     filter(outcome_var == ccdf_spec,
-           str_detect(sae_spec, "ccdf_wk_pov")) %>% 
-    mutate(base_share = NA)
+           str_detect(sae_spec, "ccdf_wk_pov"))
+  
+  if (str_detect(ccdf_spec, as.character(local_ccdf_incratio_base))) {
+    # get the name of the "share_WorkElig_100_(ccdf thresh in FPL units)
+    hs_ccdf_field <- str_subset(colnames(nowcast_parallel_setup), "share_WorkElig_100_")
+    sensitivity_to_add <- mutate(sensitivity_to_add, base_share = share_WorkElig_0_100 + get(hs_ccdf_field))
+  } else {
+    sensitivity_to_add <- mutate(sensitivity_to_add, base_share = NA)
+  }
   
   bind_list <- append(bind_list, list(sensitivity_to_add))
 }

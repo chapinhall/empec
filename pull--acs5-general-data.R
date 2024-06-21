@@ -98,10 +98,10 @@ if (update_meta) {
 		}
 
 	save(acs5_meta, 
-	     file = glue("{input_path}acs5_metadata.Rda"))
+	     file = glue("{input_path}acs5_metadata_{my_output_tag}.Rda"))
 	
 } else {
-  load(file = glue("{input_path}acs5_metadata.Rda"))
+  load(file = glue("{input_path}acs5_metadata_{my_output_tag}.Rda"))
 }
 
 
@@ -700,9 +700,9 @@ if (update_acs_pulls) {
     tableList <- c(tableList, tableName)
   } #  End of loop across table numbers
   save(list = tableList,
-       file = glue("{input_path}acs_tables.Rda"))
+       file = glue("{input_path}acs_tables_{my_output_tag}.Rda"))
 } else {
-  load(glue("{input_path}acs_tables.Rda"))
+  load(glue("{input_path}acs_tables_{my_output_tag}.Rda"))
 }
 
 # -----------------------------------------------------------------------------#

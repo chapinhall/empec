@@ -183,12 +183,12 @@ nowcast_elig_counts_added_ages <-
 # means that children aged 1-12 months are age 0, 13-24 are age 1, etc.
 
 apportion_ages <- function(low_month, high_month, age_desc, verbose = FALSE) {
-   low_age <- floor(( low_month - 1)/12)
-  high_age <- floor((high_month - 1)/12)
+   low_age <- floor(( low_month)/12)
+  high_age <- floor((high_month)/12)
   
-    low_keep_pct <- 1 - ((low_month - 1) %% 12) / 12
-   high_keep_pct <-     ( high_month     %% 12) / 12
-   if (high_month %% 12 == 0) {
+    low_keep_pct <- 1 - ( low_month %% 12) / 12
+   high_keep_pct <-     ((high_month + 1) %% 12) / 12
+   if ((high_month + 1) %% 12 == 0) {
      high_keep_pct <- 1
    }
    
@@ -218,6 +218,36 @@ apportion_ages <- function(low_month, high_month, age_desc, verbose = FALSE) {
        pop_count_upd     = keep_pct*pop_count,
        pop_count_se_upd  = keep_pct*pop_count_se,
      )
+   
+   ### Prorate any overlap with ages 6-12
+   # /!\ Could arguably generalize this together with the above, since the
+   # single-age calculations above are special cases of this below
+   
+   high_month_6to12 <- 12*(12+1) # this is the  last month of age 12
+    low_month_6to12 <- 6*12 + 1  # this is the first month of age 6
+   nMonths_6to12 <- high_month_6to12 - low_month_6to12 + 1
+    
+   # Using a well-known equation to calculate the amount of overlap
+   overlap_6to12 <- min(high_month, high_month_6to12) - max(low_month, low_month_6to12) + 1
+   if (overlap_6to12 > 0) {
+     apportioned_6to12 <- 
+       nowcast_elig_counts_added_ages %>% 
+       # Collapse ages
+       filter(age == "age_6to12") %>% 
+       mutate(
+         # Determine keep pct for age of given row
+         keep_pct = overlap_6to12 / nMonths_6to12,
+         
+         # Apply keep pct to each key field
+         count_upd     = keep_pct*count,
+         count_se_upd  = keep_pct*count_se,
+         pop_count_upd     = keep_pct*pop_count,
+         pop_count_se_upd  = keep_pct*pop_count_se,
+       )
+     apportioned <-
+       bind_rows(apportioned,
+                 apportioned_6to12)
+   }
    
    if (verbose) {
      print(
@@ -261,11 +291,12 @@ apportion_ages <- function(low_month, high_month, age_desc, verbose = FALSE) {
 
 # Check accuracy
 if (FALSE) {
-  apportion_ages( 1, 12, verbose = TRUE, age_desc = "age0")
-  apportion_ages(13, 24, verbose = TRUE, age_desc = "age1")
-  apportion_ages( 1, 15, verbose = TRUE, age_desc = "infant")
-  apportion_ages(16, 36, verbose = TRUE, age_desc = "toddler")
-  apportion_ages(1,  68, verbose = TRUE, age_desc = "age0to5")
+  apportion_ages( 0, 11, verbose = TRUE, age_desc = "age0")
+  apportion_ages(12, 23, verbose = TRUE, age_desc = "age1")
+  apportion_ages( 0, 14, verbose = TRUE, age_desc = "infant")
+  apportion_ages(15, 35, verbose = TRUE, age_desc = "toddler")
+  apportion_ages(0,  67, verbose = TRUE, age_desc = "age0to5")
+  apportion_ages(68,155, verbose = TRUE, age_desc = "age6to12")
 }
 
 ```
@@ -275,7 +306,7 @@ if (FALSE) {
 
 nowcast_elig_counts_final <- NULL
 for (r in 1:nrow(age_aggs)) {
-  #print(age_aggs$age_group[r])
+  print(age_aggs$age_group[r])
   print(age_aggs[r, ])
   nowcast_elig_counts_final <-
     bind_rows(nowcast_elig_counts_final,
@@ -314,18 +345,21 @@ add_agg_level <- function(ests, agg_level) {
         transmute(GEOID    = GEOID,
                   school   = school,
                   geo_part = pct_sd)
+    } else if (agg_level == "County") {
+      geo_merge_data <- 
+        geo_crosswalk %>% 
+        transmute(GEOID    = GEOID, 
+                  County   = County, 
+                  geo_part = pct_area) %>% 
+        unique()
     } else if (agg_level == "aux_geo_label") {
       geo_merge_data <- 
         geo_crosswalk_aux %>% 
         transmute(GEOID         = GEOID, 
                   aux_geo_label = aux_geo_label, 
                   geo_part      = pct_area)
-    } else {
-      geo_merge_data <- 
-        geo_crosswalk[j = c("GEOID", agg_level), with = FALSE] %>% 
-        unique() %>% 
-        .[j = geo_part := 1]
-    }
+    }  
+    
     ests <- 
       ests %>% 
       # Note: while merge() is typically used throughout this codebase, we use
@@ -362,6 +396,7 @@ agg_tracts_up <- function(ests, agg_level) {
            share_se = se_proportion(count, pop_count, count_se, pop_count_se))
 }
 ```
+
 
 ```{r implement various levels of geographic aggregation}
 # Note -- ZCTA and "aux" calculations may produce a "Detected an unexpected
