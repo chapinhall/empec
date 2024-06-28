@@ -15,11 +15,13 @@ developer_mode <- FALSE
 ```{r}
 # run scripts for necessary packages and objects as necessary
 if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("method--read-customization-file.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
 ```{r read in cps data and documentation}
+# Remove the file extension from the `cps_raw` filename
+cps_raw <- str_replace(cps_raw, "\\.\\w+", "")
 cps_documentation <- read_ipums_ddi(glue("{input_path}{cps_raw}.xml"))
 
 if (FALSE) {

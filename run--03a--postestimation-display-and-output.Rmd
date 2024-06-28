@@ -9,7 +9,7 @@ pubic audiences are suppressed or moved to code chunks that can optionally be
 ```{r}
 # run scripts for necessary packages and objects as necessary
 if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("method--read-customization-file.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 if (!"calc_cps_transitions" %in% objects()) source_rmd("method--nowcasting-functions.Rmd", echo = FALSE)
 ```
@@ -102,11 +102,19 @@ bind_list <-
 ```{r add all relevant ccdf sensitivities}
 
 for (ccdf_spec in unique(str_subset(nowcast_parallel_setup$outcome_var, "ccdf_elig_incratio"))) {
+  
   sensitivity_to_add <- 
     nowcast_parallel_setup %>% 
     filter(outcome_var == ccdf_spec,
-           str_detect(sae_spec, "ccdf_wk_pov")) %>% 
-    mutate(base_share = NA)
+           str_detect(sae_spec, "ccdf_wk_pov"))
+  
+  if (str_detect(ccdf_spec, as.character(local_ccdf_incratio_base))) {
+    # get the name of the "share_WorkElig_100_(ccdf thresh in FPL units)
+    hs_ccdf_field <- str_subset(colnames(nowcast_parallel_setup), "share_WorkElig_100_")
+    sensitivity_to_add <- mutate(sensitivity_to_add, base_share = share_WorkElig_0_100 + get(hs_ccdf_field))
+  } else {
+    sensitivity_to_add <- mutate(sensitivity_to_add, base_share = NA)
+  }
   
   bind_list <- append(bind_list, list(sensitivity_to_add))
 }
@@ -279,9 +287,11 @@ plot_elig_diff_vs_char <-
       share_pre_post_chars %>% 
       filter(str_detect(outcome_var, outcome_string),
              cps_base_recency == "allbase")
+
     # If all y values are NAs--which can occur if the base share value has not
     # been specified--then return 0 and exit
     if (with(dt_plot, mean(is.na(share_nowcast - share_base)) == 1)) return(NULL)
+
     my_plot <- 
       ggplot(dt_plot,
              aes(x = get(char_field), # ed_lths

@@ -9,7 +9,7 @@ pubic audiences are suppressed or moved to code chunks that can optionally be
 ```{r}
 # run scripts for necessary packages and objects as necessary
 if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--config.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("method--read-customization-file.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 if (!"calc_cps_transitions" %in% objects()) source_rmd("method--nowcasting-functions.Rmd", echo = FALSE)
 ```
@@ -175,6 +175,8 @@ visualize_cps_transitions(trans_calcs = transition_ratios_empl_2019,
 We compare transition subsets by geographic subset   
 
 ```{r, eval = developer_mode}
+# Be sure to strip off any file extension provided by users
+cps_raw <- str_replace(cps_raw, "\\.\\w+", "")
 cps_documentation <- read_ipums_ddi(glue("{input_path}{cps_raw}.xml"))
 show_ipums_doc(cps_documentation,
                fields = c("METRO"))
