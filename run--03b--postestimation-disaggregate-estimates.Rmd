@@ -223,8 +223,8 @@ apportion_ages <- function(low_month, high_month, age_desc, verbose = FALSE) {
    # /!\ Could arguably generalize this together with the above, since the
    # single-age calculations above are special cases of this below
    
-   high_month_6to12 <- 12*(12+1) # this is the  last month of age 12
-    low_month_6to12 <- 6*12 + 1  # this is the first month of age 6
+   high_month_6to12 <- 12*(12+1) - 1 # this is the last  month of age 12
+    low_month_6to12 <- 6*12          # this is the first month of age 6
    nMonths_6to12 <- high_month_6to12 - low_month_6to12 + 1
     
    # Using a well-known equation to calculate the amount of overlap

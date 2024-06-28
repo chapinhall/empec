@@ -124,7 +124,6 @@ if (all(is.na(custom_income_thresh$inc_thresh))) {
     filter(!is.na(inc_thresh))
 }
 
-
 ### prepare inputs for age aggregation ----------------------------------------#
 
 kindergarten_cutoff <- 
