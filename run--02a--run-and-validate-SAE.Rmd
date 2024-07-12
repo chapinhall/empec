@@ -515,7 +515,7 @@ sae_results_incpov_ctrls_mix_05$sae_out %>%
 ```{r examine differences in direct and model by geography}
 if (my_output_tag == "Cook2022") {
   crosswalk_cpt <- 
-    read.csv(glue("H:/DFSS Community Assessment/Community Assessment/2020-2021 project year/program eligibility estimation/input/PUMA_Tract_CCA_equivalency2010.csv")) %>% 
+    read.csv(glue("{input_path}PUMA_Tract_CCA_equivalency2010.csv")) %>% 
     data.table() %>% 
     rename(COUNTYFIP = county, 
            PUMA      = puma,
