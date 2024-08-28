@@ -350,7 +350,7 @@ add_agg_level <- function(ests, agg_level) {
         geo_crosswalk %>% 
         transmute(GEOID    = GEOID, 
                   County   = County, 
-                  geo_part = pct_area) %>% 
+                  geo_part = 1) %>% 
         unique()
     } else if (agg_level == "aux_geo_label") {
       geo_merge_data <- 
