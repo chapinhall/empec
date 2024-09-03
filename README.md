@@ -2,7 +2,7 @@
 
 This is a project intended to estimate counts of children eligible for a range of child care subsidies and supports. This is relevant to Chapin Hall's work as part of its federally-funded Child Care Policy Research Partnership (CCPRP) project in partnership with the Illinois Department of Human Services (IDHS) as well as local work in collaboration with the Chicago Department of Family and Support Services (DFSS). Each agency is tasked with managing public funding to ensure adequate access to quality childcare in their jurisdictions, and understanding the quantity of need--and eligibility for public supports--is a key consideration.
 
-E-mail [Nick Mader](mailto:nmader@chapinhall.org) and [Hyein Kang](mailto:hkang@chapinhall.org) for questions related to this method or this codebase.
+E-mail [Nick Mader](mailto:nsmader@gmail.com) and [Hyein Kang](mailto:kanghyein@hotmail.com) for questions related to this method or this codebase.
 
 # Methodology
 
@@ -43,15 +43,15 @@ You will now have the following four files in the input folder: CPS data, CPS do
 1. Create Census API [here](https://api.census.gov/data/key_signup.html).
 2. Create FRED API [here](https://fred.stlouisfed.org/docs/api/api_key.html).
 
-#### Step 4. Running this code requires 64-bit Java. If Java is not installed or you have 32-bit Java installed, 64-bit Java can be downloaded here [url](https://www.java.com/en/download/manual.jsp).
+#### Step 4. Running this code requires 64-bit Java. If Java is not installed or you have 32-bit Java installed, 64-bit Java can be downloaded [here](https://www.java.com/en/download/manual.jsp).
 
-#### Step 5. Open the `Interface for Specifying Custom ELPEP Eligibility Estimates.xlsm` file in Excel, which will allow you to supply necessary details and set a wide range of options to run ELPEP in your jurisdiction's context. This includes setting current--or hypotethetical--income eligibility thresholds, custom age groups, and custom geographies for aggregation. 
+#### Step 5. Open the `Interface for Specifying Custom ELPEP Eligibility Estimates.xlsm` file in Excel, which will allow you to supply necessary details and set a wide range of options to run ELPEP in your jurisdiction's context. This includes setting current--or hypothetical--income eligibility thresholds, custom age groups, and custom geographies for aggregation. 
 
 This Excel workbook uses macros to check that any entries are valid, and to provide help menus that describe the relevance and allowable values for each field. To be able to use the interface with these macros, you will need to click on any prompts to "Enable content" to confirm that the macro is from a trusted source.
 
 #### Step 6. Open `run-elpep.Rmd` file in RStudio, and replace the text "<full/path/to/the/Excel/file.xlsm>" with the full file path to the Excel file you have just created. **If you are a PC users, you must use forward-slashes instead of back-slashes. For example, instead of "C:\users\myname\elpep\interface.xlsm" you must enter "C:/users/myname/elpep/interface.xlsm".**
 
-Note that you may have multiple runs of ELPEP set up by creating multiple copies of the Excel Interface file, and changing this one line to point to various input files. Next, in the RStudio Code menu, select "Run Region >> Run All"
+Note that you may have multiple runs of ELPEP set up by creating multiple copies of the Excel Interface file, and changing this one line to point to various input files. Next, in the RStudio Code menu, select "Run Region >> Run All".
 
 Note that running this code for the first time may take several hours, and the amount of time may vary depending on specified region (state/county) or CPU/RAM of the computer.
 
@@ -75,8 +75,6 @@ To update with new ACS 1-year or 5-year:
 
 1. Assign new year to `base_year` or `acs5_year` in the `settings--config.R`
 2. Run the code
-
-The default income threshold value is the FPL, and is updated in this repository regularly. For the states using other income thresholds, such as state median income, would need to update the `custom_income_thresh` values in `settings--config.R`. 
 
 # Data Sources and their Uses
 
