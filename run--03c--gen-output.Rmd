@@ -45,7 +45,7 @@ if (year(date1) == year(date2)) {
 ```{r identify label for income measure used for thresholds}
 ccdf_income_thresh_label <- 
     ifelse(exists("local_custom_thresh_label"),
-           local_custom_thresh_label,
+           ccdf_income_thresh_label,
            "FPL")
 ```
 
