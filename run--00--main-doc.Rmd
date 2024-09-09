@@ -35,7 +35,7 @@ This report describes a methodology by which multiple releases of US Census Bure
 The statistical method works in two stages to:
 
 1. use **Small Area Estimation** methods to estimate a range of community characteristics related to childcare program eligibility at a small geographic level; and
-2. use those measures to build **"now"-cast** predictions of eligibility up to recent months.
+2. use those measures to build **"now"-cast** predictions of eligibility up to the near present.
 
 <!-- /*\ Consider update or removing all of this text which is local to Chapin Hall and Illinois -->
 
