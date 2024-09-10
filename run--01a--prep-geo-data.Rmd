@@ -422,6 +422,18 @@ geo_crosswalk_sd <-
 rm(grffile)
 ```
 
+```{r temporarily fix the Oak Grove SD}
+geo_crosswalk_sd <- geo_crosswalk_sd %>% 
+  mutate(school = case_when(LEAID == "1729100" ~ "Oak Grove School District 68 (Peoria County)",
+                            LEAID == "1729130" ~ "Oak Grove School District 68 (Lake County)",
+                            TRUE               ~ school))
+```
+
+```{r test tract-SD crosswalk from the Census}
+# geo_crosswalk_sd <-
+#   readxl::read_xlsx(grffile)
+```
+
 ```{r add county name to geo_crosswalk help label estimates}
 geo_crosswalk <- 
   geo_crosswalk %>% 
@@ -533,7 +545,8 @@ if (exists("my_aux_geo")) {
              County = case_when(max(in_aux_flag) == 0 ~ County,
                                 in_aux_flag      == 0 ~ paste(County, glue("(Non-{my_aux_overall_name})")),
                                 in_aux_flag      == 1 ~ paste(County, glue("({my_aux_overall_name})"))),
-             pct_area = ifelse(is.na(pct_area), 1, pct_area))
+             pct_area = ifelse(is.na(pct_area), 1, pct_area)) %>% 
+      mutate(County = ifelse(County %like% "DuPage", "DuPage", County))
     
     if (FALSE) {
       cbind(

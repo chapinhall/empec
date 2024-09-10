@@ -9,7 +9,7 @@ To run this script--and consequently ELPEP:
 3. in the menu above go to "Code >> Run Region >> Run All"
 
 ```{r user specified-elpep customization file}
-elpep_customization_file <- "<full/path/to/the/Excel/file.xlsm>"
+elpep_customization_file <- "C:/Users/kang-hyein/OneDrive - National Opinion Research Center/Documents/ELPEP/Interface for Specifying Custom ELPEP Eligibility Estimates - IECAMSept2024.xlsm"
 ```
 
 ```{r}
