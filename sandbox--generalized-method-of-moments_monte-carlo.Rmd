@@ -464,51 +464,83 @@ if (FALSE) {
 For an `x` input that follows the structure as described above, these functions combine all components needed to specify a GMM model for estimation.
 
 ```{r}
-
+make_model <- function(theta0, data) {
+  # Make the unified moment function
+  fct <- 
+    function(theta, x) {
+      c(sumup_moment_dt(theta = theta, x = x),
+         avgx_moment_dt(theta = theta, x = x),
+        trans_moment_dt(theta = theta, x = x))
+    }
+  
+  # Make the unified gradient function
+  # Note: these are all invariant with respect to theta, so we pre-calculate 
+  # these matrices based off of the data, append, and return them in the function 
+  # call
+  dfct_mat <- 
+    rbind(sumup_grad_dt(data),
+          avgx_grad_dt(data),
+          trans_grad_dt(data))
+  
+  dfct <- 
+    function(theta, x) {
+        dfct_mat
+    }
+  
+  momentModel(g = fct,
+              x = x,
+              theta0 = theta0,
+              grad = dfct_mat, 
+              vcov = "iid")
+}
 ```
 
 
 # Implement the Method
 
 ```{r bring in library example of moment fit, eval = FALSE}
+
 # See bottom of page 5 for this example: 
 #   https://cran.r-project.org/web/packages/momentfit/vignettes/gmmS4.pdf
 
-data(simData)
-
-# Moment function
-fct <- function(theta, x)
-  cbind(x-theta[1], 
-        (x-theta[1])^2-theta[2],
-        (x-theta[1])^3, 
-        (x-theta[1])^4-3*theta[2]^2)
-
-# Gradient function
-dfct <- function(theta, x) {
-  m1 <- mean(x-theta[1])
-  m2 <- mean((x-theta[1])^2)
-  m3 <- mean((x-theta[1])^3)
-  matrix(c(-1, -2*m1, -3*m2, -4*m3,
-           0, -1, 0, -6*theta[2]), 4, 2)
+if (FALSE) {
+  data(simData)
+  
+  # Moment function
+  fct <- function(theta, x)
+    cbind(x-theta[1], 
+          (x-theta[1])^2-theta[2],
+          (x-theta[1])^3, 
+          (x-theta[1])^4-3*theta[2]^2)
+  
+  # Gradient function
+  dfct <- function(theta, x) {
+    m1 <- mean(x-theta[1])
+    m2 <- mean((x-theta[1])^2)
+    m3 <- mean((x-theta[1])^3)
+    matrix(c(-1, -2*m1, -3*m2, -4*m3,
+             0, -1, 0, -6*theta[2]), 4, 2)
+  }
+  
+  theta0 <- c(mu   = 1,
+              sig2 = 1)
+  x <- simData$x3
+  system.time(
+    mod3 <- 
+      momentModel(g = fct, 
+                  x = x, 
+                  theta0 = theta0, 
+                  grad = dfct, 
+                  vcov = "iid"))
+  mod3
+  
+  system.time({
+    res3 <- gmmFit(mod3, type = "onestep")
+  })
+  
+  summary(res3)  
 }
 
-theta0 <- c(mu   = 1,
-            sig2 = 1)
-x <- simData$x3
-system.time(
-  mod3 <- 
-    momentModel(g = fct, 
-                x = x, 
-                theta0 = theta0, 
-                grad = dfct, 
-                vcov = "iid"))
-mod3
-
-system.time({
-  res3 <- gmmFit(mod3, type = "onestep")
-})
-
-summary(res3)
 ```
 
 ## Test Run with Toy Data
