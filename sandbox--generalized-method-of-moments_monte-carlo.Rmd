@@ -144,13 +144,14 @@ gen_true_data <-
     mutate(time = as.numeric(time) - extra_init) %>%
     data.table()
   
-  out <- list(out = thetas_gt,
-              params = c("G" = G,
-                         "T" = T,
-                         "extra_init" = extra_init,
-                         "beta" = beta,
-                         "sd_trans" = sd_trans,
-                         "seed" = seed))
+  out <- 
+    list(out = thetas_gt,
+         params = c("G" = G,
+                    "T" = T,
+                    "extra_init" = extra_init,
+                    "beta" = beta,
+                    "sd_trans" = sd_trans,
+                    "seed" = seed))
   
   return(out)
 }
@@ -247,7 +248,7 @@ x$thetas_gt %>%
   geom_hline(data = x$thetas_avgx[g %in% g_sample & time == max(time)],
              aes(yintercept = x_gs),
              color = "orange") +
-  geom_line(size = 1) +
+  geom_line(linewidth = 1) +
   geom_point(size = 2) +
   scale_color_discrete(name = "") +
   facet_wrap(~ g,
@@ -262,22 +263,24 @@ x$thetas_gt %>%
 
 R's [`momentfit` package](https://cran.r-project.org/web/packages/momentfit/vignettes/gmmS4.pdf) is used to implement our method of moments. In terminology of that package, Functions `fct` and `dfct` can be used to return vectors of moment conditions, and the gradient of those moments with respect to the parameters. The `momentModel()` syntax can be used to return solutions.
 
-The vector of estimated parameters `theta0` is, by requirement, a vector, with $T \times G$ elements, ordered $t=1,...,T$ for $g=1$, and then for $g=2$, etc.
+`momentfit` takes `theta0` as a vector of length $k$ of estimates parameters. Together with an expectation of $q$ moments, `momentfit` requires moment functions to return vectors of length $q$, and gradient functions to return matrices that are $q x k$ (i.e. rows corresponding to the moments, and columns corresponding to parameters).
 
-`momentfit` requires moment functions to return vectors of length $q$, and gradient functions to return matrices that are $q x k$, i.e. which have rows corresponding to the moments, and columns corresponding to parameters. We have $q = T + G(T-s) + G(T-1)$ moment conditions, and $k = G \times T$ parameters.
+Confirming the above, we have $q = T + G(T-s) + G(T-1)$ moment conditions, and $k = G \times T$ parameters.
 
-We organize generation of these moments and gradients by each type of moment condition, and then produce a final function to run and stack each.
+Next, we organize generation of these moments and gradients by each type of moment condition, and then produce a final function to run and stack each.
 
 ## Useful Functions
 
-The GMM function will work with thetas organized in a single (long) vector certain operations will benefit from being able to reshape these values We intend to organize these as $\theta_{gt}: \theta_{11} ... \theta_{1T}, \theta_{21}... \theta_{2T}, ... ..., \theta_{G1} ... \theta_{GT}$. That is, time recycles faster than geography.
+Although the GMM function will work with thetas organized in a single (long) vector, certain operations will benefit from being able to reshape these values. We organize our vector as $\theta_{gt}: \theta_{11} ... \theta_{1T}, \theta_{21}... \theta_{2T}, ... ..., \theta_{G1} ... \theta_{GT}$. That is, time recycles faster than geography.
 
 ```{r reshape thetas as either matrix or data table}
+# Using matrices
 reshape_thetas_mat_g.t <- function(theta, G, A) {
   # This function reshapes the vector of thetas into a matrix of size GxT
   matrix(theta, G, A, byrow = TRUE)
 }
 
+# Using data.table: horizontally append values to a labeled frame and reshape
 reshape_thetas_dt_g.t <- function(ix_gt, theta) {
   ix_gt[j = thetas := theta] %>% 
     dcast(g ~ time,
@@ -290,24 +293,28 @@ reshape_thetas_dt_g.t <- function(ix_gt, theta) {
 
 ### Summing Up Moments
 
-These moment conditions are derived from the fact that our estimated parameter counts can be added up to match statistics reported for larger geographies at each point in time. Each moment condition thus takes the form of $\Sigma_g\theta_{gt}-\bar{x_t} = 0$. We have $T$ of these moment conditions.
+These moment conditions are derived from the fact that our estimated parameter counts can be added up to match statistics reported for larger geographies at each point in time. Each moment condition thus takes the form of $\{\Sigma_g\theta_{gt}-\bar{x_t} = 0\}_t$, for $t=1,...,T$.
 
 The gradient has the shape $T \times (TG)$ where each row is a binary indicator for whether the corresponding $\theta_tg$ is included in the row sum. That is, $1$ if the $t$ is the same as the row, $0$ otherwise.
 
 ```{r functions generate sumup moments and gradients using data.table}
 sumup_moment_dt <- function(theta, x) {
+  # Extract the individual x (long by g+t) component of data
   x$ix_gt %>% 
+    # Set the theta0 column to the status of the input theta estimates
     .[j = theta0 := theta] %>% 
     .[j = sum(theta0),
       by = time] %>% 
+    # Pull the vector of summed values
     pull(V1) %>% 
+    # Form the moment
     as.vector() - x$thetas_sumup$x_Gt
 }
 
-# Because the sum-up moments are a simple, linear function of the parameters,
+# The sum-up moments are a simple, linear function of the parameters,
 # the gradient is constant with respect to both the current parameters and data
 # Thus, we pre-calculate that gradient and simply return it when the gradient
-# function is called
+# function is called.
 
 # /!\ Need to think of a way to embed this within our structures, given that it
 # obeys the particular structure of the data, but where we shouldn't need to 
@@ -320,15 +327,10 @@ sumup_moment_dt <- function(theta, x) {
 
 sumup_grad_dt <- function(x) {
   x$ix_gt %>% 
-    .[j = lapply(1:max(time), function(x) 1*(time == x))] %>% 
-    t()  
+    .[j = lapply(1:max(time), function(t) 1*(time == t))] %>% 
+    t()
 }
 
-sumup_grad_t.tg <- sumup_grad_dt(x)
-
-sumup_grad_dt <- function(theta, x) {
-  sumup_grad_t.tg
-}
 ```
 
 ```{r generate sumup moments using matrix operations, eval = FALSE}
@@ -364,14 +366,18 @@ for (q in 1:T) {
 
 These moment conditions are derived from the fact that our estimated parameter can be averaged within given time spans to match statistics reported for each smaller geography.
 
-Each moment condition thus takes the form of $\frac{1}{s}\Sigma_{i=t-s+1}^{t}\theta_{gi} - \bar{x}_{gt} = 0$. We have $G \times (T-s)$ of these moment conditions. 
+Each moment condition thus takes the form of $\{\frac{1}{s}\Sigma_{i=t-s+1}^{t}\theta_{gi} - \bar{x}_{gt} = 0\}_{gt}$. We have $G \times (T-s)$ of these moment conditions.
 
 ```{r generate the average across moment using data.table functions}
 avgx_moment_dt <- function(theta, x) {
   s     <- x$params[["s"]]
   A     <- x$params[["T"]]
+  
+  # Start with the long structure for the gxt's
   x$ix_gt %>% 
+    # Assign the `theta0` column to the input theta
     .[j = theta0 := theta] %>% 
+    # Operate from the first full span through the final time
     .[j = lapply(s:A, 
                  function(i) sum(theta0[time %in% (i-s+1):i])),
       by = g] %>% 
@@ -382,35 +388,41 @@ avgx_moment_dt <- function(theta, x) {
     # to ensure that the gradient has the same order of moments
 }
 
-# As above, the gradient is invariant to theta, so we precalculate it and return it
-# to the function
-# The calculation is: for each row, defined by a given g and t, determine whether
-# those match the g, and the time-span related to t. We call those values in by
-# going through rows of the observed avgx data as a single index for our lapply().
-avgx_grad_gt.gt <- 
+# The gradient calculation is: for each row, defined by a given g and t, determine 
+# whether those match the g, and the time-span related to t. We call those values 
+# in by going through rows of the observed avgx data as a single index for our 
+# lapply().
+avgx_grad_dt <- function(x) {
+  # Start with the long structure for the gxt's
   x$ix_gt %>% 
-  .[j = lapply(1:nrow(x$thetas_avgx), function(r) {
-    # Pulling this first, suspecting that it'd be faster than referencing it
-    # multiple times
-    my_row <- x$thetas_avgx[r]
-    1*(g == my_row$g & time %in% (my_row$time - x$params[["s"]] + 1):my_row$time)
-  })] %>% 
-  as.matrix() %>% 
-  t() / x$params[["s"]]
-
-avgx_grad_dt <- function(theta, x) {
-  avgx_grad_gt.gt 
+    # Use lapply to generate columns for each avgx moment condition, and 
+    # create flags for each row that contributes to the same g, and time in the span
+    .[j = lapply(1:nrow(x$thetas_avgx),
+                 function(row_of_avg) {
+                   
+                   s <- x$params[["s"]]
+                   my_avg_row <- x$thetas_avgx[row_of_avg]
+                   my_time <- my_avg_row$time
+                   1*((g == my_avg_row$g) & 
+                        (time %in% 
+                           (my_time - s + 1):my_time))
+                   
+                 })] %>% 
+    as.matrix() %>% 
+    t() / 
+    # Finally, divide by the span when our output is at its simplest
+    x$params[["s"]]
 }
+
 
 ```
 
 ### Transition Moments
 
-These moment conditions are derived from the fact that each $\theta_{gt}$ can be predicted by the previous value $\theta_{gt-1}$ via the regression $\theta_{gt} = \beta\theta_{gt-1}$ where an estimate of $\beta$ has been obtained from external study -- e.g. the Current Population Survey, which identifies 
+These moment conditions are derived from the fact that each $\theta_{gt}$ can be predicted by the previous value $\theta_{gt-1}$ via the regression $\theta_{gt} = \beta\theta_{gt-1}$ where estimates of $\{\beta\}$ have been obtained from external study -- e.g. the Current Population Survey.
 
-our estimated parameter can be averaged within given time spans to match statistics reported for each smaller geography.
+Our moments have the form $\theta_{gt} - \beta\theta_{g-1t}\=0$, and we have $G \times (T-1)$ of them. 
 
-Each moment condition thus takes the form of $\frac{1}{s}\Sigma_{i=t-s+1}^{t}\theta_{gi} - \bar{x}_{gt} = 0$. We have $G \times (T-s)$ of these moment conditions. 
 
 ```{r}
 trans_moment_dt <- function(theta, x) {
@@ -419,20 +431,37 @@ trans_moment_dt <- function(theta, x) {
     .[j = theta0_lag := shift(theta0, n = 1, type = "lag"),
       by = g] %>% 
     .[!is.na(theta0_lag)] %>% 
-    pull(theta0 - x$params$beta*theta0_lag) - x$
-    
-    
-    .[j = lapply(s:A, 
-                 function(i) sum(theta0[time %in% (i-s+1):i])),
-      by = g] %>% 
-    setnames(c("g", s:A)) %>% 
-    melt(id.vars = c("g")) %>% 
-    .[j = as.vector(value)] - x$thetas_avgx$x_gs
+    pull(theta0 - x$params[["beta"]]*theta0_lag)
+}
+
+trans_grad_dt <- function(x) {
+  A <- x$params[["T"]]
+  ix_wide <- x$ix_gt[time != 1] %>% select(g, time) %>% t()
+  x$ix_gt %>% 
+    .[j = sapply(1:ncol(ix_wide),
+                 function(i) {
+                   ix <- ix_wide[, i]
+                   (g == ix[["g"]]) * 
+                     ((time ==  ix[["time"]]    ) - 
+                      (time == (ix[["time"]] - 1)))
+                   }
+                 )
+      ] %>% 
+    t()*1
+}
+
+if (FALSE) {
+  z <- trans_grad_dt(x)
+  z[1:10, 1:10]
+  sum(z)
+    # Should be 0
 }
 ```
 
 
-### Combine Moments
+### Make and Combine Moments
+
+For an `x` input that follows the structure as described above, these functions combine all components needed to specify a GMM model for estimation.
 
 ```{r}
 
@@ -449,8 +478,10 @@ data(simData)
 
 # Moment function
 fct <- function(theta, x)
-  cbind(x-theta[1], (x-theta[1])^2-theta[2],
-        (x-theta[1])^3, (x-theta[1])^4-3*theta[2]^2)
+  cbind(x-theta[1], 
+        (x-theta[1])^2-theta[2],
+        (x-theta[1])^3, 
+        (x-theta[1])^4-3*theta[2]^2)
 
 # Gradient function
 dfct <- function(theta, x) {
@@ -461,12 +492,23 @@ dfct <- function(theta, x) {
            0, -1, 0, -6*theta[2]), 4, 2)
 }
 
-theta0=c(mu=1,sig2=1)
+theta0 <- c(mu   = 1,
+            sig2 = 1)
 x <- simData$x3
-system.time(mod3 <- momentModel(fct, x, theta0, grad=dfct, vcov="iid"))
+system.time(
+  mod3 <- 
+    momentModel(g = fct, 
+                x = x, 
+                theta0 = theta0, 
+                grad = dfct, 
+                vcov = "iid"))
 mod3
 
+system.time({
+  res3 <- gmmFit(mod3, type = "onestep")
+})
 
+summary(res3)
 ```
 
 ## Test Run with Toy Data
