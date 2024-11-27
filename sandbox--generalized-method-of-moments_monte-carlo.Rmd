@@ -464,7 +464,7 @@ if (FALSE) {
 For an `x` input that follows the structure as described above, these functions combine all components needed to specify a GMM model for estimation.
 
 ```{r}
-make_model <- function(theta0, data) {
+make_model <- function(my_theta0, my_x) {
   # Make the unified moment function
   fct <- 
     function(theta, x) {
@@ -478,19 +478,19 @@ make_model <- function(theta0, data) {
   # these matrices based off of the data, append, and return them in the function 
   # call
   dfct_mat <- 
-    rbind(sumup_grad_dt(data),
-          avgx_grad_dt(data),
-          trans_grad_dt(data))
+    rbind(sumup_grad_dt(my_x),
+          avgx_grad_dt(my_x),
+          trans_grad_dt(my_x))
   
   dfct <- 
     function(theta, x) {
-        dfct_mat
+      dfct_mat
     }
   
   momentModel(g = fct,
-              x = x,
-              theta0 = theta0,
-              grad = dfct_mat, 
+              x = my_x,
+              theta0 = my_theta0,
+              grad = dfct, 
               vcov = "iid")
 }
 ```
@@ -528,7 +528,7 @@ if (FALSE) {
   system.time(
     mod3 <- 
       momentModel(g = fct, 
-                  x = x, 
+                  x = data, 
                   theta0 = theta0, 
                   grad = dfct, 
                   vcov = "iid"))
@@ -546,7 +546,8 @@ if (FALSE) {
 ## Test Run with Toy Data
 
 ```{r }
-
+toy_model <- make_model(my_theta0 = 0, my_x = toy)
+toy_ests  <- ggmFit(toy_model, type = "onestep")
 ```
 
 
