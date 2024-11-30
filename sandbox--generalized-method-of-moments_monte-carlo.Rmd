@@ -285,11 +285,6 @@ Next, we organize generation of these moments and gradients by each type of mome
 Although the GMM function will work with thetas organized in a single (long) vector, certain operations will benefit from being able to reshape these values. We organize our vector as $\theta_{gt}: \theta_{11} ... \theta_{1T}, \theta_{21}... \theta_{2T}, ... ..., \theta_{G1} ... \theta_{GT}$. That is, time recycles faster than geography.
 
 ```{r reshape thetas as either matrix or data table}
-# Using matrices
-reshape_thetas_mat_g.t <- function(theta, G, A) {
-  # This function reshapes the vector of thetas into a matrix of size GxT
-  matrix(theta, G, A, byrow = TRUE)
-}
 
 # Using data.table: horizontally append values to a labeled frame and reshape
 reshape_thetas_dt_g.t <- function(ix_gt, theta) {
@@ -342,34 +337,6 @@ sumup_grad_dt <- function(x) {
     t()
 }
 
-```
-
-```{r generate sumup moments using matrix operations, eval = FALSE}
-# /!\ This is old -- it's related to a time when `thetas_g.t` was the only
-# data structure input
-sums_Tx1 <- sapply(thetas_g.t, sum) + rnorm(T, sd = se_sum)
-
-# This produces T moments, corresponding to the total of geo values within at given time.
-sumup_moment_mat <- function(theta, x) {
-  reshape_thetas_mat(theta, G, T) %>% 
-    sapply(sum) - 
-    sums_Tx1
-}
-
-# Useful for the gradient -- this creates an indicator vector with a 1 in the
-# ith place of a vector of length l
-e <- function(i, l) {
-  vec <- rep(0, l)
-  vec[i] <- 1
-  vec
-}
-
-# This generates a T x (GxT) matrix corresponding to how each column influences
-# the sum corresponding to the row
-sumup_grad_mat <- matrix(0, T, G*T)
-for (q in 1:T) {
-  sumup_grad[q,] <- rep(-e(q, G), T)
-}
 ```
 
 
@@ -499,54 +466,9 @@ collect_grad <-
 ```
 
 
-```{r}
-make_model <- function(my_theta0, my_x, s, beta) {
-  # Make the unified moment function
-  fct <- function(theta, x) {
-    c(sumup_moment_dt(theta = theta, x = x),
-       avgx_moment_dt(theta = theta, x = x, s = s),
-      trans_moment_dt(theta = theta, x = x, beta = beta)) %>% 
-      matrix(nrow = 1)
-  }
-    
-  
-  # Make the unified gradient function
-  # Note: these are all invariant with respect to theta, so we pre-calculate 
-  # these matrices based off of the data, append, and return them in the function 
-  # call
-  dfct_mat <- 
-    rbind(sumup_grad_dt(my_x),
-           avgx_grad_dt(my_x, s),
-          trans_grad_dt(my_x))
-  
-  dfct <- 
-    function(theta, x) {
-      dfct_mat
-    }
-  
-  momentModel(g = fct,
-              x = my_x,
-              theta0 = my_theta0,
-              grad = dfct, 
-              vcov = "iid")
-}
-```
-
-
 # Implement the Method
 
 ## Test Run with Toy Data
-
-```{r }
-toy_model <- 
-  make_model(
-    my_theta0 = rep(0, n_distinct(toy$ix_gt$g)*n_distinct(toy$ix_gt$time)), 
-    my_x      = toy$ix_gt,
-    s         = toy$params[["s"]],
-    beta      = toy$params[["beta"]])
-
-toy_ests  <- ggmFit(toy_model, type = "onestep")
-```
 
 Am finding it uncertain how to use the `momentfit` package for estimation. My current uncertainty is how `g()` is supposed to be applied to our data structure type. Instead, am considering use of the `optim()` function given that it works with our setup of objective function and gradient. The required modification is that the objective function `fn` returns a scalar, and `gr` is a function to return the gradients.
 
@@ -606,54 +528,6 @@ my_setup$ix_gt %>%
 
 ```
 
-
-```{r bring in library example of moment fit, eval = FALSE}
-
-# See bottom of page 5 for this example: 
-#   https://cran.r-project.org/web/packages/momentfit/vignettes/gmmS4.pdf
-
-if (FALSE) {
-  data(simData)
-  
-  # Moment function
-  fct <- function(theta, x) {
-    cbind(x-theta[1], 
-         (x-theta[1])^2-theta[2],
-         (x-theta[1])^3, 
-         (x-theta[1])^4-3*theta[2]^2)
-  }
-   
-  # Gradient function
-  dfct <- function(theta, x) {
-    m1 <- mean( x-theta[1])
-    m2 <- mean((x-theta[1])^2)
-    m3 <- mean((x-theta[1])^3)
-    matrix(c(-1, -2*m1, -3*m2,        -4*m3,
-             0,     -1,     0, -6*theta[2]), 
-           nrow = 4, 
-           ncol = 2)
-  }
-  
-  theta0 <- c(mu   = 1,
-              sig2 = 1)
-  x <- simData$x3
-  system.time(
-    mod3 <- 
-      momentModel(g = fct, 
-                  x = x, 
-                  theta0 = theta0, 
-                  grad = dfct, 
-                  vcov = "iid"))
-  mod3
-  
-  system.time({
-    res3 <- gmmFit(mod3, type = "onestep")
-  })
-  
-  summary(res3)  
-}
-
-```
 
 
 # Examine Output
