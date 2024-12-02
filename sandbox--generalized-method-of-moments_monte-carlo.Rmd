@@ -201,7 +201,7 @@ draw_obs_data <-
     thetas_sumup <- make_sumup(thetas_gt)
     
     # Calculate averages across span
-    thetas_avgx <- make_avgx(thetas_avgx, span_length)
+    thetas_avgx <- make_avgx(thetas_gt, span_length)
     
     # Generate a long-form data.table object with index for use in moment
     # calculation operations
@@ -222,7 +222,10 @@ draw_obs_data <-
 
 
 ```{r attempt to draw data}
-full <- draw_obs_data(se_est = 0.1)
+full <- 
+  draw_obs_data(se_est = 0.1)
+full_noerr <- 
+  draw_obs_data(se_est = 0.0)
 toy  <- draw_obs_data(A = 2,
                       G = 2,
                       span_length = 2,
@@ -231,7 +234,7 @@ toy  <- draw_obs_data(A = 2,
 ```
 
 ```{r compare true vs noise-added parameters}
-x$thetas_gt %>% 
+full$thetas_gt %>% 
   ggplot(aes(x = theta_gt,
              y = x_gt)) +
   geom_point() +
@@ -247,16 +250,16 @@ x$thetas_gt %>%
 
 ```{r visualize paths of true parameters across time}
 
-g_sample <- sample(x$thetas_gt$g, 6)
+g_sample <- sample(full$thetas_gt$g, 6)
 
-x$thetas_gt %>% 
+full$thetas_gt %>% 
   melt(id.vars = c("g", "time")) %>% 
-  .[g %in% g_sample & between(time, max(time)-x$params[["s"]] + 1, max(time))] %>% 
+  .[g %in% g_sample & between(time, max(time)-full$params[["s"]] + 1, max(time))] %>% 
   ggplot(aes(x = time,
              y = value,
              color = factor(variable),
              group = factor(variable))) +
-  geom_hline(data = x$thetas_avgx[g %in% g_sample & time == max(time)],
+  geom_hline(data = full$thetas_avgx[g %in% g_sample & time == max(time)],
              aes(yintercept = x_gs),
              color = "orange") +
   geom_line(linewidth = 1) +
@@ -305,7 +308,7 @@ The gradient has the shape $T \times (TG)$ where each row is a binary indicator 
 
 ```{r functions generate sumup moments and gradients using data.table}
 sumup_moment_dt <- function(theta, x) {
-  x %>% 
+  x$ix_gt %>% 
     # Set the theta0 column to the status of the input theta estimates
     .[j = theta0 := theta] %>% 
     .[j = sum(theta0),
@@ -313,7 +316,7 @@ sumup_moment_dt <- function(theta, x) {
     # Pull the vector of summed values
     pull(V1) %>% 
     # Form the moment
-    as.vector() - make_sumup(x)$x_Gt
+    as.vector() - x$thetas_sumup$x_Gt
 }
 
 # The sum-up moments are a simple, linear function of the parameters,
@@ -331,8 +334,8 @@ sumup_moment_dt <- function(theta, x) {
 # and then transpose to get the qxk structure
 
 sumup_grad_dt <- function(x) {
-  A <- max(x$time)
-  x %>% 
+  A <- x$params[["T"]]
+  x$ix_gt %>% 
     .[j = lapply(1:A, function(t) 1*(time == t))] %>% 
     t()
 }
@@ -347,13 +350,14 @@ These moment conditions are derived from the fact that our estimated parameter c
 Each moment condition thus takes the form of $\{\frac{1}{s}\Sigma_{i=t-s+1}^{t}\theta_{gi} - \bar{x}_{gt} = 0\}_{gt}$. We have $G \times (T-s)$ of these moment conditions.
 
 ```{r generate the average across moment using data.table functions}
-avgx_moment_dt <- function(theta, x, s) {
+avgx_moment_dt <- function(theta, x) {
   
-  A <- max(x$time)
+  A <- x$params[["T"]]
+  s <- x$params[["s"]]
   
   # Start with the long structure for the gxt's
   avgs <- 
-    x %>% 
+    x$ix_gt %>% 
     # Assign the `theta0` column to the input theta
     .[j = theta0 := theta] %>% 
     # Operate from the first full span through the final time
@@ -364,7 +368,7 @@ avgx_moment_dt <- function(theta, x, s) {
     melt(id.vars = c("g")) %>% 
     .[j = as.vector(value)] 
   
-  (avgs / s) - make_avgx(x, s)$x_gs
+  (avgs / s) - x$thetas_avgx$x_gs
     # This outputs a vector that is recycles `g` faster than `t` (necessary info)
     # to ensure that the gradient has the same order of moments
 }
@@ -373,19 +377,21 @@ avgx_moment_dt <- function(theta, x, s) {
 # whether those match the g, and the time-span related to t. We call those values 
 # in by going through rows of the observed avgx data as a single index for our 
 # lapply().
-avgx_grad_dt <- function(x, s) {
+avgx_grad_dt <- function(x) {
   
-  span_structure <- 
-    expand.grid(time = s:max(x$time), 
-                g = 1:max(x$g))
+  A <- x$params[["T"]]
+  s <- x$params[["s"]]
+  
+  avgs <- x$thetas_avgx
+  
   # Start with the long structure for the gxt's
-  x %>% 
+  x$ix_gt %>% 
     # Use lapply to generate columns for each avgx moment condition, and 
     # create flags for each row that contributes to the same g, and time in the span
-    .[j = lapply(1:nrow(span_structure),
-                 function(row_of_str) {
+    .[j = lapply(1:nrow(avgs),
+                 function(row_of_avg) {
                    
-                   my_avg_row <- span_structure[row_of_str,]
+                   my_avg_row <- avgs[row_of_avg,]
                    my_time <- my_avg_row$time
                    1*((g == my_avg_row$g) & 
                         (time %in% 
@@ -409,8 +415,9 @@ Our moments have the form $\theta_{gt} - \beta\theta_{g-1t}=0$, and we have $G \
 
 
 ```{r}
-trans_moment_dt <- function(theta, x, beta) {
-  x %>% 
+trans_moment_dt <- function(theta, x) {
+  beta <- x$params[["beta"]]
+  x$ix_gt %>% 
     .[j = theta0 := theta] %>% 
     .[j = theta0_lag := shift(theta0, n = 1, type = "lag"),
       by = g] %>% 
@@ -419,9 +426,9 @@ trans_moment_dt <- function(theta, x, beta) {
 }
 
 trans_grad_dt <- function(x) {
-  A <- max(x$time)
-  ix_wide <- x[time != 1] %>% select(g, time) %>% t()
-  x %>% 
+  A <- x$params[["T"]]
+  ix_wide <- x$ix_gt[time != 1] %>% select(g, time) %>% t()
+  x$ix_gt %>% 
     .[j = sapply(1:ncol(ix_wide),
                  function(i) {
                    ix <- ix_wide[, i]
@@ -449,19 +456,19 @@ For an `x` input that follows the structure as described above, these functions 
 
 ```{r make moments}
 collect_moments <- 
-  function(theta, x, s, beta) {
+  function(theta, x) {
       c(sumup_moment_dt(theta = theta, x = x),
-         avgx_moment_dt(theta = theta, x = x, s = s),
-        trans_moment_dt(theta = theta, x = x, beta = beta))
+         avgx_moment_dt(theta = theta, x = x),
+        trans_moment_dt(theta = theta, x = x))
     }
 ```
 
 ```{r}
 collect_grad <- 
-  function(theta, x, s) {
-    rbind(sumup_grad_dt(my_x),
-           avgx_grad_dt(my_x, s),
-          trans_grad_dt(my_x))
+  function(theta, x) {
+    rbind(sumup_grad_dt(x),
+           avgx_grad_dt(x),
+          trans_grad_dt(x))
   }
 ```
 
@@ -475,25 +482,21 @@ Am finding it uncertain how to use the `momentfit` package for estimation. My cu
 We can adapt our setup by using a squared sum of the output of our current moment-generating function, and updating the gradient.
 
 ```{r}
-my_setup <- full
+my_setup <- full_noerr
 
-my_s    <- my_setup$params[["s"]]
-my_x    <- my_setup$ix_gt
-my_beta <- my_setup$params[["beta"]]
 theta0  <- with(my_setup$ix_gt,
                 rep(0, n_distinct(g)*n_distinct(time)))
 
+my_x    <- my_setup$ix_gt
+
 moms <- function(theta0) {
   collect_moments(theta = theta0,
-                  x     = my_x, 
-                  s     = my_s,
-                  beta  = my_beta)
+                  x = my_setup)
 }
 
 grad <- function(theta0) {
-  collect_grad(theta = theta0, 
-               x     = my_x, 
-               s     = my_s)
+  collect_grad(theta = theta0,
+               x = my_setup)
 }
 
 # /!\ add weights
@@ -507,24 +510,51 @@ obj <- function(theta0) {
 # result is k x 1
 obj_grad <- function(theta0) {
   m <- moms(theta0)
-  d <- grad(ftheta0)
+  d <- grad(theta0)
   t(m) %*% d
 }
 
 system.time({
   out <- 
-    optim(par = rep(-5, length(theta0)), #my_setup$thetas_gt$theta_gt, # theta0,
-          fn = obj,
-          gr = obj_grad,
-          method = "BFGS")
+    optim(
+      #par = my_setup$ix_gt$x_gt, #rep(-5, length(theta0)), 
+      par = rep(0, length(theta0)),
+      #par = theta0,
+      #par = out$par,
+      fn = obj,
+      gr = obj_grad,
+      #method = "BFGS" # "Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN", "Brent"
+      method = "L-BFGS-B"
+      )
+  out
 })
+```
 
+
+```{r check output}
+cbind(estimated_pars = out$par, my_setup$ix_gt)
+
+# Plot estimates against each other
 my_setup$ix_gt %>% 
-  mutate(est = out$par) %>% 
-  ggplot(aes(x = theta0,
+  select(-theta0) %>% 
+  mutate(est  = out$par,
+         init = theta0) %>% 
+  ggplot(aes(x = x_gt,
              y = est)) + 
-  geom_point() + 
-  geom_abline()
+  geom_point(alpha = 0.5) + 
+  geom_point(aes(y = init,
+                 color = "Initialized Parameter Values"),
+             alpha = 0.3) +
+  geom_abline() +
+  geom_smooth() +
+  scale_color_manual(name = "",
+                     values = "red") +
+  labs(x = "True Parameters",
+       y = "Estimated Parameters") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+
 
 ```
 
