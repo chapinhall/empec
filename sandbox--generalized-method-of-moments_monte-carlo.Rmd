@@ -1,7 +1,7 @@
 ---
 title: "Estimation of Tract-by-Year Sociodemographics with Census Data -- a Monte Carlo Study"
 author: "Nick Mader"
-date: "r format(Sys.time(), '%b/%d/%Y')"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
 output: html_document
 ---
 
@@ -14,9 +14,9 @@ library(momentfit)
 
 # Model
 
-Let $\theta_gt$ represent a given characteristic describing a population local to geography $g$ at time $t$. A motivating example is the number of children in families that qualify for Head Start in a given Census tract, for a given year.
+Let $\theta_{gt}$ represent a given characteristic describing a population local to geography $g$ at time $t$. A motivating example is the number of children in families that qualify for Head Start in a given Census tract, for a given year.
 
-Given available Census data, we establish a series of conditions that these $\theta_gt$s meet. 
+Given available Census data, we establish a series of conditions that these $\theta_{gt}$s should meet, and seek to estimate them in a Generalized Method of Moments framework. 
 
 ## Moment Conditions
 
@@ -52,14 +52,7 @@ and
 
 $$E[\theta_{gt+1}|\theta_{gt}] = \lambda E[\theta_{gt}]$$
 
-We can use linear estimation of equation XX to obtain a consistent estimate of $\hat{lambda}$ to use in equation XX.
-
-
-
-
-### Initial Conditions
-
-While the "Conditional Transitions" moments connect each tract's estimate of a give year to the year before it, the initial year itself must be anchored to some additional condition. For this we 
+We can use linear estimation of equation XX to obtain a consistent estimate of $\hat{\lambda}$ to use in equation XX.
 
 
 ## Identification
@@ -147,7 +140,7 @@ gen_true_data <-
   out <- 
     list(out = thetas_gt,
          params = c("G" = G,
-                    "T" = T,
+                    "T" = A,
                     "extra_init" = extra_init,
                     "beta" = beta,
                     "sd_trans" = sd_trans,
@@ -225,12 +218,14 @@ draw_obs_data <-
 full <- 
   draw_obs_data(se_est = 0.1)
 full_noerr <- 
-  draw_obs_data(se_est = 0.0)
-toy  <- draw_obs_data(A = 2,
-                      G = 2,
-                      span_length = 2,
-                      extra_init = 0,
-                      se_est = 0.1)
+  draw_obs_data(se_est = 0.0,
+                sd_trans = 0.0)
+toy  <- 
+  draw_obs_data(A = 2,
+                G = 2,
+                span_length = 2,
+                extra_init = 0,
+                se_est = 0.1)
 ```
 
 ```{r compare true vs noise-added parameters}
@@ -279,7 +274,7 @@ R's [`momentfit` package](https://cran.r-project.org/web/packages/momentfit/vign
 
 `momentfit` takes `theta0` as a vector of length $k$ of estimates parameters. Together with an expectation of $q$ moments, `momentfit` requires moment functions to return vectors of length $q$, and gradient functions to return matrices that are $q x k$ (i.e. rows corresponding to the moments, and columns corresponding to parameters).
 
-Confirming the above, we have $q = T + G(T-s) + G(T-1)$ moment conditions, and $k = G \times T$ parameters.
+Confirming the above, we have $q = \underbrace{T}_\text{sum up} + \overbrace{G(T-s+1)}^\text{average across} + \underbrace{G(T-1)}_\text{transition}$ moment conditions, and $k = G \times T$ parameters.
 
 Next, we organize generation of these moments and gradients by each type of moment condition, and then produce a final function to run and stack each.
 
@@ -347,7 +342,7 @@ sumup_grad_dt <- function(x) {
 
 These moment conditions are derived from the fact that our estimated parameter can be averaged within given time spans to match statistics reported for each smaller geography.
 
-Each moment condition thus takes the form of $\{\frac{1}{s}\Sigma_{i=t-s+1}^{t}\theta_{gi} - \bar{x}_{gt} = 0\}_{gt}$. We have $G \times (T-s)$ of these moment conditions.
+Each moment condition thus takes the form of $\{\frac{1}{s}\Sigma_{i=t-s+1}^{t}\theta_{gi} - \bar{x}_{gt} = 0\}_{gt}$. We have $G \times (T-s+1)$ of these moment conditions.
 
 ```{r generate the average across moment using data.table functions}
 avgx_moment_dt <- function(theta, x) {
@@ -422,7 +417,8 @@ trans_moment_dt <- function(theta, x) {
     .[j = theta0_lag := shift(theta0, n = 1, type = "lag"),
       by = g] %>% 
     .[!is.na(theta0_lag)] %>% 
-    pull(theta0 - beta*theta0_lag)
+    mutate(diff = theta0 - beta*theta0_lag) %>% 
+    pull(diff)
 }
 
 trans_grad_dt <- function(x) {
@@ -457,10 +453,18 @@ For an `x` input that follows the structure as described above, these functions 
 ```{r make moments}
 collect_moments <- 
   function(theta, x) {
-      c(sumup_moment_dt(theta = theta, x = x),
-         avgx_moment_dt(theta = theta, x = x),
-        trans_moment_dt(theta = theta, x = x))
-    }
+      c("sumup" = sumup_moment_dt(theta = theta, x = x),
+        "avg"   =  avgx_moment_dt(theta = theta, x = x),
+        "trans" = trans_moment_dt(theta = theta, x = x))
+  }
+
+# Check that moments are 0 for true
+if (FALSE) {
+  collect_moments(full_noerr$ix_gt$x_gt, full_noerr) %>% 
+    round(4) %>% 
+    sort(decreasing = TRUE) %>% 
+    head(10)
+}
 ```
 
 ```{r}
@@ -483,11 +487,11 @@ We can adapt our setup by using a squared sum of the output of our current momen
 
 ```{r}
 my_setup <- full_noerr
+#my_setup <- full
+#my_setup <- toy
 
-theta0  <- with(my_setup$ix_gt,
-                rep(0, n_distinct(g)*n_distinct(time)))
-
-my_x    <- my_setup$ix_gt
+theta0 <- with(my_setup$ix_gt,
+               rep(0, n_distinct(g)*n_distinct(time)))
 
 moms <- function(theta0) {
   collect_moments(theta = theta0,
@@ -499,7 +503,7 @@ grad <- function(theta0) {
                x = my_setup)
 }
 
-# /!\ add weights
+# /!\ add weights for precision
 obj <- function(theta0) {
   m <- moms(theta0)
   t(m) %*% m
@@ -517,17 +521,17 @@ obj_grad <- function(theta0) {
 system.time({
   out <- 
     optim(
-      #par = my_setup$ix_gt$x_gt, #rep(-5, length(theta0)), 
-      par = rep(0, length(theta0)),
-      #par = theta0,
+      #par = my_setup$ix_gt$x_gt,
+      #par = rep(0, length(theta0)),
+      par = theta0,
       #par = out$par,
       fn = obj,
       gr = obj_grad,
-      #method = "BFGS" # "Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN", "Brent"
+      #method = "Nelder-Mead" # "Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN", "Brent"
       method = "L-BFGS-B"
       )
-  out
 })
+out
 ```
 
 
@@ -553,8 +557,6 @@ my_setup$ix_gt %>%
        y = "Estimated Parameters") +
   theme_minimal() +
   theme(legend.position = "bottom")
-
-
 
 ```
 
