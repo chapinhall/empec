@@ -8,20 +8,11 @@ pubic audiences are suppressed or moved to code chunks that can optionally be
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("method--read-customization-file.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 if (!"direct_est_tract"     %in% objects()) source_rmd("method--small-area-estimation-functions.Rmd", echo = FALSE)
 ```
-
-```{r eval = FALSE}
-# Within an `eval = FALSE` chunk, this option will be set when running this
-# script interactively, but not when called by `run--00`. This is significant
-# in that 00 will check that this has been run, set rerun_sae to FALSE in order
-# to focus on report rendering and not this time-consuming run.
-rerun_sae <- TRUE
-```
-
 
 ```{r load data for SAE runs}
 # Load prepped data
@@ -42,7 +33,7 @@ The figures below examine how evenly the ACS1 sample is divided among different 
 show_acs1_cat_density <- function(my_cat, my_subtitle) {
   ggplot(acs1_child,
          aes(x = get(my_cat))) +
-    geom_bar(fill = chHex1) +
+    geom_bar() +
     facet_wrap(~ child_agegroup_combo) +
     labs(title = "Number of ACS1 Sample Observations by Category Scheme",
          subtitle = my_subtitle,
@@ -67,13 +58,13 @@ Next, we examine effectively the same distribution, but with more detail below 1
 show_acs1_cat_density("fam_incpov_ratio_cat_mix", "Income-to-Poverty with Detail Below Poverty")
 ```
 
-Below, we see the size of the sample partitioned jointly by household work eligibility for CCDF, and income-to-poverty bands that are somewhat larger and chosen to align with the CCDF income threshold of `r local_ccdf_thresh`% of FPL. Although there is no requirement in either the SAE or nowcasting methods to have this alignment, this specification will allow for later direct comparison of SAE estimates of CCDF eligibility for the base year `r base_year` and the nowcast estimates.
+Below, we see the size of the sample partitioned jointly by household work eligibility for CCDF, and income-to-poverty bands that are somewhat larger and chosen to align with the CCDF income threshold of `r local_ccdf_incratio_base`% of FPL. Although there is no requirement in either the SAE or nowcasting methods to have this alignment, this specification will allow for later direct comparison of SAE estimates of CCDF eligibility for the base year `r base_year` and the nowcast estimates.
 
 ```{r examine overall distribution of ACS1 sample with detail below poverty}
 # Here is the density tailored to the local ccdf threshold
 
 show_acs1_cat_density("work_incpov_mix", 
-                      glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+                      glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_incratio_base}% FPL"))
 
 ```
 
@@ -83,7 +74,7 @@ The figures below explore the amount of variation in each category across PUMAs.
 show_acs1_cat_density_by_puma <- function(my_cat, my_subtitle) {
  ggplot(acs1_child,
        aes(x = PUMA)) +
-  geom_bar(fill = chHex2) +
+  geom_bar() +
   facet_grid(get(my_cat) ~ child_agegroup_combo,
              scales = "free_y") +
   labs(title = "Number of ACS1 Sample Observations by PUMA, by Age Group and Category",
@@ -110,7 +101,7 @@ show_acs1_cat_density_by_puma("fam_incpov_ratio_cat_mix", "Income-to-Poverty Rat
 # presumably would be.
 
 show_acs1_cat_density_by_puma("work_incpov_mix", 
-                                glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_thresh}% FPL"))
+                                glue("Combo of Family Work Eligibility for CCDF and Income-to-Poverty Aligned with the\nCCDF Threshold of {local_ccdf_incratio_base}% FPL"))
 ```
 
 ### Examine pattern contrasts between ACS1 and ACS5 measures
@@ -262,7 +253,7 @@ pop_by_age_base <-
   filter(year == base_year) %>% 
   # Rename population values to avoid conflict with equivalent ACS5 counts, which
   # are for the prior 5 year period, not estimated for the base year as these are
-  select(GEOID, 
+  select(GEOID = GEOID_TR20, 
           age_0to5_count_base =  age_0to5_count, 
          age_6to12_count_base = age_6to12_count)
 
@@ -282,7 +273,7 @@ ggplot(acs5tract_sae_counts,
        aes(x = age_0to5_count,
            y = age_0to5_count_base)) +
   geom_point() + 
-  geom_45(color = "red") +
+  geom_abline(color = "red") +
   labs(title = "Comparison of Tract-level Counts of Children Aged 0-5",
        x = "ACS 5-Year",
        y = glue("Estimate for Base Year ({base_year})")) +
@@ -382,6 +373,25 @@ specs <- c("incpov_simple_05",
 
 ```
 
+```{r}
+# Organize contents
+sae_aux_data_acs5 <- acs5tract_sae
+sae_controls_list <- list(sae_controls_simple_05,
+                          sae_controls_simple_612,
+                          sae_controls_added_2534_05,
+                          sae_controls_added_2534_612)
+results <- paste0("sae_results_", specs)
+
+# Save the bundle of objects
+save(list = c(results, "specs", "incpov_ref_value", "sae_controls_list", "sae_aux_data_acs5"),
+     file = glue("{output_path}sae_sensitivity_estimates_interim_{my_output_tag}.Rda"))
+
+if (FALSE) {
+  load(file = glue("{output_path}sae_sensitivity_estimates_interim_{my_output_tag}.Rda")) 
+}
+```
+
+
 #### Compare Direct versus FH Output Estimates
 
 As a reality check, confirm that a single "direct" estimate applies to all tracts within each given PUMA. The result should be that there are all "0" numbers of duplicates. 
@@ -454,7 +464,7 @@ ggplot(display_lambda_wgt,
        aes(x = share_direct,
            y = share_model)) +
   geom_point(alpha = 0.1) +
-  geom_45(color = "blue") +
+  geom_abline(color = "blue") +
   facet_wrap(~ vc_value) +
   labs(title = "Comparison of SAE Output -- Model-Estimated Share (y) vs Direct (x)") +
   theme_minimal()
@@ -791,7 +801,7 @@ compare_sae_lt100fpl <- function(sae_spec, title, xlab, ylab) {
   sae_lt100fpl_comp_plot <- 
     plot_base +
     geom_point(alpha = 0.1) +
-    geom_45(color = "red") +
+    geom_abline(color = "red") +
     geom_smooth(color = "blue") + 
     scale_x_continuous(labels = percent) +
     scale_y_continuous(labels = percent) +
@@ -897,37 +907,362 @@ Thus, we undertake a further adjustment, by:
 
 In this way, we anchor the distribution of our new estimates in the most reliable and most recent values that are available.
 
-```{r calculate variance of acs5 analogs to each income-to-poverty measure}
-# /!\ Consider moving this to run--01d
-acs5_incpov_cat <- 
-  acs5tract %>% 
-  select(matches("GEOID|incpov_(lt6|6to11).+_est")) %>% 
-  pivot_longer(cols = -GEOID) %>% 
-  mutate(age   = str_replace(name, "incpov_(.+)_r.+", "\\1"),
-         range = str_replace(name, ".+\\d_(r.+)_est", "\\1")) %>% 
-  select(-name) %>% 
-  pivot_wider(names_from = "range",
-              values_from = "value") %>% 
-  mutate(r50to100 = r0to50 + r50to100) %>% 
-  pivot_longer(cols = -c(GEOID, age)) %>% 
-  # Put values into format that will merge into SAE `vc_value` field names
-  mutate(vc_value = 
-           name %>% 
-           str_replace("r(\\d+)to(\\d+)", "\\1%-\\2%") %>% 
-           str_replace("r(\\d+)plus", "\\1%+") %>% 
-           str_replace("199", "200") %>% 
-           str_replace("299", "300") %>% 
-           str_replace("399", "400"))
+```{r load acs5 measures relevant for aligning to sae categories}
+load(file = glue("{output_path}acs5_ccdf_{my_output_tag}.Rda"))
+```
 
-acs5_incpov_cat_var <- 
-  acs5_incpov_cat %>% 
-  merge(geo_crosswalk %>% select(GEOID, PUMA) %>% unique(),
-        by = "GEOID",
-        all.x = TRUE) %>% 
-  group_by(PUMA, age, vc_value) %>% 
-  # /!\ Consider whether to build this as a population-weighted variance
-  summarize(acs5_tract.in.puma_sd = sd(value, na.rm = TRUE)) %>% 
-  ungroup()
+```{r function to select relevant income-to-poverty measures}
+incpovs <- 
+  acs5_incpov_byage$inc_to_pov_ratio %>% 
+  unique() %>% 
+  sort_by_char_nums() %>% 
+  sort()
+incpov_bounds <- str_extract_all(incpovs, "\\d+")
+dfIncPovCutoffs <- 
+  data.frame(incpov = incpovs,
+             left  = sapply(incpov_bounds, function(x) x[1]) %>% as.numeric(),
+             right = sapply(incpov_bounds, function(x) x[2]) %>% as.numeric())
+
+get_closest <- function(val, ref) {
+  ref <- setdiff(ref, NA)
+  absdev <- abs(val - ref)
+  ref[which(absdev == min(absdev))]
+}
+
+return_incpov_fields_bounds <- function(low, high) {
+  closest_low  <- get_closest(low,  dfIncPovCutoffs$left)
+  closest_high <- get_closest(high, dfIncPovCutoffs$right)
+  
+  out <- filter(dfIncPovCutoffs, left >= closest_low)
+  if (!is.na(high) & !is.infinite(high)) {
+    out <- filter(out, right <= closest_high)
+  }
+  return(out$incpov)
+}
+
+if (FALSE) {
+  return_incpov_fields_bounds(0, 100)
+  return_incpov_fields_bounds(1, 99)
+  return_incpov_fields_bounds(0, 101)
+  return_incpov_fields_bounds(500, NA)
+}
+```
+
+```{r notes for calculating ccdf eligibility below}
+# Because we do not know the joint distribution of these income- and work-eligibility
+# phenomena, we use microdata for some calibration. We use the phi calculation of
+# correlation for bernoulli random variables, which is just the pearson correlation.
+# We first confirm that.
+if (FALSE) {
+  library(psych)
+  df <- data.frame(x = c(1, 1, 0, 1),
+                   y = c(1, 0, 0, 1))
+  
+  with(df, cor(x, y))
+  
+  mat <- matrix(c(2, 1, 0, 1), ncol = 2, byrow = TRUE)
+  phi(mat, digits = 7)
+  # This yields the same result
+}
+```
+
+
+```{r results = 'asis'}
+make_acs5_equiv <- function(sae_ests, sae_age, verbose = FALSE) {
+  
+  ### Read SAE elements
+  # vc values to match
+  vc_vals <- unique(sae_ests$vc_value)
+  
+  # age for subsetting
+  acs5_ages <- 
+    case_when(sae_age == "05"  ~ "Age0to6",
+              sae_age == "612" ~ "Age6to11")
+  acs1_ages <- 
+    case_when(sae_age == "05"  ~ c(0, 5),
+              sae_age == "612" ~ c(6, 12))
+  
+  acs5_ests <- NULL
+  for (vc in vc_vals) {
+    
+    if (verbose) print(glue("\n\nvc -- {vc}\n"))
+    # Parse income values
+    # <move left/right function to the ACS5 function methods>
+    incpov_bounds <- str_extract_all(vc, "\\d+") %>% unlist() %>% as.numeric()
+    incpov_left  <- incpov_bounds[1]
+    incpov_right <- incpov_bounds[2] %>% replace_na(Inf)
+    
+    # Aggregate incpov as relevant
+    incpov_cat_keep <- return_incpov_fields_bounds(incpov_left, incpov_right)
+    acs5_incpov_vc <- 
+      acs5_incpov_byage %>% 
+      filter(inc_to_pov_ratio %in% incpov_cat_keep,
+             age == acs5_ages) 
+    
+    if (verbose) print(glue("  ACS5 income cats are: {paste(levels(sort_by_char_nums(acs5_incpov_vc$inc_to_pov_ratio)), collapse = ', ')}, and ages are {paste(unique(acs5_incpov_vc$age), collapse = ',')}.\n"))
+    acs5_incpov_vc <- 
+      acs5_incpov_vc %>% 
+      summarize(rInc = sum(r),
+                wAcs5 = sum(w),
+                .by = GEOID)
+    
+    ### Calculate joint income-and-work status work eligibility is relevant ###
+    # The measures that we have calculated from pulls of the ACS 5-year data are
+    # only marginal distributional values. However, we want estimates of the joint
+    # value, i.e. kids in families based on both income and work eligibility status.
+    # We can use calculations from the phi coefficient (https://en.wikipedia.org/wiki/Phi_coefficient)
+    # in the microdata above with these marginal values to estimate the likelihood of 
+    # the joint work eligible x income eligible condition.
+    
+    # Using notation from that wikipedia article, note that the n11, n01, n10, n00
+    # values could be considered rates instead of counts, where n11 is the value
+    # of interest, and n1., n0., n.1, and n.0 are the marginal values that we
+    # obtain from the ACS 5-year data. Call these n1. = p, n0. = (1-p), n.1 = q,
+    # n.0 = (1-q), and note that n = 1, as the sum of marginal probabilities
+    # must equal 100% probability. Then, the second equation for phi under the 
+    # "Definition" section which reads as follow, can be reduced:
+    #   phi = (n11 - n1.*n.1) / sqrt(n1.*n.1*(n - n1.)*(n - n.1))
+    #       = (1*n11 - p*q) / sqrt(p*q*(1-p)*(1-q))
+    # And thus:
+    #   n11 = phi * sqrt(p*q*(1-p)*(1-q)) + pq
+    # Here, n11 is the quantity of interest--the joint probability of income and
+    # work eligibility status--and where we have phi calculated. Note that phi=0 
+    # corresponds to the case of zero correlation, and would result in n11 = pq
+    # which--as the joint probability case where both random variables are 
+    # independent--confirms common expectations.
+    
+    if (str_detect(vc, "Elig")) {
+      # Subset the relevant rows from the ACS5 data
+      acs5_elig <- 
+        case_when(str_detect(vc, "NotWorkElig")     ~ "NotWorkEligFam",
+                  str_detect(vc, "(^|\\W)WorkElig") ~ "WorkEligFam")
+      
+      acs5_workelig <- 
+        acs5_workelig_withKids %>% 
+        filter(status == acs5_elig)
+      
+      if (verbose) cat(glue("  ACS5 work elig status is: {paste(unique(acs5_workelig$status), collapse = ', ')}.\n"))
+      
+      acs5_workelig <- 
+        acs5_workelig %>%
+        select(GEOID, rWork = r)
+      
+      # Calculate phi by PUMA for relevant incpov and work elig
+      ccdf_elig_field <- glue("ccdf_elig_incratio_{local_ccdf_incratio_base}")
+      acs1_forPhi <-
+        copy(acs1_child) %>% 
+        .[acs1_ages[1] <= AGEP & AGEP < acs1_ages[2],
+          j = .(AGEP, PUMA, fam_incpov_ratio, all_work_sch,
+                inc_measure  = 1*(between(fam_incpov_ratio*100, incpov_left, incpov_right)),
+                work_measure = case_match(rep(acs5_elig, .N),
+                                          "NotWorkEligFam" ~ 1 - all_work_sch,
+                                          "WorkEligFam"    ~     all_work_sch))]
+      if (verbose) {
+        print("Stats for the acs1 data for calculating phi--\n")
+        range_paste <- function(x) paste0(range(x, na.rm = T), collapse = "-")
+        ranges_forPhi <- 
+          acs1_forPhi[j = .(vc = vc,
+                            incpov_range = range_paste(fam_incpov_ratio),
+                            is_work_elig = range_paste(all_work_sch),
+                            age_range    = range_paste(AGEP)),
+                      by = .(inc_measure, work_measure)] %>% 
+          arrange(-inc_measure, -work_measure)
+        print(ranges_forPhi)
+      }
+      
+      # Calculate `phi` by PUMA
+      phi_p <- 
+        acs1_forPhi %>% 
+        .[j = .(phi_p = cor(inc_measure, work_measure)),
+          by = PUMA] %>% 
+        .[j = phi_p := replace_na(phi_p, meanNA(phi_p))]
+      
+      # For comparison, calculate `phi` across all PUMAs
+      phi <- 
+        acs1_forPhi %>% 
+        .[j = .(phi = cor(inc_measure, work_measure))] %>% 
+        .[j = phi := replace_na(phi, meanNA(phi))] %>% 
+        pull(phi)
+      
+      # Estimate combo
+      acs5_est_vc <- 
+        acs5_incpov_vc %>% 
+        merge(acs5_workelig, 
+              by = "GEOID") %>% 
+        merge(geo_crosswalk %>% select(GEOID, PUMA) %>% unique(),
+              by = "GEOID") %>% 
+        merge(phi_p,
+              by = "PUMA") %>% 
+        as.data.table() %>% 
+        .[j = .(GEOID,
+                vc_value = vc,
+                wAcs5,
+                share_acs5 = 
+                  phi_p * sqrt(rInc*rWork*(1-rInc)*(1-rWork)) +
+                  rInc*rWork,
+                share_acs5_phi = 
+                  phi   * sqrt(rInc*rWork*(1-rInc)*(1-rWork)) +
+                  rInc*rWork,
+                share_acs5_indep = rInc*rWork)]
+    } else {
+      acs5_est_vc <- 
+        acs5_incpov_vc %>% 
+        as.data.table() %>% 
+        .[j = .(GEOID,
+                vc_value = vc,
+                share_acs5 = rInc)]
+    }
+    acs5_ests <- bind_rows(acs5_ests, acs5_est_vc)
+  }
+  sae_ests_aug <- 
+    sae_ests %>% 
+    merge(acs5_ests,
+          by = c("GEOID", "vc_value"),
+          all.x = TRUE)
+  
+  return(sae_ests_aug)
+}
+```
+
+```{r run test of calculation of decompression statistics, results = 'asis'}
+if (developer_mode) {
+  # Some suppressed code to make interactive troubleshooting easier
+  if (FALSE) {
+      debug(make_acs5_equiv)
+    undebug(make_acs5_equiv)
+  }
+  sae_results_ccdf_test <- make_acs5_equiv(sae_results_ccdf_wk_pov_05$sae_out, "05", verbose = TRUE)
+} 
+```
+
+```{r how much difference does use of phi vs phi_p make}
+if (developer_mode) {
+  
+  # Compare the results from using phi_p and phi
+  # Hypothesis is that for smaller cells, the phi-derived estimates will be more stable
+  sae_results_ccdf_test %>% 
+    ggplot(aes(x = share_acs5, 
+               y = share_acs5_phi)) +
+    geom_abline() + 
+    geom_point(alpha = 0.1) + 
+    geom_smooth() +
+    facet_wrap(~vc_value) +
+    labs(title    = "Comparison of ACS5 Estimates Derivations",
+         subtitle = "Use of PUMA-specific calcs of Phi vs Full-state")
+    # Result: seems that the results are fairly stable
+  
+}
+```
+
+
+```{r compare acs5 estimates with sae estimates}
+if (developer_mode) {
+  
+  # Point is: the values should hopefully be basically consistent, but the 
+  # variance of the acs5 should be substantially higher, which is what we rely
+  # on for decompressing the sae estimates
+  sae_results_ccdf_test %>% 
+    group_by(vc_value) %>% 
+    mutate(label = glue("{vc_value}\nrho = {round(cor(share_model_trunc, share_acs5, use = 'pairwise'), 2)}\nratio of ",
+                        "var = {round(varNA(share_acs5)/varNA(share_model_trunc), 2)}")) %>% 
+  ggplot(aes(x = share_model_trunc,
+             y = share_acs5)) +
+    geom_abline() + 
+    geom_point(alpha = 0.1) +
+    geom_smooth() + 
+    facet_wrap(~ label) +
+    labs(title    = "Comparison of Tract-Level ACS5 Estimates vs SAE",
+         subtitle = glue("Expectations: disagreements due to lag of ACS5 and other assumptions\n",
+                         "but higher variance of ACS5, which is the key to decompression"))
+}
+```
+
+
+```{r Compare ACS1 and ACS5 at the PUMA level}
+
+if (developer_mode) {
+  
+  # As a reality check, see if the ACS5 estimates are basically consistent with
+  # calculations from the ACS1 microdata. Both the lag of the former and general
+  # sampling variation would cause some disagreement even if the assumptions
+  # were basically correct. Still, we hope for some strong correspondence in
+  # aggregate.
+  ccdf_inc_thresh_fpl <- get_fpl_thresh_for_ccdf()
+  acs1_ccdf_p <- 
+    acs1_child %>% 
+    .[between(AGEP, 0, 6),
+      j = .(acs1_ccdf = 
+              sum(PWGTP[fam_incpov_ratio < ccdf_inc_thresh_fpl/100 & 
+                          all_work_sch == TRUE]) / sum(PWGTP),
+            acs1_ccdf_inc  = sum(PWGTP[fam_incpov_ratio < ccdf_inc_thresh_fpl/100]) / sum(PWGTP),
+            acs1_ccdf_work = sum(PWGTP[all_work_sch == TRUE])                       / sum(PWGTP)),
+      by = PUMA] %>% 
+    .[j = acs1_ccdf_indep := acs1_ccdf_inc*acs1_ccdf_work]
+
+  
+  # Examine estimates of CCDF eligibility
+  sae_results_ccdf_test %>% 
+    filter(vc_value %in% c("WorkElig_0%-100%", glue("WorkElig_100%-{ccdf_inc_thresh_fpl}%"))) %>% 
+    summarize(acs5_ccdf = sum(share_acs5),
+              acs5_ccdf_w = sum(wAcs5),
+              .by = GEOID) %>%  
+    merge(geo_crosswalk %>% select(GEOID, PUMA) %>% unique(),
+          by = "GEOID") %>% 
+    summarize(acs5_ccdf = weighted.mean(acs5_ccdf, acs5_ccdf_w),
+              .by = PUMA) %>% 
+    merge(acs1_ccdf_p,
+          by = "PUMA") %>% 
+    ggplot(aes(x = acs1_ccdf,
+               y = acs5_ccdf)) +
+    geom_abline() +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = 0) +
+    geom_point() +
+    geom_smooth() +
+    labs(title    = "Comparison of PUMA-level CCDF Estimates from ACS5 vs ACS1",
+         subtitle = "Expectations: although they likely won't line up, there's ideally decent correspondence")
+  
+  # Examine income eligibility at the PUMA level
+  acs5_incpov_byage %>% 
+    filter(age == "Age0to6", 
+           inc_to_pov_ratio %like% "0to50|50to|75to|100to|125to|150to|175to|185to") %>% 
+    summarize(acs5_ccdf_inc   = sum(r),
+              acs5_ccdf_inc_w = mean(w),
+              .by = GEOID) %>%  
+    merge(geo_crosswalk %>% select(GEOID, PUMA) %>% unique(),
+          by = "GEOID") %>% 
+    summarize(acs5_ccdf_inc = weighted.mean(acs5_ccdf_inc, acs5_ccdf_inc_w),
+              .by = PUMA) %>% 
+    merge(acs1_ccdf_p,
+          by = "PUMA") %>% 
+    ggplot(aes(x = acs1_ccdf_inc,
+               y = acs5_ccdf_inc)) +
+    geom_abline() +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = 0) +
+    geom_point() +
+    geom_smooth() +
+    labs(title    = "Comparison of PUMA-level CCDF Income Estimates from ACS5 vs ACS1",
+         subtitle = "Expectations: although they likely won't line up, there's ideally decent correspondence")
+  
+  acs5_workelig_withKids %>% 
+    filter(status == "WorkEligFam") %>% 
+    merge(geo_crosswalk %>% select(GEOID, PUMA) %>% unique(),
+          by = "GEOID") %>% 
+    summarize(acs5_ccdf_work = weighted.mean(r, w),
+              .by = PUMA) %>% 
+    merge(acs1_ccdf_p,
+          by = "PUMA") %>% 
+    ggplot(aes(x = acs1_ccdf_work,
+               y = acs5_ccdf_work)) +
+    geom_abline() +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = 0) +
+    geom_point() +
+    geom_smooth() +
+    labs(title    = "Comparison of PUMA-level CCDF Work Eligibility Estimates from ACS5 vs ACS1",
+         subtitle = "Expectations: although they likely won't line up, there's ideally decent correspondence")
+}
 ```
 
 
@@ -935,24 +1270,12 @@ acs5_incpov_cat_var <-
 pop_long <- 
   pop_by_age %>% 
   #filter(year == base_year) %>% 
+  rename(GEOID = GEOID_TR20) %>% 
   pivot_longer(cols = -c(GEOID, year)) %>% 
   mutate(age = str_replace(name, ".+_(\\d+to\\d+).+", "\\1")) %>% 
   select(GEOID, year, age, pop = value)
 
 ```
-
-```{r prep acs1_5pct data for merge}
-acs1_5pct_puma_formerge <- 
-  acs1_5pct_puma %>% 
-  pivot_longer(cols = -c(GEOID, PUMA, age)) %>% 
-  filter(!str_detect(name, "_n$")) %>% 
-  mutate(vc_value =
-           name %>% 
-           str_replace(".+_(\\d+)_(\\d+).+", "\\1%-\\2%") %>% 
-           str_replace(".+agg_(\\d+)_pct", "\\1%+")) %>% 
-  rename(acs1_5pct_pct = value)
-```
-
 
 ```{r misc functions for use in redistribution}
 bound <- function(x, lower = 0, upper = 1) {
@@ -970,11 +1293,15 @@ if (FALSE) {
 ```{r function for performing redistribution}
 # Values for easy interactive debugging
 if (FALSE) {
-  sae_to_redis <- sae_results_incpov_ctrls_100_05
-  sae_age <- "05" # "612"
+  debug(redis_sae)
+  undebug(redis_sae)
+  sae_redis_incpov <- redis_sae(sae_results_incpov_ctrls_100_05, "05"); View(sae_redis_incpov$sae_out, "redis_incpov")
+  sae_redis_ccdf   <- redis_sae(sae_results_ccdf_wk_pov_05, "05");      View(sae_redis_ccdf$sae_out,   "redis_ccdf")
 }
 
 redis_sae <- function(sae_to_redis, sae_age) {
+  
+  sae_to_redis_aug <- make_acs5_equiv(sae_to_redis$sae_out, sae_age)
   
   pop_age <- case_when(sae_age == "05"  ~ "0to5", 
                        sae_age == "612" ~ "6to12")
@@ -982,22 +1309,23 @@ redis_sae <- function(sae_to_redis, sae_age) {
                        sae_age == "612" ~ "6to11")
   
   redis_out <- 
-    sae_to_redis$sae_out %>% 
-    merge(acs1_5pct_puma_formerge %>% 
-            filter(age == acs_age) %>% 
-            select(PUMA, vc_value, acs1_5pct_pct),
-          by = c("PUMA", "vc_value"),
-          all.x = TRUE) %>% 
-    merge(acs5_incpov_cat %>%
-            filter(age == acs_age) %>%
-            select(GEOID, vc_value, share_acs5 = value),
-          by = c("GEOID", "vc_value"),
-          all.x = TRUE) %>%
+    sae_to_redis_aug %>% 
     merge(pop_long %>% filter(age == pop_age, year == base_year),
           by = "GEOID",
           all.x = TRUE) %>% 
     group_by(PUMA, vc_value) %>% 
     mutate(
+      # This mutate() step performs redistribution of the SAE estimates via an
+      # "affine" transformation (i.e. adding/subtract/multiplication), as:
+      #   new = (sae - mean(sae))*(acs5_sd/sae_sd) + mean(old)
+
+      # We attempt this both in "levels", i.e. the existing percentage-based units
+      # and with values transformed to the logistic scale. The theory for using the
+      # logistic-transformed values is that they exist on the full real number
+      # line, and thus would avoid issues of values being redistributed below 0%
+      # and above 100%.
+      
+      ### Set up affine transformation
       # Center values to have mean 0
       share_model_trunc_m0 = share_model_trunc - mean(share_model_trunc),
       share_fh_trunc_m0    = share_fh_trunc    - mean(share_fh_trunc),
@@ -1021,49 +1349,36 @@ redis_sae <- function(sae_to_redis, sae_age) {
       share_fh_trunc_log_m0   = share_fh_trunc_log - share_fh_trunc_log_mean,
       share_fh_trunc_log_sd   = sdNA(share_fh_trunc_log_m0),
       
-      share_acs5_log = qlogis(share_acs5),
+      share_acs5_log      = qlogis(share_acs5),
       share_acs5_log_mean = meanNA(share_acs5_log),
-      share_acs5_log_m0 = share_acs5_log - share_acs5_log_mean,
-      share_acs5_log_sd = sdNA(share_acs5_log_m0),
+      share_acs5_log_m0   = share_acs5_log - share_acs5_log_mean,
+      share_acs5_log_sd   = sdNA(share_acs5_log_m0),
       
-      acs1_5pct_pct_log = qlogis(acs1_5pct_pct),
-      
-      # Build variance inflation factors
+      # Build variance inflation factors for decompressing the estimates
       infl_model_pct = share_acs5_sd     / share_model_trunc_sd,
       infl_model_log = share_acs5_log_sd / share_model_trunc_log_sd,
       infl_fh_pct    = share_acs5_sd     / share_fh_trunc_sd,
       infl_fh_log    = share_acs5_log_sd / share_fh_trunc_log_sd,
       
-      # Build a multiplicative inflation factor
-      infl_acs1_acs5     = acs1_5pct_pct / meanNA(share_acs5),
-      infl_acs1_acs5_wgt = acs1_5pct_pct / weighted.mean(share_acs5, w = pop, na.rm = TRUE),
-        # We build this only for the acs5 shares because, under the current pilot
-        # test stage, we are not planning to do a variance adjustment that the
-        # SAE estimates would need
-      
       # Redistribute using variance and mean adjustment
-      share_model_redis_pct =       (infl_model_pct * share_model_trunc_m0) + acs1_5pct_pct,
-      share_fh_redis_pct    =       (infl_fh_pct    * share_fh_trunc_m0)    + acs1_5pct_pct,
-      share_model_redis_log = plogis(infl_model_log * share_model_trunc_m0  + acs1_5pct_pct_log),
-      share_fh_redis_log    = plogis(infl_fh_log    * share_fh_trunc_m0     + acs1_5pct_pct_log),
-      share_acs5_redis_pct  =                         share_acs5_m0         + acs1_5pct_pct,
-        # We allow for an acs5-based estimate which simply adjusts means. The variance
-        # of course doesn't have to be inflated, because it's already the benchmark
-        # for inflation!
+      share_model_redis_pct = 
+        (infl_model_pct * share_model_trunc_m0) + mean(share_model_trunc),
       
-      # Redistribute using multiplication
-      share_acs5_redis_mult      = share_acs5 * infl_acs1_acs5,
-      share_acs5_redis_mult_wgt  = share_acs5 * infl_acs1_acs5_wgt,
+      share_fh_redis_pct    =
+        (infl_fh_pct    * share_fh_trunc_m0)    + mean(share_fh_trunc),
+      
+      share_model_redis_log = 
+        
+        plogis(infl_model_log * share_model_trunc_m0  + share_model_trunc_log_mean),
+      
+      share_fh_redis_log    = 
+        plogis(infl_fh_log    * share_fh_trunc_m0     + share_fh_trunc_log_mean),
       
       # Bound results within the interval [0,1]
       share_model_redis_pct01 = bound(share_model_redis_pct),
       share_fh_redis_pct01    = bound(share_fh_redis_pct),
       share_model_redis_log01 = bound(share_model_redis_log),
-      share_fh_redis_log01    = bound(share_fh_redis_log),
-      share_acs5_redis_pct01  = bound(share_acs5_redis_pct),
-      
-      share_acs5_redis_mult01      = bound(share_acs5_redis_mult),
-      share_acs5_redis_mult_wgt01  = bound(share_acs5_redis_mult_wgt),
+      share_fh_redis_log01    = bound(share_fh_redis_log)
     ) %>% 
     group_by(GEOID) %>% 
     mutate(
@@ -1071,15 +1386,11 @@ redis_sae <- function(sae_to_redis, sae_age) {
       share_fh_redis_pct01_infl    = share_fh_redis_pct01    / sum(share_fh_redis_pct01),
       share_model_redis_log01_infl = share_model_redis_log01 / sum(share_model_redis_log01),
       share_fh_redis_log01_infl    = share_fh_redis_log01    / sum(share_fh_redis_log01),
-      share_acs5_redis_pct01_infl  = share_acs5_redis_pct01  / sum(share_acs5_redis_pct01),
-      
-      share_acs5_redis_mult01_infl     = share_acs5_redis_mult01     / sum(share_acs5_redis_mult01),
-      share_acs5_redis_mult_wgt01_infl = share_acs5_redis_mult_wgt01 / sum(share_acs5_redis_mult_wgt01),
     ) %>% 
     as.data.table()
   
   # Output the results to the `sae_out` slot of the input SAE
-  sae_to_redis[["sae_out"]] <- redis_out
+  sae_to_redis[["sae_out_decompress"]] <- redis_out
   
   return(sae_to_redis)
 }
@@ -1087,7 +1398,7 @@ redis_sae <- function(sae_to_redis, sae_age) {
 
 
 ```{r implement redistributions}
-for (spec in specs) {
+for (spec in setdiff(specs, "ccdf_wk_sp_05")) {
   #print(spec)
   sae_name <- glue("sae_results_{spec}")
   # The age is given by the final numbers in the name of the spec
@@ -1099,13 +1410,13 @@ for (spec in specs) {
 
 # Check on success
 if (FALSE) {
-  str_subset(cn(sae_results_incpov_ctrls_100_05$sae_out), "_infl$")
-  sae_results_incpov_ctrls_100_05$sae_out %>% 
+  str_subset(cn(sae_results_incpov_ctrls_100_05$sae_out_decompress), "_infl$")
+  sae_results_incpov_ctrls_100_05$sae_out_decompress %>% 
     select(GEOID, vc_value, 
            share_model_trunc, share_model_redis_pct, share_model_redis_pct01_infl)
   
-  str_subset(cn(sae_results_ccdf_wk_pov_05$sae_out), "_infl$")
-  sae_results_ccdf_wk_pov_05$sae_out %>% 
+  str_subset(cn(sae_results_ccdf_wk_pov_05$sae_out_decompress), "_infl$")
+  sae_results_ccdf_wk_pov_05$sae_out_decompress %>% 
     select(GEOID, vc_value, 
            share_model_trunc, share_model_redis_pct, share_model_redis_pct01_infl)
 }
@@ -1136,30 +1447,20 @@ if (rerun_sae) {
 for (spec in specs) {
   stem <- glue("sae_results_{spec}")
   assign(glue("{stem}_out"),
-         get(stem)[["sae_out"]])
+         get(stem)[["sae_out_decompress"]])
 }
 ```
 
 ```{r pick a single SAE sensitivity to investigate}
-check_redis_sae <- sae_results_incpov_ctrls_100_05$sae_out
-```
-
-```{r check the comparison of population-weighted vs unweighted acs5 inflation factors}
-check_redis_sae %>% 
-  ggplot(aes(x = infl_acs1_acs5, 
-             y = infl_acs1_acs5_wgt)) + 
-  geom_45() + 
-  geom_point() + 
-  facet_wrap(~vc_value)
-```
-
-```{r compare acs5 redis vs mult methods}
-check_redis_sae %>% 
-  ggplot(aes(x = share_acs5_redis_pct01_infl, 
-             y = share_acs5_redis_mult01_infl)) + 
-  geom_45() + 
-  geom_point(alpha = 0.1) + 
-  facet_wrap(~vc_value)
+check_redis_sae <- sae_results_incpov_ctrls_100_05$sae_out_decompress
+check_stats_puma <- 
+  acs1_child %>% 
+  .[between(AGEP, 0, 5),
+    j = .(wgt = sum(PWGTP)),
+    by = .(PUMA, vc_value = fam_incpov_ratio_cat_by100)] %>% 
+  .[j = share_acs1 := wgt / sum(wgt),
+          by = PUMA] %>% 
+  select(-wgt)
 ```
 
 ```{r examine overages}
@@ -1207,7 +1508,7 @@ check_redis_sae %>%
 check_redis_sae %>% 
   ggplot(aes(x = share_acs5,
              y = share_model_redis_pct)) +
-  geom_45() + 
+  geom_abline() + 
   geom_point(alpha = 0.1) + 
   geom_smooth() +
   geom_hline(yintercept = 0, color = "red") +
@@ -1217,7 +1518,7 @@ check_redis_sae %>%
 check_redis_sae %>% 
   ggplot(aes(x = share_acs5,
              y = share_model_redis_log)) +
-  geom_45() + 
+  geom_abline() + 
   geom_point(alpha = 0.1) +
   geom_smooth() +
   geom_hline(yintercept = 0, color = "red") +
@@ -1234,12 +1535,13 @@ check_redis_sae %>%
   # True -- they are often clearly better. This is never mind the fact that the 
   # slopes of the former are also closer to 1.
 ```
-```{r check the results -- final versus acs5, eval = developer_mode}
+
+```{r check the results -- final_bounded versus acs5, eval = developer_mode}
 # This is done to see if we obtain something relatively close to the 45
 check_redis_sae %>% 
   ggplot(aes(x = share_acs5,
              y = share_model_redis_pct01_infl)) +
-  geom_45() + 
+  geom_abline() + 
   geom_point(alpha = 0.1) + 
   geom_smooth() +
   geom_hline(yintercept = 0, color = "red") +
@@ -1249,7 +1551,7 @@ check_redis_sae %>%
 check_redis_sae %>% 
   ggplot(aes(x = share_model_redis_pct,
              y = share_model_redis_pct01_infl)) +
-  geom_45() + 
+  geom_abline() + 
   geom_point(alpha = 0.1) +
   geom_smooth() +
   geom_hline(yintercept = 0, color = "red") +
@@ -1266,11 +1568,12 @@ check_redis_sae %>%
   # True -- they are often clearly better. This is never mind the fact that the 
   # slopes of the former are also closer to 1.
 ```
+
 ```{r how does the adjusted values compare with the original, eval = developer_mode}
 check_redis_sae %>% 
   ggplot(aes(x = share_model_trunc,
-             y = share_model_redis_pct)) +
-  geom_45() + 
+             y = share_model_redis_pct01_infl)) +
+  geom_abline() + 
   geom_point(alpha = 0.1) +
   geom_smooth() +
   facet_wrap(~vc_value)
@@ -1285,7 +1588,7 @@ comp_plot <- function(field1, field2) {
          !is.na(get(field2))) %>% 
   ggplot(aes(x = get(field1),
              y = get(field2))) +
-  geom_45() + 
+  geom_abline() + 
   geom_point(alpha = 0.1) +
   geom_smooth() + 
   scale_y_continuous(limits = c(0, 1)) +
@@ -1296,21 +1599,17 @@ comp_plot <- function(field1, field2) {
 comp_plot("share_acs5", "share_model_trunc")
 comp_plot("share_acs5", "share_model_redis_pct")
 comp_plot("share_acs5", "share_model_redis_pct01_infl")
-comp_plot("share_acs5", "share_acs5_redis_pct01_infl")
-comp_plot("share_acs5_redis_pct01_infl", "share_acs5_redis_pct01_infl")
 
 check_redis_sae %>% 
   group_by(vc_value) %>% 
   summarize(cor_acs5_sae  = cor(share_acs5, share_model_trunc,            use = "pairwise") %>% round(3),
             cor_acs5_pct = cor(share_acs5, share_model_redis_pct, use = "pairwise") %>% round(3),
             cor_acs5_infl = cor(share_acs5, share_model_redis_pct01_infl, use = "pairwise") %>% round(3),
-            cor_acs5_acs5 = cor(share_acs5, share_acs5_redis_pct01_infl, use = "pairwise") %>% round(3),
             
             var_acs5 = varNA(share_acs5) %>% round(3),
             var_sae  = varNA(share_model_trunc) %>% round(3),
             var_pct = varNA(share_model_redis_pct) %>% round(3),
-            var_infl = varNA(share_model_redis_pct01_infl) %>% round(3),
-            var_acs5_infl = varNA(share_acs5_redis_pct01_infl) %>% round(3)) %>% 
+            var_infl = varNA(share_model_redis_pct01_infl) %>% round(3)) %>% 
   ungroup()
   # Shows that correlations have dropped somewhat with each manipulation, but 
   # the variances are substantially more realistic, which is critical
@@ -1323,17 +1622,15 @@ check_redis_sae %>%
 est_vs_acs1 <- 
   check_redis_sae %>% 
   ungroup() %>%
-  select(GEOID, PUMA, vc_value, pop, share_acs1 = acs1_5pct_pct, 
+  select(GEOID, PUMA, vc_value, pop, 
          share_acs5, share_model_trunc, share_model_redis_pct,
-         share_model_redis_pct01_infl, share_acs5_redis_pct01_infl) %>% 
-  pivot_longer(cols = -c(GEOID, PUMA, vc_value, pop, share_acs1),
+         share_model_redis_pct01_infl) %>% 
+  pivot_longer(cols = -c(GEOID, PUMA, vc_value, pop),
                names_to = "method",
                values_to = "estimate") %>% 
   group_by(PUMA, vc_value, method) %>% 
   summarize(
     # Checking: this should be unique
-    share_acs1 = unique(share_acs1),
-    
     estimate_puma = weighted.mean(x = estimate, w = pop)
     ) %>% 
   mutate(
@@ -1341,27 +1638,30 @@ est_vs_acs1 <-
                     levels = c("share_acs5", 
                                "share_model_trunc", 
                                "share_model_redis_pct",
-                               "share_model_redis_pct01_infl",
-                               "share_acs5_redis_pct01_infl"))
-  )
+                               "share_model_redis_pct01_infl"))
+  ) %>% 
+  merge(check_stats_puma,
+        by = c("PUMA", "vc_value"))
 
 ggplot(est_vs_acs1,
        aes(x = share_acs1,
            y = estimate_puma,
            color = method)) +
-  geom_45() + 
+  geom_abline() + 
   geom_point() + 
   geom_smooth() +
   facet_grid(vc_value ~ method) +
   theme(legend.position = "bottom")
 
   # ACS5 (red) is inconsistent -- which makes sense because they are lagged!
-  # The original SAE estimates (green) show clear compression
-  # The raw redistributed estimates (blue) are highly consistent for each band
-  # The truncated/reinflated estimates (purple) are also highly consistent for
+  # The original SAE estimates (yellow) show clear compression
+  # The raw redistributed estimates (green) are highly consistent for each band
+  # The truncated/reinflated estimates (blue) are also highly consistent for
   #   each band, but of course also respect 0% floor and 100% ceiling for each 
   #   tract. Seem that this advantage did not create problems for PUMA-level 
   #   aggregates.
+  # The estimates taken directly from the ACS5 (purple) are also impressively 
+  #   consistent with the ACS1
 
 ```
 
@@ -1406,7 +1706,7 @@ ggplot(var_prop_acs5_sae,
            y = avg_sae_pov,
            label = PUMA)) + 
   geom_point() + 
-  geom_45() +
+  geom_abline() +
   geom_text(vjust = 1) +
   labs(title = "Comparison of PUMA-Level ACS5 and SAE Estimates (Simple averages)",
          x = "ACS5 Poverty Rate",
@@ -1676,6 +1976,7 @@ ggplotly(plot_puma_aggs_pcts, tooltip = "group")
 
 puma_agg_pop <- 
   pop_by_age %>% 
+  rename(GEOID = GEOID_TR20) %>% 
   merge(geo_crosswalk[j = .(GEOID, PUMA = as.numeric(PUMA))] %>% unique(),
         by = "GEOID") %>% 
   as.data.table() %>% 

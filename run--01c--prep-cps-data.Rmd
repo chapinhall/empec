@@ -14,12 +14,14 @@ developer_mode <- FALSE
 
 ```{r}
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("method--read-customization-file.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
 ```{r read in cps data and documentation}
+# Remove the file extension from the `cps_raw` filename
+cps_raw <- str_replace(cps_raw, "\\.\\w+", "")
 cps_documentation <- read_ipums_ddi(glue("{input_path}{cps_raw}.xml"))
 
 if (FALSE) {
@@ -52,7 +54,7 @@ cps_sub <-
                                            # Using both ASEC and monthly causes some issues -- e.g., generate WTFINL == NA for March ASEC; double counts individuals for March
                                            # See https://cps.ipums.org/cps/cps_linking_documentation.shtml
     (!STATEFIP %in% c(2, 15))          &   # This excludes HI and AK
-     between(RELATE, 101, 1001)] %>%        # This subsets to only related members of the family
+     between(RELATE, 101, 1001)] %>%        # This subsets to only related members of the household
   dplyr::select(-COUNTY, -OCC, -CLASSWKR, -FAMID) # dropping variables not currently used.
 
 rm(cps)
@@ -335,6 +337,14 @@ cps_faminc_vals <- sort(unique(cps_pov$FAMINC))
 
 ```
 
+```{r get fpl threshold for ccdf for CPS calcs}
+# It's not strictly the case that this is provided directly by users, because a
+# custom income threshold such as based on state median income may have been 
+# provided
+
+ccdf_inc_thresh_fpl <- get_fpl_thresh_for_ccdf()
+```
+
 
 ```{r develop income to poverty ratio and ccdf/ccap eligibility for cps considering economic impact payments}
 cps_pov <-
@@ -361,8 +371,8 @@ cps_pov <-
              # Develop categories of household income to align with those in ACS1, which define the SAE targets
              fam_incpov_ratio_cat_byMix       = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.00, 2.00, 4.00)),
              fam_incpov_ratio_cat_byMix_adj   = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.00, 2.00, 4.00)),
-             fam_incpov_ratio_cat_hs_ccdf     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 1.00, local_ccdf_thresh/100, 3.50, 5.00)),
-             fam_incpov_ratio_cat_hs_ccdf_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 1.00, local_ccdf_thresh/100, 3.50, 5.00)),
+             fam_incpov_ratio_cat_hs_ccdf     = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 1.00, ccdf_inc_thresh_fpl/100, 4.00)),
+             fam_incpov_ratio_cat_hs_ccdf_adj = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 1.00, ccdf_inc_thresh_fpl/100, 4.00)),
              fam_incpov_ratio_cat_to185       = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = c(0, 0.50, 1.25, 1.85, 4.00)),
              fam_incpov_ratio_cat_to185_adj   = bin_incpov_ratio(fam_incpov_ratio_adj, pov_breaks = c(0, 0.50, 1.25, 1.85, 4.00)),
              fam_incpov_ratio_cat_by50        = bin_incpov_ratio(fam_incpov_ratio,     pov_breaks = seq(0, 4, by = 0.50)),
@@ -386,6 +396,25 @@ cps_pov <-
              fam_incpov_ratio_le4.00     = 1*(fam_incpov_ratio     <= 4.0),
              fam_incpov_ratio_le4.00_adj = 1*(fam_incpov_ratio_adj <= 4.0))]
 ```
+
+```{r if requested -- generate flags for income to custom threshold ratio}
+if (exists("custom_income_thresh")) {
+  # Check that all family sizes present in the data are represented in the custom
+  # spec file
+  if (!maxNA(cps_pov$fam_size) %in% custom_income_thresh$fam_size) {
+    
+    warning(glue("The `custom_income_thresh` table does not contain all family sizes present in the Current Population Survey microdata. It must reflect family sizes up through `maxNA(cps_pov$fam_size)`")) 
+  }
+  
+  cps_pov <- 
+    cps_pov %>% 
+    merge(custom_income_thresh,
+          by = "fam_size",
+          all.x = TRUE) %>% 
+    .[j = incratio_thresh := faminc_adj / inc_thresh]
+}
+```
+
 
 ```{r check the correspondence of adjusted and unadjusted FAMINC numbers, eval = developer_mode}
 income_adj_plot <- 
@@ -495,7 +524,6 @@ ggplot(comp_sub[faminc_draw < 150000],
                        "Adjusted income below top-coded limit of $150,000"),
        x = "EIP-Adjusted Family Income (Basic Monthly)",
        y = "Summed Wage and UI (ASEC)") +
-  myTheme +
   theme(legend.position = "bottom")
 ```
 
@@ -519,8 +547,7 @@ ggplot(comp_sub[faminc_draw < 150000],
   geom_smooth(formula = y ~ x, 
               method = "rolling_median", 
               se = FALSE) +
-  geom_abline(intercept = 0,
-              slope = 1) +
+  geom_abline() +
   scale_y_continuous(labels = comma) +
   scale_x_continuous(labels = comma) +
   scale_color_discrete(name = "") +
@@ -529,7 +556,6 @@ ggplot(comp_sub[faminc_draw < 150000],
                        "Adjusted income below top-coded limit of $150,000"),
        x = "Family Income (Basic Monthly)",
        y = "Summed Total Income (ASEC)") +
-  myTheme +
   theme(legend.position = "bottom")
 
 ```
@@ -593,27 +619,43 @@ rm(cps_pov, cps_timing)
 gc()
 ```
 
-
 ```{r merge ccdf family measures into income}
+
+# Determine which income ratio to use, based on whether custom values were specified
+if (exists("custom_income_thresh")) {
+  cps_pov_monthly[j = my_incratio := incratio_thresh]
+} else {
+  cps_pov_monthly[j = my_incratio := fam_incpov_ratio_adj]
+    # /!\ Note that previous implementations have use both "_adj" and non-adjusted
+    # income. This is something that deserves to be generalized, given that 
+    # this distinction will only be meaningful for estimation in time periods
+    # that intersects the COVID-19 pandemic, or represent other periods with 
+    # economic impact payments that impact income in a way that doesn't influence
+    # program eligibility
+}
+
 # Calculate CCDF/CCAP eligibility
 cps_elig <- 
   cps_pov_monthly %>% 
   merge(cps_ccdf_flags,
         by = c("YEAR", "MONTH", "YEAR_MONTH", "CPSID"),
         all.x = TRUE) %>% 
-  .[j = `:=`(ccdf_elig_tight_inc     = ccdf_elig_tight * (fam_incpov_ratio     <= local_ccdf_thresh/100),
-             ccdf_elig_tight_inc_adj = ccdf_elig_tight * (fam_incpov_ratio_adj <= local_ccdf_thresh/100),
-             ccdf_elig_loose_inc     = ccdf_elig_loose * (fam_incpov_ratio     <= local_ccdf_thresh/100),
-             ccdf_elig_loose_inc_adj = ccdf_elig_loose * (fam_incpov_ratio_adj <= local_ccdf_thresh/100))]
+  
+  # Generate one eligibility field for each cutpoint specified
+  .[j = paste0("ccdf_elig_incratio_", local_ccdf_incratio_cuts) :=
+      lapply(local_ccdf_incratio_cuts, 
+             function(x) {
+               1*ccdf_elig_tight*(my_incratio <= x/100)
+             })]
 ```
+
 
 ```{r Examine rates of cross-classification between Head Start PFA and CCDF, eval = developer_mode}
 cps_elig[j = .(n = comma(.N)), 
          by = .(#fam_incpov_ratio_cat_by100,
                 fam_incpov_ratio_cat_by100_adj,
                 #ccdf_elig_tight_inc,
-                ccdf_elig_tight_inc_adj,
-                ccdf_elig_loose_inc_adj)] %>% 
+                get(glue("ccdf_elig_incratio_{local_ccdf_incratio_base}")))] %>% 
   .[order(fam_incpov_ratio_cat_by100_adj)]
 ```
 
@@ -676,24 +718,26 @@ dim(cps_base_hoh); dim(cps_post_hoh)
 # /!\ We should obtain weights that are as of baseline. Here and in the 
 # calculations below we are only pulling final weights.
 cps_child_base <- 
-  cps_elig[is_baseline == TRUE & between(AGE, 0, 14)] %>% 
-  .[j = .(CPSID, CPSIDP, WTFINL, HWTFINL, 
-          YEAR, MONTH, YEAR_MONTH, AGE, is_validation, METRO, 
-          child_agegroup = bin_age(AGE),
-          has_schage_kid_base,
-          n_kids_le5,
-          spouse_present,
-          ccdf_elig_tight, ccdf_elig_loose,
-          fSpouse_present = factor(spouse_present,
-                                   levels = 0:1, 
-                                   labels = c("No Spouse Present, Base",
-                                              "Spouse Present, Base")),
-          faminc_adj,                   fam_incpov_ratio,
-          fam_incpov_ratio_cat_by50,    fam_incpov_ratio_cat_by50_adj, 
-          fam_incpov_ratio_cat_by75,    fam_incpov_ratio_cat_by75_adj,
-          fam_incpov_ratio_cat_by100,   fam_incpov_ratio_cat_by100_adj,
-          fam_incpov_ratio_cat_to185,   fam_incpov_ratio_cat_to185_adj,
-          fam_incpov_ratio_cat_hs_ccdf, fam_incpov_ratio_cat_hs_ccdf_adj)] %>% 
+  cps_elig[is_baseline == TRUE & between(AGE, 0, kid_age_thres_p+1)] %>% 
+  .[j = c("CPSID", "CPSIDP", "WTFINL", "HWTFINL", 
+          "YEAR", "MONTH", "YEAR_MONTH", "AGE", "is_validation", 'METRO', 
+          "has_schage_kid_base",
+          "n_kids_le5",
+          "spouse_present",
+          "ccdf_elig_tight", "ccdf_elig_loose",
+          "faminc_adj",                   "fam_incpov_ratio",
+          "fam_incpov_ratio_cat_by50",    "fam_incpov_ratio_cat_by50_adj", 
+          "fam_incpov_ratio_cat_by75",    "fam_incpov_ratio_cat_by75_adj",
+          "fam_incpov_ratio_cat_by100",   "fam_incpov_ratio_cat_by100_adj",
+          "fam_incpov_ratio_cat_to185",   "fam_incpov_ratio_cat_to185_adj",
+          "fam_incpov_ratio_cat_hs_ccdf", "fam_incpov_ratio_cat_hs_ccdf_adj"),
+    with = FALSE] %>% 
+  .[j = `:=`(fSpouse_present = 
+               factor(spouse_present,
+                      levels = 0:1, 
+                      labels = c("No Spouse Present, Base",
+                                 "Spouse Present, Base")),
+             child_agegroup = bin_age(AGE))] %>% 
   merge(cps_base_hoh,
         by = "CPSID",
         all.x = TRUE)
@@ -722,24 +766,37 @@ Relevant measures:
 # child-level.
 cps_post <-
   cps_elig[is_post == TRUE & RELATE == 101 & months_since_base == 15,
-           j = .(CPSID,
-                 YEAR, MONTH, HWTFINL, is_validation,
-                 faminc_adj, fam_incpov_ratio,
-                 hoh_empl_post         = 1*(EMPSTAT == 10),
-                 incpov_le50_post      = fam_incpov_ratio_le.5,
-                 incpov_le50_post_adj  = fam_incpov_ratio_le.5_adj,
-                 incpov_le100_post     = fam_incpov_ratio_le1,
-                 incpov_le100_post_adj = fam_incpov_ratio_le1_adj,
-                 incpov_le185_post     = fam_incpov_ratio_le1.85,
-                 incpov_le185_post_adj = fam_incpov_ratio_le1.85_adj,
-                 incpov_le200_post     = fam_incpov_ratio_le2,
-                 incpov_le200_post_adj = fam_incpov_ratio_le2_adj,
-                 incpov_le225_post     = fam_incpov_ratio_le2.25,
-                 incpov_le225_post_adj = fam_incpov_ratio_le2.25_adj,
-                 incpov_le400_post     = fam_incpov_ratio_le4.00,
-                 incpov_le400_post_adj = fam_incpov_ratio_le4.00_adj,
-                 ccdf_elig_tight_inc, ccdf_elig_tight_inc_adj,
-                 ccdf_elig_loose_inc, ccdf_elig_loose_inc_adj)]
+           j = c("CPSID",
+                 "YEAR", "MONTH", "HWTFINL", 'is_validation',
+                 "faminc_adj", "fam_incpov_ratio",
+                 "EMPSTAT",
+                 "fam_incpov_ratio_le.5",
+                 "fam_incpov_ratio_le.5_adj",
+                 "fam_incpov_ratio_le1",
+                 "fam_incpov_ratio_le1_adj",
+                 "fam_incpov_ratio_le1.85",
+                 "fam_incpov_ratio_le1.85_adj",
+                 "fam_incpov_ratio_le2",
+                 "fam_incpov_ratio_le2_adj",
+                 "fam_incpov_ratio_le2.25",
+                 "fam_incpov_ratio_le2.25_adj",
+                 "fam_incpov_ratio_le4.00",
+                 "fam_incpov_ratio_le4.00_adj",
+                 str_subset(cn(cps_elig), "ccdf_elig_incratio_")),
+           with = FALSE] %>% 
+  .[j = hoh_empl_post := 1*(EMPSTAT == 10)] %>% 
+  rename(incpov_le50_post      = fam_incpov_ratio_le.5,
+         incpov_le50_post_adj  = fam_incpov_ratio_le.5_adj,
+         incpov_le100_post     = fam_incpov_ratio_le1,
+         incpov_le100_post_adj = fam_incpov_ratio_le1_adj,
+         incpov_le185_post     = fam_incpov_ratio_le1.85,
+         incpov_le185_post_adj = fam_incpov_ratio_le1.85_adj,
+         incpov_le200_post     = fam_incpov_ratio_le2,
+         incpov_le200_post_adj = fam_incpov_ratio_le2_adj,
+         incpov_le225_post     = fam_incpov_ratio_le2.25,
+         incpov_le225_post_adj = fam_incpov_ratio_le2.25_adj,
+         incpov_le400_post     = fam_incpov_ratio_le4.00,
+         incpov_le400_post_adj = fam_incpov_ratio_le4.00_adj)
 dim(cps_post)
 cps_post <- unique(cps_post)
 dim(cps_post)
@@ -796,12 +853,12 @@ save(cps_hoh_pre_post,
 
 
 ```{r compare head of household incomes at pre and post, eval = developer_mode}
-ggplot(cps_hoh_pre_post[YEAR_b == 2019],
+ggplot(cps_hoh_pre_post[YEAR_b == {base_year}],
        aes(faminc_draw_b,
            faminc_draw_p)) +
   geom_point(alpha = 0.2) + 
-  geom_45(color = "blue", 
-          linewidth = 1) +
+  geom_abline(color = "blue", 
+              linewidth = 1) +
   geom_smooth(color = "red")
 ```
 
@@ -812,8 +869,8 @@ ggplot(cps_hoh_pre_post[j = is_black := ifelse(RACE_b == 200, "black HOH", "non-
            color = has_young_kids_base_b)) +
   # geom_point(alpha = 0.1) + 
   facet_grid(paste0("Base: ", YEAR_b) ~ is_black) +
-  geom_45(color = "blue", 
-          linewidth = 1) +
+  geom_abline(color = "blue", 
+              linewidth = 1) +
   geom_smooth(se = FALSE) +
   scale_color_manual(name = "",
                      values = c("green", "purple")) +
@@ -835,8 +892,8 @@ ggplot(cps_hoh_pre_post[j = ed_lt12 := ifelse(EDUC_b < 70, "Lt HS Ed", "HS Ed or
            color = has_young_kids_base_b)) +
   # geom_point(alpha = 0.1) + 
   facet_grid(paste0("Base: ", YEAR_b) ~ ed_lt12) +
-  geom_45(color = "blue", 
-          linewidth = 1) +
+  geom_abline(color = "blue", 
+              linewidth = 1) +
   geom_smooth(se = FALSE) +
   scale_color_manual(name = "",
                      values = c("green", "purple")) +
@@ -865,8 +922,8 @@ ggplot(cps_trans,
        aes(x = faminc_adj_b,
            y = faminc_adj_p)) +
   geom_point(alpha = 0.1) + 
-  geom_45(color = "blue", 
-          linewidth = 1) +
+  geom_abline(color = "blue", 
+              linewidth = 1) +
   geom_smooth(color = "red")
 ```
 
@@ -883,16 +940,16 @@ ggplot(cps_trans[YEAR_b == 2019],
        aes(x = faminc_adj_b,
            y = faminc_adj_p)) +
   geom_point() + 
-  geom_45(color = "blue", 
-          linewidth = 1) +
+  geom_abline(color = "blue", 
+              linewidth = 1) +
   geom_smooth(color = "red")
 
 ggplot(cps_trans[YEAR_b == 2019],
        aes(x = fam_incpov_ratio_b,
            y = fam_incpov_ratio_p)) +
   geom_point() + 
-  geom_45(color = "blue", 
-          linewidth = 1) +
+  geom_abline(color = "blue", 
+              linewidth = 1) +
   geom_smooth(color = "red")
 ```
 

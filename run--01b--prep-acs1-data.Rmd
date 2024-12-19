@@ -12,8 +12,8 @@ print_documentation <- FALSE
 
 ```{r }
 # run scripts for necessary packages and objects as necessary
-if (!"chHexs"        %in% objects()) source("settings--main.R", echo = FALSE)
-if (!"my_state_abbr" %in% objects()) source("settings--profile.R", echo = FALSE)
+if (!"meanNA"        %in% objects()) source("settings--main.R", echo = FALSE)
+if (!"my_state_abbr" %in% objects()) source("method--read-customization-file.R", echo = FALSE)
 if (!"bin_age"       %in% objects()) source("method--general-helper-functions.R", echo = FALSE)
 ```
 
@@ -24,7 +24,7 @@ my_pums <-
          survey == "acs1") %>% 
   select(var_code, var_label, level, val_min, val_max, val_label)
 
-acs1_save_file <- glue("{input_path}census_acs1_{base_year}.csv")
+acs1_save_file <- glue("{input_path}census_acs1_{base_year}_{my_output_tag}.csv")
 if (!file.exists(acs1_save_file)) {
   source("pull--acs1-microdata.R")
 } else {
@@ -39,13 +39,15 @@ acs1[j = PUMA := str_pad(PUMA, width = 5, side = "left", pad = "0")]
 ```{r develop fields for the relationship variable depending on its source}
 if (base_year <= 2018) {
   acs1[j = cRel := 
-         case_when(rel_var == 00 ~ "Head",
-                   rel_var == 01 ~ "Spouse",
+         case_when(rel_var == 00                    ~ "Head",
+                   rel_var == 01                    ~ "Spouse",
+                   rel_Var %in% c("02", "03", "04") ~ "Child",
                    TRUE ~ "Other relationship")]
 } else {
   acs1[j = cRel := 
-         case_when(rel_var == 20 ~ "Head",
+         case_when(rel_var == 20          ~ "Head",
                    rel_var %in% c(21, 23) ~ "Spouse",
+                   rel_var %in% 25:27     ~ "Child",
                    TRUE ~ "Other relationship")]
 }
 ```
@@ -66,7 +68,7 @@ my_state_fip <-
   unique()
 
 acs1 <- 
-  acs1[TYPE %in% c(1) &
+  acs1[TYPEHUGQ %in% c(1) &
          ST == my_state_fip &
          YEAR == max(YEAR)]
 
@@ -117,8 +119,9 @@ acs1_hoh <-
            hoh_hispanic = 1*(HISP != 1))] %>% # Note: multiplication by 1 converts the TRUE/FALSE output to 1/0
   .[j = hoh_industry_vulnerable := ifelse(hoh_industry == "NA", 
                                           "NA", 
-                                          str_detect(hoh_industry, "educhealth|food"))] %>% # Note: the second argument to str_detect() uses regular experessions. For reference, see e.g. https://regexone.com/
-  dplyr::select(YEAR, SAMPLE, SERIALNO, hoh_educ, hoh_industry, hoh_industry_vulnerable, hoh_race, hoh_hispanic)
+                                          str_detect(hoh_industry, "educhealth|food"))] %>% # Note: the second argument to str_detect() uses regular expressions. For reference, see e.g. https://regexone.com/
+  dplyr::select(YEAR, #SAMPLE, 
+                SERIALNO, hoh_educ, hoh_industry, hoh_industry_vulnerable, hoh_race, hoh_hispanic)
 ```
 
 ```{r view variables relevant to constructing household-level measures, eval = developer_mode, results = "asis"}
@@ -144,10 +147,12 @@ An additional set of indicators is built using all information about household m
 # SCH -- 0 - N/A (less than 3 yrs old), 1 - No, has not attended in the last 3 months, 2 - Yes, public school or public college, 3 - Yes, private school or college or home school
 
 acs1_hh <-
-  acs1 %>% 
+  copy(acs1) %>% 
+  .[j = fam_size := .N,
+    by = .(YEAR, SERIALNO)] %>% 
   .[i = cRel %in% c("Head", "Spouse"), # subset to only householder and spouse records
-    by = .(YEAR, SAMPLE, SERIALNO),
-    j = .(spouse_present = maxNA(cRel == "Spouse"),
+    by = .(YEAR, SERIALNO, fam_size),
+    j = .(spouse_present = maxNA(cRel == "Spouse"),             # note: spouse_present is hh-level var
           all_work_sch   = minNA(ESR %in% 1:2 | SCH %in% 2:3))] # corresponds to working, or in school
 
   # /!\ Not built, but possibly of interest may be gender of households, and
@@ -160,7 +165,7 @@ acs1_hh <-
 if (FALSE) {
   check <- 
     merge(acs1[j = .(YEAR, SERIALNO, cRel, SEX, AGEP, SCH, ESR)],
-          acs1_hh[j = .(YEAR, SERIALNO, spouse_present, all_work_sch)],
+          acs1_hh[j = .(YEAR, SERIALNO, fam_size, spouse_present, all_work_sch)],
           all = TRUE) %>% 
     .[order(SERIALNO, YEAR)]
   View(check)
@@ -198,11 +203,20 @@ Besides the indicators above, all other relevant characteristics are measured re
   - 0-100% FPL, 100-200%, 200-300%, 300-400%, 400%+ (useful for simpler reference)
 * Combinations of partitions defined above to both represent share categories predicted in the SAE method, as well as direct calculation of CCDF eligibility rates in the baseline year
 
+```{r get fpl threshold for ccdf for ACS1 calcs}
+# It's not strictly the case that this is provided directly by users, because a
+# custom income threshold such as based on state median income may have been 
+# provided
+
+ccdf_inc_thresh_fpl <- get_fpl_thresh_for_ccdf()
+```
+
+
 ```{r prepare ACS 1-year microdata for children}
 acs1_child <- 
-  acs1[AGEP <= 14] %>% 
+  acs1[AGEP <= kid_age_thres_p+1] %>% 
   merge(acs1_hoh, 
-        by = c("YEAR", "SAMPLE", "SERIALNO"), 
+        by = c("YEAR", "SERIALNO"), 
         all.x = TRUE) %>%
   merge(acs1_hh,
         by = c("YEAR", "SERIALNO"),
@@ -215,21 +229,21 @@ acs1_child <-
                        TRUE ~ "other_multiple"),
            child_hispanic = 1*(HISP != 1),
            fam_incpov_ratio_cat_mix     = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.00, 2.00, 4.00)),
-           fam_incpov_ratio_cat_hs_ccdf = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 1.00, local_ccdf_thresh/100, 3.50, 5.00)),
+           fam_incpov_ratio_cat_hs_ccdf = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 1.00, ccdf_inc_thresh_fpl/100, 4.00)),
            fam_incpov_ratio_cat_to185   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.50, 1.25, 1.85, 4.00)),
            fam_incpov_ratio_cat_by50    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 0.5)),
            fam_incpov_ratio_cat_by75    = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = c(0, 0.75, 1.50, 2.25, 4.00)),
            fam_incpov_ratio_cat_by100   = bin_incpov_ratio(fam_incpov_ratio, pov_breaks = seq(0, 4, by = 1.0)),
            obs_weight = PWGTP)] %>% 
-  .[j = `:=`(work_spouse_status = paste(ifelse(all_work_sch   == 1, "WorkElig",      "NotWorkElig"),
-                                        ifelse(spouse_present == 1, "SpousePresent", "NoSpousePresent"),
-                                        sep = "_"),
+  .[j = `:=`(work_spouse_status    = paste(ifelse(all_work_sch == 1, "WorkElig",      "NotWorkElig"),
+                                           ifelse(spouse_present == 1, "SpousePresent", "NoSpousePresent"),
+                                           sep = "_"),
              work_incpov_status185 = paste(ifelse(all_work_sch == 1, "WorkElig", "NotWorkElig"),
-                                        fam_incpov_ratio_cat_to185,
-                                        sep = "_"),
+                                           fam_incpov_ratio_cat_to185,
+                                           sep = "_"),
              work_incpov_status100 = paste(ifelse(all_work_sch == 1, "WorkElig", "NotWorkElig"),
-                                        fam_incpov_ratio_cat_by100,
-                                        sep = "_"),
+                                           fam_incpov_ratio_cat_by100,
+                                           sep = "_"),
              work_incpov_status75  = paste(ifelse(all_work_sch == 1, "WorkElig", "NotWorkElig"),
                                            fam_incpov_ratio_cat_by75,
                                            sep = "_"),
@@ -237,6 +251,52 @@ acs1_child <-
                                            fam_incpov_ratio_cat_hs_ccdf,
                                            sep = "_"))]
 ```
+
+```{r merge in the custom income thresholds if specified}
+if (exists("custom_income_thresh")) {
+  # Check that all family sizes present in the data are represented in the custom
+  # spec file
+  if (!maxNA(acs1_child$fam_size) %in% custom_income_thresh$fam_size) {
+    
+    warning(glue("The `custom_income_thresh` table does not contain all family ",
+                 "sizes present in the ACS 1-year microdata. It must reflect ",
+                 "family sizes up through {maxNA(acs1_child$fam_size)}.")) 
+  }
+  
+  acs1_child <- 
+    acs1_child %>% 
+    merge(custom_income_thresh,
+          by = "fam_size",
+          all.x = TRUE) %>% 
+    .[j = incratio_thresh := FINCP / inc_thresh]
+}
+```
+
+```{r generate ccdf eligibility flags}
+# Generate multiple flags of CCDF eligibility at the potentially-multiple
+# income-to-threshold ratios specified
+
+# Note: these are used in 03b to generate PUMA-level age breakdowns within
+# eligibility status
+
+# Determine which income ratio to use, based on whether custom values were specified
+if (exists("custom_income_thresh")) {
+  acs1_child[j = my_incratio := incratio_thresh]
+} else {
+  acs1_child[j = my_incratio := fam_incpov_ratio]
+}
+
+# Generate one eligibility field for each cutpoint specified
+acs1_child <-
+  acs1_child %>% 
+  .[j = paste0("ccdf_elig_incratio_", local_ccdf_incratio_cuts) :=
+      lapply(local_ccdf_incratio_cuts, 
+             function(x) {
+               1*all_work_sch*(my_incratio <= x/100)
+             })]
+  
+```
+
 
 ```{r check on small cells in the partitions constructed above, eval = developer_mode}
 # /!\ Note: this needs to be checked carefully for each given setting, because
@@ -286,10 +346,10 @@ acs1_child <-
                           # that start with "NotWorkElig" and do *not* follow with 0%
                           # in practice, this groups all larger cells
                         glue("NotWorkElig_(0%|100%)")) ~ 
-                          glue("NotWorkElig_0%_{local_ccdf_thresh}%"),
+                          glue("NotWorkElig_0%_{local_ccdf_incratio_base}%"),
              str_detect(work_incpov_statushs,
                         glue("NotWorkElig_[^(0%|100%)]")) ~
-                          glue("NotWorkElig_{local_ccdf_thresh}_500%"),
+                          glue("NotWorkElig_{local_ccdf_incratio_base}%+"),
              TRUE ~ work_incpov_statushs))
   # Note that we intentionally leave "WorkElig_0%_100%" as an often-smaller
   # cell because it represents an important single quantity of children in
@@ -317,7 +377,7 @@ elig_stats_puma <-
   acs1_child %>% 
   filter(between(AGEP, 0, 5)) %>% 
   mutate(ccdf_inc_elig = fam_incpov_ratio_cat_hs_ccdf %in% 
-                           c("0%-100%", glue("100%-{local_ccdf_thresh}%")),
+                           c("0%-100%", glue("100%-{local_ccdf_incratio_base}%")),
          ccdf_elig     = str_detect(work_incpov_statushs, "^WorkElig_(0%|100%)")) %>% 
   group_by(PUMA) %>% 
   summarize(
@@ -399,7 +459,7 @@ elig_stats_puma_stack %>%
 
 ```{r verify that data sets only have one obs per child, eval = developer_mode}
 acs1_child %>% 
-  group_by("SAMPLE", "SERIALNO", "SPORDER") %>% 
+  group_by("SERIALNO", "SPORDER") %>% 
   summarize(count = n()) %>% 
   group_by(count) %>% 
   tally() 
@@ -419,7 +479,7 @@ gc()
    acs1_child %>% 
    filter(between(AGEP, 0, 5)) %>% 
    group_by(PUMA) %>% 
-   mutate(faminc_lt_thresh = fam_incpov_ratio <= local_ccdf_thresh/100,
+   mutate(faminc_lt_thresh = fam_incpov_ratio <= local_ccdf_incratio_base/100,
           workelig = all_work_sch == 1) %>% 
    summarize(sample_n = n(),
              n = sum(PWGTP),
@@ -466,102 +526,11 @@ acs1_puma_stats <-
                    pct_pov_check = apply(acs1_boot$t, 2, mean)),
                    pct_pov_se    = sqrt(apply(acs1_boot$t, 2, var)))
 ```
-## Pull Relevant ACS 1-Year Data Aggregate Tables
 
-```{r}
-# Auto-pulls of ACS1 aggregate data is yielding some NA values for estimates
-# Other attempts to automatically pull PUMA-level data in batches from the Census
-# (https://data.census.gov/) produced the same error. Only when PUMAs were 
-# pulled manually, individually 
-
-acs1_tables <- 
-  get_acs(geography = "puma", 
-          state     = my_state_abbr,
-          county    = ifelse(exists("my_county"), my_county, NULL),
-          survey    = "acs1",
-          table     = "B17024",
-          year      = base_year)
-
-acs1_tables_labeled <- 
-  label_acs(acs1_tables,
-            year = base_year,
-            survey = "acs1")  
-
-# /!\ The API pulls of ACS1 aggregate tables is resulting in NAs. These code 
-# chunks reflect ad hoc, manual pulls of individually pulled problematic PUMAs 
-# to avoid these missings
-if (base_year == 2022) {
-  acs1_tables_labeled <-
-    openxlsx::read.xlsx(glue("{input_path}acs_puma_cook_b17024_2022.xlsx"),
-                        sheet = "in") %>%
-    merge(acs1_tables_labeled %>% select(variable, label) %>% unique(),
-          by = "variable",
-          all.x = TRUE)
-} else if (base_year == 2018) {
-  acs1_tables_labeled <-
-    read.csv(glue("{input_path}acs_pov_estimates_2018.csv"),
-             stringsAsFactors = FALSE) %>%
-    mutate(estimate = as.numeric(str_replace_all(estimate, ",", "")),
-           moe      = as.numeric(str_replace_all(moe,      ",", ""))) %>% 
-    merge(acs1_tables_labeled %>% select(variable, label) %>% unique(),
-          by = "variable",
-          all.x = TRUE)
-}
-
-acs1_5pct_puma <- 
-  acs1_tables_labeled %>% 
-  mutate(age = 
-           case_when(str_detect(label, "Under 6") ~ "lt6",
-                     str_detect(label, "6 to 11") ~ "6to11"),
-         faminc = 
-           label %>% 
-           str_replace(".+Under \\.50", "lt50") %>% 
-           str_replace(".+!(\\d?\\.\\d+) to (\\d?\\.\\d+)", "\\1to\\2") %>% 
-           str_replace(".+5.00 and over", "ge500") %>% 
-           str_replace_all("\\.", ""),
-         faminc = ifelse(faminc == label, "tot", faminc)) %>% 
-  filter(!is.na(age)) %>% 
-  rename(est = estimate) %>% 
-  pivot_longer(cols = c(est, moe)) %>% 
-  unite("meas", name, faminc) %>% 
-  select(-label, -variable, -NAME) %>% 
-  pivot_wider(names_from = "meas",
-              values_from = "value") %>% 
-  
-  # Recreate a range of values to accord with our income-to-poverty categories
-  mutate(acs1_agg_0_50_n     = est_lt50,
-         acs1_agg_0_100_n    = est_lt50 + est_50to74 + est_75to99,
-         acs1_agg_50_100_n   =            est_50to74 + est_75to99,
-         acs1_agg_100_200_n  = est_100to124 + est_125to149 + est_150to174 +
-                               est_175to184 + est_185to199,
-         acs1_agg_200_300_n  = est_200to299,
-         acs1_agg_300_400_n  = est_300to399,
-         acs1_agg_200_400_n  = est_200to299 + est_300to399,
-         acs1_agg_400_n      = est_400to499 + est_ge500,
-         
-         acs1_agg_0_50_pct     = acs1_agg_0_50_n    / est_tot,
-         acs1_agg_0_100_pct    = acs1_agg_0_100_n   / est_tot,
-         acs1_agg_50_100_pct   = acs1_agg_50_100_n  / est_tot,
-         acs1_agg_100_200_pct  = acs1_agg_100_200_n / est_tot,
-         acs1_agg_200_300_pct  = acs1_agg_200_300_n / est_tot,
-         acs1_agg_300_400_pct  = acs1_agg_300_400_n / est_tot,
-         acs1_agg_200_400_pct  = acs1_agg_200_400_n / est_tot,
-         acs1_agg_400_pct      = acs1_agg_400_n     / est_tot,
-         
-         PUMA = str_replace(GEOID, glue("^{my_state_fip}"), "")) %>% 
-  select(-matches("^(est|moe)"))
-
-if (FALSE) {
-  acs1_5pct_puma %>% 
-    filter(PUMA == "03167") %>% 
-    pivot_longer(cols = -c(GEOID, PUMA, age))  
-}
-```
 
 
 ```{r}
 save(acs1_child,
      acs1_puma_stats,
-     acs1_5pct_puma,
      file = glue("{output_path}acs1_data_{my_output_tag}.Rda"))
 ```
