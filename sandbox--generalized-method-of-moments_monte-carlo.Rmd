@@ -565,3 +565,67 @@ my_setup$ix_gt %>%
 # Examine Output
 
 
+# Develop Real-World Data Input for GMM
+
+```{r}
+#| label: select a previous ELPEP run to work from
+
+elpep_customization_file <- "C:/Users/mader-nick1/OneDrive - National Opinion Research Center/Documents/projects/elpep/il-ests/Interface for Specifying Custom ELPEP Eligibility Estimates - Chicago.xlsm"
+source("settings--main.R")
+source("method--read-customization-file.R")
+source("method--pull-and-process-acs5.R")
+
+output_path <- "C:/Users/mader-nick1/OneDrive - National Opinion Research Center/Documents/projects/elpep/Illinois ests from CH/"
+
+for (f in c("geo", "acs1", "cps", "acs5", "pop")) {
+  load(file = glue("{output_path}{f}_data_{my_output_tag}.Rda"))
+}
+
+
+```
+
+```{r}
+#| label: pull income distribution
+
+try(detach("package:sae", unload = TRUE))
+try(detach("package:emdi", unload = TRUE))
+try(detach("package:lme4", unload = TRUE))
+try(detach("package:MASS", unload = TRUE))
+lPull_acs5 <- 
+  lapply(c("B19080", "B19081", "B19082"), 
+         pull_table,
+         year = 2023,
+         state = "IL",
+         county = NULL)
+lReshaped_acs5 <- 
+  lapply(lPull_acs5,
+         \(x) {
+           x %>% 
+             select(GEOID, quint_meas, quintile, est = estimate, se) %>% 
+             pivot_longer(cols = c(est, se)) %>% 
+             unite(label, quint_meas, quintile, name) %>% 
+             pivot_wider(names_from = label,
+                         values_from = value)
+           })
+
+acs5_quintiles <- 
+  Reduce(\(x,y) merge(x, y, by = "GEOID"), 
+         lReshaped_acs5)
+
+```
+
+
+```{r}
+#| label: read and select ACS5 data
+
+acs5tract_gmm <- 
+  acs5tract %>% 
+  select(GEOID, incpov_r0to100_est, incpov_r0to100_se)
+
+```
+
+```{r}
+#| label: read 
+#| 
+```
+

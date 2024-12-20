@@ -19,6 +19,7 @@ for (p in packages.list) {
 cn <- function(x) colnames(x)
 sub_cn <- function(x, pattern) str_subset(cn(x), pattern)
 ep <- function(x) eval(parse(text = x))
+str_detect_upper <- function(x, pat) str_detect(str_to_upper(x), pat)
 
 #------------------------------------------------------------------------------#
 ### Pull Census data -----------------------------------------------------------
@@ -107,7 +108,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   # See e.g. table B10051
   
   # Recode Sex -----------------------------------------------------------------
-  if (any(str_detect(my_concepts, "SEX"))) {
+  if (any(str_detect_upper(my_concepts, "SEX"))) {
     table_meta <-
       table_meta %>% 
       mutate(sex = case_when(str_detect(label, "Male")   ~ "Male",
@@ -116,7 +117,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Age -----------------------------------------------------------------
-  if (any(str_detect(my_concepts, "(^| )AGE( |$)"))) {
+  if (any(str_detect_upper(my_concepts, "(^| )AGE( |$)"))) {
     #table_meta <- filter(my_meta, str_detect(concept, "AGE"))
     table_meta <-
       table_meta %>% 
@@ -129,13 +130,13 @@ develop_meta <- function(table_meta, verbose = FALSE) {
                str_replace(".*!!(\\d+) years and over years.*",  "AgeGe\\1") %>% 
                str_replace(".*!!(\\d+) years.*",                 "Age\\1to\\1") %>% 
                str_replace("Estimate.+",                         "All"))
-    if (any(str_detect(my_concepts, "AGE OF GRANDPARENT"))) {
+    if (any(str_detect_upper(my_concepts, "AGE OF GRANDPARENT"))) {
       table_meta <- rename(table_meta, gpar_age = age)
     }
   }
   
   # Recode Youth Residence -----------------------------------------------------
-  if (any(str_detect(my_concepts, "POPULATION UNDER 18 YEARS"))) {
+  if (any(str_detect_upper(my_concepts, "POPULATION UNDER 18 YEARS"))) {
     #table_meta <- filter(my_meta, str_detect(name, "B09001"))
     table_meta <-
       table_meta %>% 
@@ -153,7 +154,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   # by-racial subset of the data. That provides a cue to develop race indicators
   # based on 
   
-  if (any(str_detect(table_meta$name, "\\D_"))) {
+  if (any(str_detect_upper(table_meta$name, "\\D_"))) {
     table_meta <- 
       table_meta %>% 
       mutate(raceeth = 
@@ -171,7 +172,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   
   # Another situation for recoding is when race is directly included as part
   # of the table
-  if (any(str_detect(my_concepts, " RACE"))) {
+  if (any(str_detect_upper(my_concepts, " RACE"))) {
     table_meta <- 
       table_meta %>% 
       mutate(race = 
@@ -188,7 +189,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Hispanic Identity ---------------------------------------------------
-  if (any(str_detect(my_concepts, "HISPANIC OR LATINO"))) { 
+  if (any(str_detect_upper(my_concepts, "HISPANIC OR LATINO"))) { 
     #table_meta <- filter(my_meta, str_detect(name, "B03002"))
     table_meta <- 
       table_meta %>% 
@@ -199,7 +200,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Income to Poverty Ratio ---------------------------------------------
-  if (any(str_detect(my_concepts, "RATIO OF INCOME TO POVERTY LEVEL"))) {
+  if (any(str_detect_upper(my_concepts, "RATIO OF INCOME TO POVERTY LEVEL"))) {
     #table_meta <- filter(my_meta, str_detect(name, "B17026"))
     table_meta <- 
       table_meta %>% 
@@ -213,7 +214,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Income to Poverty Status --------------------------------------------
-  if (any(str_detect(my_concepts, "POVERTY STATUS"))) {
+  if (any(str_detect_upper(my_concepts, "POVERTY STATUS"))) {
     #table_meta <- filter(my_meta, str_detect(name, "B17012"))
     table_meta <- 
       table_meta %>% 
@@ -223,8 +224,28 @@ develop_meta <- function(table_meta, verbose = FALSE) {
                replace_na("All"))
   }
   
+  # Recode quintiles --------------------------------------------
+  if (any(str_detect_upper(my_concepts, "QUINTILE"))) {
+    #table_meta <- filter(my_meta, str_detect(name, "B17012"))
+    table_meta <- 
+      table_meta %>% 
+      mutate(quintile =
+               case_when(str_detect(label, "Lowest Quintile") ~ "qn1",
+                         str_detect(label, "Second Quintile") ~ "qn2",
+                         str_detect(label, "Third Quintile")  ~ "qn3",
+                         str_detect(label, "Fourth Quintile") ~ "qn4",
+                         str_detect(label, "Highest Quintile") ~ "qn5",
+                         str_detect(label, "Top 5 Percent")   ~ "pctl95") %>% 
+               replace_na("All"),
+             quint_meas =
+               case_when(str_detect(concept, "Quintile Upper Limits")   ~ "income_upper_lim",
+                         str_detect(concept, "Mean.+Income of Quint")   ~ "mean_income",
+                         str_detect(concept, "Shares.+Income by Quint") ~ "share_agg_income") %>% 
+               replace_na("All"))
+  }
+  
   # Recode Presence of own children --------------------------------------------
-  if (any(str_detect(my_concepts, "PRESENCE OF OWN CHILDREN UNDER 18"))) {
+  if (any(str_detect_upper(my_concepts, "PRESENCE OF OWN CHILDREN UNDER 18"))) {
     #table_meta <- filter(my_meta, str_detect(name, "B23007"))
     table_meta <- 
       table_meta %>% 
@@ -235,7 +256,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Grandparent Presence ------------------------------------------------
-  if (any(str_detect(my_concepts, "GRANDPARENTS LIVING WITH OWN GRANDCHILDREN"))) {
+  if (any(str_detect_upper(my_concepts, "GRANDPARENTS LIVING WITH OWN GRANDCHILDREN"))) {
     #table_meta <- filter(my_meta, str_detect(name, "B10051"))
     table_meta <- 
       table_meta %>% 
@@ -243,7 +264,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
                case_when(str_detect(label, "Grandparent not responsible") ~ "GParNotResponsible",
                          str_detect(label, "Grandparent responsible")     ~ "GParIsResponsible" ) %>% 
                replace_na("All"))
-    if (any(str_detect(my_concepts, "BY PRESENCE OF PARENT"))) {
+    if (any(str_detect_upper(my_concepts, "BY PRESENCE OF PARENT"))) {
       table_meta <- 
         table_meta %>% 
         mutate(gp_parent = 
@@ -254,8 +275,8 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Labor Force, Employment Status, and Family Type ---------------------
-  if (any(str_detect(my_concepts, "FAMILY TYPE|EMPLOYMENT"))) { 
-    if (any(str_detect(my_concepts, "FAMILY TYPE BY EMPLOYMENT"))) {
+  if (any(str_detect_upper(my_concepts, "FAMILY TYPE|EMPLOYMENT"))) { 
+    if (any(str_detect_upper(my_concepts, "FAMILY TYPE BY EMPLOYMENT"))) {
       table_meta <- 
         table_meta %>% 
         mutate(
@@ -296,7 +317,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
                 case_when(str_detect(label, "Employed")   ~ "Empl",
                           str_detect(label, "Unemployed") ~ "Unempl")) %>% 
             replace_na("All"))
-    } else if (any(str_detect(my_concepts, "EMPLOYMENT STATUS"))) {  
+    } else if (any(str_detect_upper(my_concepts, "EMPLOYMENT STATUS"))) {  
       #table_meta <- filter(my_meta, str_detect(name, "B23001"))
       table_meta <- 
         table_meta %>% 
@@ -312,7 +333,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
                  case_when(str_detect(label, "Employed")   ~ "Empl",
                            str_detect(label, "Unemployed") ~ "Unempl") %>% 
                  replace_na("All"))
-    } else if (any(str_detect(my_concepts, "FAMILY TYPE"))) { 
+    } else if (any(str_detect_upper(my_concepts, "FAMILY TYPE"))) { 
       table_meta <- 
         table_meta %>% 
         mutate(family_type = 
@@ -325,7 +346,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   } 
   
   # Recode Education Attainment ------------------------------------------------
-  if (any(str_detect(my_concepts, "EDUCATIONAL ATTAINMENT"))) { 
+  if (any(str_detect_upper(my_concepts, "EDUCATIONAL ATTAINMENT"))) { 
     table_meta <- 
       table_meta %>% 
       mutate(ed_attain = 
@@ -341,7 +362,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Means of Transportation ---------------------------------------------
-  if (any(str_detect(my_concepts, "MEANS OF TRANSPORTATION TO WORK"))) {
+  if (any(str_detect_upper(my_concepts, "MEANS OF TRANSPORTATION TO WORK"))) {
     table_meta <-
       table_meta %>% 
       mutate(work_transp = 
@@ -369,7 +390,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Disability Status ---------------------------------------------------
-  if (any(str_detect(my_concepts, "DISABILITY STATUS"))) { 
+  if (any(str_detect_upper(my_concepts, "DISABILITY STATUS"))) { 
     table_meta <- 
       table_meta %>% 
       mutate(disab_status = 
@@ -379,7 +400,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Birth History -------------------------------------------------------
-  if (any(str_detect(my_concepts, "HAD A BIRTH IN THE PAST 12 MONTHS"))) { 
+  if (any(str_detect_upper(my_concepts, "HAD A BIRTH IN THE PAST 12 MONTHS"))) { 
     table_meta <- 
       table_meta %>% 
       mutate(birth_12mo = 
@@ -389,7 +410,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Marital Status -------------------------------------------------------
-  if (any(str_detect(my_concepts, "MARITAL STATUS"))) { 
+  if (any(str_detect_upper(my_concepts, "MARITAL STATUS"))) { 
     table_meta <- 
       table_meta %>% 
       mutate(marital_status = 
@@ -399,7 +420,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Language Spoken at Home ---------------------------------------------
-  if (any(str_detect(my_concepts, "LANGUAGE SPOKEN AT HOME"))) { 
+  if (any(str_detect_upper(my_concepts, "LANGUAGE SPOKEN AT HOME"))) { 
     table_meta <- 
       table_meta %>% 
       mutate(home_lang = 
@@ -412,7 +433,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Ability to Speak English --------------------------------------------
-  if (any(str_detect(my_concepts, "ABILITY TO SPEAK ENGLISH"))) { 
+  if (any(str_detect_upper(my_concepts, "ABILITY TO SPEAK ENGLISH"))) { 
     table_meta <- 
       table_meta %>% 
       mutate(english_ability = 
@@ -424,7 +445,7 @@ develop_meta <- function(table_meta, verbose = FALSE) {
   }
   
   # Recode Child Relationship to Householder -----------------------------------
-  if (any(str_detect(my_concepts, "RELATIONSHIP TO HOUSEHOLDER FOR CHILDREN"))) { 
+  if (any(str_detect_upper(my_concepts, "RELATIONSHIP TO HOUSEHOLDER FOR CHILDREN"))) { 
     table_meta <- 
       table_meta %>% 
       mutate(child_relate = 
