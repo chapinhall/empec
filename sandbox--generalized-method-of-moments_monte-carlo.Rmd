@@ -485,53 +485,57 @@ Am finding it uncertain how to use the `momentfit` package for estimation. My cu
 
 We can adapt our setup by using a squared sum of the output of our current moment-generating function, and updating the gradient.
 
+```{r function to implement estimation for a given problem}
+
+implement_gmm <- function(my_setup) {
+  theta0 <- with(my_setup$ix_gt,
+                 rep(0, n_distinct(g)*n_distinct(time)))
+  
+  moms <- function(theta0) {
+    collect_moments(theta = theta0,
+                    x = my_setup)
+  }
+  
+  grad <- function(theta0) {
+    collect_grad(theta = theta0,
+                 x = my_setup)
+  }
+  
+  # /!\ add weights for precision
+  obj <- function(theta0) {
+    m <- moms(theta0)
+    t(m) %*% m
+  }
+  
+  # m is q x 1
+  # d is q x k
+  # result is k x 1
+  obj_grad <- function(theta0) {
+    m <- moms(theta0)
+    d <- grad(theta0)
+    t(m) %*% d
+  }
+  
+  run_time <- 
+    system.time({
+      out <- 
+        optim(
+          par = theta0,
+          fn = obj,
+          gr = obj_grad,
+          method = "L-BFGS-B"
+        )
+    })
+  return(list(est = out,
+              run_time = run_time))
+}
+```
+
 ```{r}
-my_setup <- full_noerr
+out_full_noerr <- implement_gmm(full_noerr)
+out_full       <- implement_gmm(full_noerr)
 #my_setup <- full
 #my_setup <- toy
-
-theta0 <- with(my_setup$ix_gt,
-               rep(0, n_distinct(g)*n_distinct(time)))
-
-moms <- function(theta0) {
-  collect_moments(theta = theta0,
-                  x = my_setup)
-}
-
-grad <- function(theta0) {
-  collect_grad(theta = theta0,
-               x = my_setup)
-}
-
-# /!\ add weights for precision
-obj <- function(theta0) {
-  m <- moms(theta0)
-  t(m) %*% m
-}
-
-# m is q x 1
-# d is q x k
-# result is k x 1
-obj_grad <- function(theta0) {
-  m <- moms(theta0)
-  d <- grad(theta0)
-  t(m) %*% d
-}
-
-system.time({
-  out <- 
-    optim(
-      #par = my_setup$ix_gt$x_gt,
-      #par = rep(0, length(theta0)),
-      par = theta0,
-      #par = out$par,
-      fn = obj,
-      gr = obj_grad,
-      #method = "Nelder-Mead" # "Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN", "Brent"
-      method = "L-BFGS-B"
-      )
-})
-out
 ```
 
 
@@ -591,6 +595,7 @@ try(detach("package:sae", unload = TRUE))
 try(detach("package:emdi", unload = TRUE))
 try(detach("package:lme4", unload = TRUE))
 try(detach("package:MASS", unload = TRUE))
+try(detach("package:Hmisc", unload = TRUE))
 lPull_acs5 <- 
   lapply(c("B19080", "B19081", "B19082"), 
          pull_table,
@@ -616,16 +621,39 @@ acs5_quintiles <-
 
 
 ```{r}
-#| label: read and select ACS5 data
+#| label: combine ACS5 data
 
 acs5tract_gmm <- 
   acs5tract %>% 
-  select(GEOID, incpov_r0to100_est, incpov_r0to100_se)
+  select(GEOID, incpov_r0to100_est, incpov_r0to100_se) %>% 
+  merge(acs5_quintiles %>% select(matches("GEOID|upper")),
+        by = "GEOID")
 
 ```
 
 ```{r}
-#| label: read 
-#| 
+#| label: examine and cultivate CPS
+
+tabyl(cps_child_base$YEAR)
+  # This shows that we have 2019:2023, which is consistent with the new ACS data pulls (at least)
+
+cps_gmm <- 
+  cps_child_base[YEAR %in% 2019:2023] %>% 
+  rename(fam_incpov_ratio_base = fam_incpov_ratio) %>% 
+  merge(cps_post %>% 
+          rename(fam_incpov_ratio_post = fam_incpov_ratio) %>% 
+          select(-YEAR, -MONTH),
+        by = c("CPSID"))
+
+
+cps_gmm %>% 
+  split(cps_gmm$YEAR) %>% 
+  map(\(df) {
+    lm(incpov_le100_post_adj ~ fam_incpov_ratio_cat_by100 == "0%-100%", 
+     data = df)  
+  }) %>% 
+  map_dfr(\(reg) tidy(reg))
+  
+
 ```
 
