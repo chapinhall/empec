@@ -10,7 +10,7 @@ Mader, N., Kang, H.. (2025). Method for Estimates of Local Populations Eligible 
 
 # Methodology
 
-Click [this link](https://github.com/chapinhall/elpep/raw/refs/heads/main/ELPEP Methodology Summary.docx) to download a summary of ELPEP's methodology.
+Click [this link](https://github.com/chapinhall/elpep/raw/refs/heads/main/ELPEP%20Methodology%20Summary.docx) to download a summary of ELPEP's methodology.
 
 A full technical report, including fully typeset description of methods, but to run all data pulls, development, analysis methods, related methods showing results and diagnostics for a given run will be "rendered" when running the "run-elpep.Rmd" script after specifying run details using the `Interface for Specifying Custom ELPEP Eligibility Estimates.xlsm` interface. This process will simultaneous output files with table and map output.
 
