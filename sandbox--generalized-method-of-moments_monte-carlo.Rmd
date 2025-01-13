@@ -139,12 +139,12 @@ gen_true_data <-
   
   out <- 
     list(out = thetas_gt,
-         params = c("G" = G,
-                    "T" = A,
+         params = c("G"          = G,
+                    "T"          = A,
                     "extra_init" = extra_init,
-                    "beta" = beta,
-                    "sd_trans" = sd_trans,
-                    "seed" = seed))
+                    "beta"       = beta,
+                    "sd_trans"   = sd_trans,
+                    "seed"       = seed))
   
   return(out)
 }
@@ -152,7 +152,8 @@ gen_true_data <-
 
 ```{r small functions for forming moments}
 make_sumup <- function(dt) {
-  dt[j = .(x_Gt = sum(x_gt)),
+  dt[j = .(x_Gt = sum(x_gt),
+           se_sum = sqrt(sum(se_est^2))),
                 by = time]
 }
 
@@ -162,8 +163,9 @@ make_avgx <- function(dt, span_length) {
     thetas_avgx <- 
       bind_rows(thetas_avgx,
                 dt[time %in% (i - span_length + 1):i,
-                   .(time = i,
-                     x_gs = mean(x_gt)),
+                   .(time   = i,
+                     x_gs   = mean(x_gt),
+                     se_avg = sqrt(mean(se_est^2)/span_length)),
                    by = g])
   }
   thetas_avgx
@@ -173,9 +175,9 @@ make_avgx <- function(dt, span_length) {
 
 ```{r add error to draws of observed data}
 draw_obs_data <- 
-  function(se_est,          # Standard error of each theta given sample variation
-           span_length = 5, # Number of years that are averaged together
-           seed = NULL,     # Set a seed if desired
+  function(se_est      = 0,    # Standard error of each theta given sample variation
+           span_length = 5,    # Number of years that are averaged together
+           seed        = NULL, # Set a seed if desired
            ...) {
     
     if(!is.null(seed)) set.seed(seed)
@@ -188,7 +190,8 @@ draw_obs_data <-
     thetas_gt <- 
       thetas_gt_true %>% 
       mutate(x_gt = theta_gt + rnorm(n(), 
-                                     sd = se_est))
+                                     sd = se_est),
+             se_est = se_est)
     
     # Sum estimates to get year-level estimates
     thetas_sumup <- make_sumup(thetas_gt)
@@ -487,7 +490,7 @@ We can adapt our setup by using a squared sum of the output of our current momen
 
 ```{r function to implement estimation for a given problem}
 
-implement_gmm <- function(my_setup) {
+implement_gmm <- function(my_setup, use_weights = FALSE) {
   theta0 <- with(my_setup$ix_gt,
                  rep(0, n_distinct(g)*n_distinct(time)))
   
@@ -501,10 +504,22 @@ implement_gmm <- function(my_setup) {
                  x = my_setup)
   }
   
+  if (use_weights) {
+    mom_se <- 
+      c(my_setup$thetas_sumup$se_sum,
+        my_setup$thetas_avgx$se_avg,
+        rep(my_setup$params[["sd_trans"]], 
+            nrow(my_setup$ix_gt[time > min(time)])))
+    mom_wgt <- 1/(mom_se^2)
+    mom_wgt[is.nan(mom_wgt) | is.infinite(mom_wgt)] <- 1  
+  } else {
+    mom_wgt <- 1
+  }
+  
   # /!\ add weights for precision
   obj <- function(theta0) {
     m <- moms(theta0)
-    t(m) %*% m
+    (t(m)*mom_wgt) %*% m
   }
   
   # m is q x 1
@@ -526,27 +541,33 @@ implement_gmm <- function(my_setup) {
           method = "L-BFGS-B"
         )
     })
-  return(list(est = out,
+  return(list(input = my_setup,
+              est = out,
+              theta0 = theta0,
               run_time = run_time))
 }
 ```
 
-```{r}
+```{r run different specs}
+
+out_toy        <- implement_gmm(toy)
 out_full_noerr <- implement_gmm(full_noerr)
-out_full       <- implement_gmm(full_noerr)
-#my_setup <- full
-#my_setup <- toy
+out_full       <- implement_gmm(full)
+out_full_wgt   <- implement_gmm(full, use_weights = TRUE)
+
 ```
 
 
 ```{r check output}
-cbind(estimated_pars = out$par, my_setup$ix_gt)
+cbind(estimated_pars = out_full_noerr$est$par, 
+      full_noerr$ix_gt) %>% 
+  head()
 
 # Plot estimates against each other
-my_setup$ix_gt %>% 
+full_noerr$ix_gt %>% 
   select(-theta0) %>% 
-  mutate(est  = out$par,
-         init = theta0) %>% 
+  mutate(est  = out_full_noerr$est$par,
+         init = out_full_noerr$theta0) %>% 
   ggplot(aes(x = x_gt,
              y = est)) + 
   geom_point(alpha = 0.5) + 
@@ -564,6 +585,35 @@ my_setup$ix_gt %>%
 
 ```
 
+
+```{r compare estimates across runs}
+ggplot() +
+  aes(x =     out_full$est$par,
+      y = out_full_wgt$est$par) +
+  geom_point() + 
+  geom_abline() 
+
+cor(    out_full$est$par,
+    out_full_wgt$est$par)
+
+est_comp <- 
+  data.frame(true      = out_full$input$thetas_gt$theta_gt,
+             est_unwgt = out_full$est$par,
+             est_wgt   = out_full_wgt$est$par) %>% 
+  mutate(err_unwgt = est_unwgt - true,
+         err_wgt   = est_wgt   - true)
+
+ggplot(est_comp) +
+  aes(x = true) +
+  geom_point(aes(y = est_unwgt),
+             color = "darkgreen") +
+  geom_point(aes(y = est_wgt),
+             color = "orange") +
+  geom_abline()
+
+
+
+```
 
 
 # Examine Output
